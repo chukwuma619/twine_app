@@ -1,0 +1,42 @@
+import 'dart:convert';
+
+import 'package:dart_nostr/dart_nostr.dart';
+
+import 'channel.dart';
+
+/// Addressable announcement of a daemon's Fiber node. The `d` tag is [fiberNodeTag].
+const kindFiberNode = 31421;
+
+const fiberNodeTag = 'fiber-node';
+
+/// The Fiber node pubkey from a daemon announcement. Null when the event is
+/// not from [daemonPublicKey] or is not that announcement.
+String? openFiberNode({
+  required String daemonPublicKey,
+  required NostrEvent event,
+}) {
+  if (event.kind != kindFiberNode) return null;
+  if (!_tagged(event.tags, fiberNodeTag)) return null;
+  if (!signedBy(event, daemonPublicKey)) return null;
+  final content = event.content;
+  if (content == null) return null;
+
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(content);
+  } catch (_) {
+    return null;
+  }
+  if (decoded is! Map) return null;
+  final pubkey = decoded['pubkey'];
+  if (pubkey is! String || pubkey.trim().isEmpty) return null;
+  return pubkey.trim();
+}
+
+bool _tagged(List<List<String>>? tags, String identifier) {
+  if (tags == null) return false;
+  for (final tag in tags) {
+    if (tag.length >= 2 && tag[0] == 'd' && tag[1] == identifier) return true;
+  }
+  return false;
+}

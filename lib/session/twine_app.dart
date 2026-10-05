@@ -52,8 +52,10 @@ class _TwineAppState extends State<TwineApp> {
   String? _logoutError;
   String? _daemonError;
   List<String> _relays = const [];
+  String? _fiberNode;
   String? _relayError;
   bool _connecting = false;
+  StreamSubscription<String>? _fiberSub;
 
   @override
   void initState() {
@@ -69,11 +71,24 @@ class _TwineAppState extends State<TwineApp> {
     }
   }
 
+  @override
+  void dispose() {
+    _fiberSub?.cancel();
+    super.dispose();
+  }
+
   Future<void> _connect(List<String> relays) async {
+    _fiberSub?.cancel();
+    if (mounted) setState(() => _fiberNode = null);
     try {
       final open = await widget.nostr.connect(relays);
       if (!mounted) return;
       widget.nostr.watchReplies();
+      widget.nostr.watchFiberNode();
+      _fiberSub = widget.nostr.fiberNodes.listen((pubkey) {
+        if (!mounted) return;
+        setState(() => _fiberNode = pubkey);
+      });
       setState(() {
         _relays = open;
         _relayError = null;
@@ -198,6 +213,7 @@ class _TwineAppState extends State<TwineApp> {
       _editingDaemon = false;
       _busy = false;
       _relays = const [];
+      _fiberNode = null;
       _relayError = null;
       _connecting = widget.connectRelays;
     });
@@ -215,8 +231,10 @@ class _TwineAppState extends State<TwineApp> {
     if (!mounted) return;
     widget.nostr.account = null;
     widget.nostr.stopWatching();
+    _fiberSub?.cancel();
     setState(() {
       _account = null;
+      _fiberNode = null;
       _showBackup = false;
       _editingDaemon = false;
       _error = null;
@@ -267,6 +285,7 @@ class _TwineAppState extends State<TwineApp> {
         daemon: daemon,
         connecting: _connecting,
         connectedRelays: _relays,
+        fiberNode: _fiberNode,
         relayError: _relayError,
         onChangeDaemon: () => setState(() => _editingDaemon = true),
         onLogOut: _logOut,

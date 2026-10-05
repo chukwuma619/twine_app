@@ -5,6 +5,7 @@ import 'package:twine_app/nostr/account_store.dart';
 import 'package:twine_app/nostr/daemon.dart';
 import 'package:twine_app/nostr/daemon_store.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
+import 'package:twine_app/session/signed_in_page.dart';
 import 'package:twine_app/session/twine_app.dart';
 
 void main() {
@@ -190,5 +191,37 @@ void main() {
     expect(find.text('Your Nostr key is your account.'), findsOneWidget);
     expect(nostr.account, isNull);
     expect(daemons.daemon?.publicKey, daemon.publicKey);
+  });
+
+  testWidgets('the signed-in screen shows the fiber node to open', (
+    tester,
+  ) async {
+    final nostr = TwineNostr();
+    final account = TwineAccount.generate(nostr.nostr);
+    final daemonKey = TwineAccount.generate(nostr.nostr);
+    final daemon = TwineDaemon.tryParse(
+      nostr.nostr,
+      pubkey: daemonKey.npub,
+      relays: 'wss://relay.example.com',
+    )!;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SignedInPage(
+          account: account,
+          daemon: daemon,
+          fiberNode: '02abc',
+          onChangeDaemon: () {},
+          onLogOut: () {},
+        ),
+      ),
+    );
+
+    expect(find.text('Fiber node'), findsOneWidget);
+    expect(find.text('02abc'), findsOneWidget);
+    expect(
+      find.text('Open a channel to this node in your Fiber wallet.'),
+      findsOneWidget,
+    );
   });
 }

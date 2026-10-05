@@ -5,6 +5,7 @@ import 'package:dart_nostr/dart_nostr.dart';
 import 'account.dart';
 import 'channel.dart';
 import 'daemon.dart';
+import 'fiber_node.dart';
 
 class TwineRelayException implements Exception {
   TwineRelayException(this.message);
@@ -42,9 +43,15 @@ class TwineNostr {
   final _replies = StreamController<TwineEnvelope>.broadcast();
   StreamSubscription<NostrEvent>? _replySub;
   NostrEventsStream? _replyStream;
+  final _fiberNodes = StreamController<String>.broadcast();
+  StreamSubscription<NostrEvent>? _fiberSub;
+  NostrEventsStream? _fiberStream;
 
   /// Replies from [daemon], decrypted and checked against that daemon's key.
   Stream<TwineEnvelope> get replies => _replies.stream;
+
+  /// Fiber node pubkeys announced by [daemon].
+  Stream<String> get fiberNodes => _fiberNodes.stream;
 
   /// Encrypts [envelope] to the chosen daemon and signs it with [account].
   NostrEvent seal(TwineEnvelope envelope) {
@@ -110,11 +117,49 @@ class TwineNostr {
     }, onError: (_) {});
   }
 
+  /// Subscribes to this daemon's Fiber node announcement.
+  void watchFiberNode() {
+    _stopFiber();
+    final target = daemon;
+    if (target == null) {
+      throw StateError('choose a daemon first');
+    }
+    final result = nostr.subscribe(
+      NostrFilter(
+        kinds: const [kindFiberNode],
+        authors: [target.publicKey],
+        additionalFilters: const {
+          '#d': [fiberNodeTag],
+        },
+      ),
+    );
+    if (result.isFailure) {
+      throw TwineRelayException(result.failureOrNull!.message);
+    }
+    final events = result.valueOrNull!;
+    _fiberStream = events;
+    _fiberSub = events.stream.listen((event) {
+      final pubkey = openFiberNode(
+        daemonPublicKey: target.publicKey,
+        event: event,
+      );
+      if (pubkey != null && !_fiberNodes.isClosed) _fiberNodes.add(pubkey);
+    }, onError: (_) {});
+  }
+
   void stopWatching() {
     _replySub?.cancel();
     _replySub = null;
     _replyStream?.close();
     _replyStream = null;
+    _stopFiber();
+  }
+
+  void _stopFiber() {
+    _fiberSub?.cancel();
+    _fiberSub = null;
+    _fiberStream?.close();
+    _fiberStream = null;
   }
 
   /// Opens [relays] and returns the ones whose sockets connected.

@@ -11,6 +11,7 @@ class SignedInPage extends StatelessWidget {
     required this.onChangeDaemon,
     this.connecting = false,
     this.connectedRelays = const [],
+    this.fiberNode,
     this.relayError,
     this.error,
   });
@@ -21,6 +22,7 @@ class SignedInPage extends StatelessWidget {
   final VoidCallback onChangeDaemon;
   final bool connecting;
   final List<String> connectedRelays;
+  final String? fiberNode;
   final String? relayError;
   final String? error;
 
@@ -65,6 +67,19 @@ class SignedInPage extends StatelessWidget {
                   color: theme.colorScheme.error,
                 ),
               ),
+            ],
+            if (fiberNode != null) ...[
+              const SizedBox(height: 24),
+              Text('Fiber node', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              SelectableText(fiberNode!),
+              const SizedBox(height: 8),
+              const Text('Open a channel to this node in your Fiber wallet.'),
+            ] else if (!connecting &&
+                relayError == null &&
+                connectedRelays.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const Text('Waiting for the Fiber node…'),
             ],
             const SizedBox(height: 24),
             OutlinedButton(
