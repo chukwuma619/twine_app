@@ -1,3 +1,6 @@
+/// A daemon somebody else is running. The app stores its public key and relays.
+library;
+
 import 'package:dart_nostr/dart_nostr.dart';
 
 /// A daemon somebody else is running. The app only stores its public key and relays.

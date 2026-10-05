@@ -1,49 +1,13 @@
-import 'dart:convert';
+/// Seals a kind-4242 action to the daemon and opens a reply.
+library;
 
 import 'package:dart_nostr/dart_nostr.dart';
 
+import '../constant.dart';
 import 'account.dart';
+import 'envelope.dart';
 import 'nip44.dart';
-
-/// Kind of an encrypted action or reply. The `p` tag is the recipient.
-const kindAction = 4242;
-
-/// JSON envelope the daemon already parses: `{ action, trade_id?, payload? }`.
-class TwineEnvelope {
-  const TwineEnvelope({required this.action, this.tradeId, this.payload});
-
-  final String action;
-  final String? tradeId;
-  final Object? payload;
-
-  String encode() {
-    final body = <String, Object>{'action': action};
-    final trade = tradeId;
-    if (trade != null) body['trade_id'] = trade;
-    final extra = payload;
-    if (extra != null) body['payload'] = extra;
-    return jsonEncode(body);
-  }
-
-  static TwineEnvelope? tryDecode(String json) {
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(json);
-    } catch (_) {
-      return null;
-    }
-    if (decoded is! Map) return null;
-    final action = decoded['action'];
-    if (action is! String || action.isEmpty) return null;
-    final tradeId = decoded['trade_id'];
-    if (tradeId != null && tradeId is! String) return null;
-    return TwineEnvelope(
-      action: action,
-      tradeId: tradeId as String?,
-      payload: decoded['payload'],
-    );
-  }
-}
+import 'verify.dart';
 
 /// Signs a kind-4242 event encrypted to [recipientPublicKey].
 NostrEvent sealAction({
@@ -100,26 +64,6 @@ TwineEnvelope? openReply({
     return null;
   }
   return TwineEnvelope.tryDecode(plaintext);
-}
-
-/// True when [event] was signed by [publicKey] and its id matches the body.
-bool signedBy(NostrEvent event, String publicKey) {
-  final kind = event.kind;
-  final content = event.content;
-  final id = event.id;
-  final createdAt = event.createdAt;
-  if (kind == null || content == null || id == null || createdAt == null) {
-    return false;
-  }
-  if (event.pubkey.toLowerCase() != publicKey.toLowerCase()) return false;
-  final expectedId = NostrEvent.getEventId(
-    kind: kind,
-    content: content,
-    createdAt: createdAt,
-    tags: event.tags ?? const [],
-    pubkey: event.pubkey,
-  );
-  return expectedId == id && event.isVerified();
 }
 
 bool _addressedTo(List<List<String>>? tags, String publicKey) {

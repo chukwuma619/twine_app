@@ -1,5 +1,6 @@
 import 'package:dart_nostr/dart_nostr.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:twine_app/constant.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/fiber_node.dart';
 

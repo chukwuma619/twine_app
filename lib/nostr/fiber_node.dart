@@ -1,13 +1,12 @@
+/// The Fiber node pubkey a daemon announces.
+library;
+
 import 'dart:convert';
 
 import 'package:dart_nostr/dart_nostr.dart';
 
-import 'channel.dart';
-
-/// Addressable announcement of a daemon's Fiber node. The `d` tag is [fiberNodeTag].
-const kindFiberNode = 31421;
-
-const fiberNodeTag = 'fiber-node';
+import '../constant.dart';
+import 'verify.dart';
 
 /// The Fiber node pubkey from a daemon announcement. Null when the event is
 /// not from [daemonPublicKey] or is not that announcement.

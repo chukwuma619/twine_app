@@ -1,8 +1,11 @@
+/// The secret kept on this device.
+library;
+
 import 'package:dart_nostr/dart_nostr.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'account.dart';
+import '../nostr/account.dart';
+import 'secure_storage.dart';
 
 abstract class AccountStore {
   Future<TwineAccount?> read();
@@ -60,13 +63,4 @@ class SecureAccountStore implements AccountStore {
   Future<void> clear() {
     return _storage.delete(key: _secretKey);
   }
-}
-
-FlutterSecureStorage twineSecureStorage() {
-  if (defaultTargetPlatform == TargetPlatform.macOS) {
-    return const FlutterSecureStorage(
-      mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-    );
-  }
-  return const FlutterSecureStorage();
 }

@@ -1,3 +1,6 @@
+/// The Nostr key that signs actions.
+library;
+
 import 'package:dart_nostr/dart_nostr.dart';
 
 /// The Nostr key that signs actions. The daemon treats [publicKey] as the account.

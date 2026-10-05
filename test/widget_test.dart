@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:twine_app/nostr/account.dart';
-import 'package:twine_app/nostr/account_store.dart';
 import 'package:twine_app/nostr/daemon.dart';
-import 'package:twine_app/nostr/daemon_store.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
+import 'package:twine_app/store/account_store.dart';
+import 'package:twine_app/store/daemon_store.dart';
 import 'package:twine_app/session/signed_in_page.dart';
 import 'package:twine_app/session/twine_app.dart';
 

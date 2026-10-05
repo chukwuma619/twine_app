@@ -1,15 +1,17 @@
-import 'dart:convert';
-import 'dart:math';
-import 'dart:typed_data';
-
-import 'package:pointycastle/export.dart';
-
 /// NIP-44 version 2, matching nostr 0.45 (the daemon).
 ///
 /// The conversation key is HKDF-extract over the x coordinate of
 /// `secret * even-Y(recipient)`. Message keys are 76 bytes of HKDF-expand.
 /// The payload is version `2`, a 32-byte nonce, ChaCha20 ciphertext, and
 /// HMAC-SHA256, then standard base64.
+library;
+
+import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:pointycastle/export.dart';
+
 class Nip44Exception implements Exception {
   Nip44Exception(this.message);
 

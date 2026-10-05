@@ -1,10 +1,13 @@
+/// The daemon this install is pointed at, kept on this device.
+library;
+
 import 'dart:convert';
 
 import 'package:dart_nostr/dart_nostr.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-import 'account_store.dart';
-import 'daemon.dart';
+import '../nostr/daemon.dart';
+import 'secure_storage.dart';
 
 abstract class DaemonStore {
   Future<TwineDaemon?> read();

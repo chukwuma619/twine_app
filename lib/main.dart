@@ -1,8 +1,11 @@
+/// Reads the saved account and daemon, then starts the app.
+library;
+
 import 'package:flutter/material.dart';
-import 'package:twine_app/nostr/account_store.dart';
-import 'package:twine_app/nostr/daemon_store.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/session/twine_app.dart';
+import 'package:twine_app/store/account_store.dart';
+import 'package:twine_app/store/daemon_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

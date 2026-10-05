@@ -1,10 +1,15 @@
+/// Relay client. Relays come from the daemon the user picked.
+library;
+
 import 'dart:async';
 
 import 'package:dart_nostr/dart_nostr.dart';
 
+import '../constant.dart';
 import 'account.dart';
-import 'channel.dart';
+import 'action.dart';
 import 'daemon.dart';
+import 'envelope.dart';
 import 'fiber_node.dart';
 
 class TwineRelayException implements Exception {
@@ -16,7 +21,6 @@ class TwineRelayException implements Exception {
   String toString() => message;
 }
 
-/// Nostr client for the app. Relays come from the daemon the user picked.
 class TwineNostr {
   TwineNostr({Nostr? nostr})
     : nostr =

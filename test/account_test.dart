@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:twine_app/nostr/account.dart';
-import 'package:twine_app/nostr/account_store.dart';
+import 'package:twine_app/store/account_store.dart';
 
 void main() {
   final nostr = Nostr();
