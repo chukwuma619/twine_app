@@ -73,6 +73,7 @@ class _TwineAppState extends State<TwineApp> {
     try {
       final open = await widget.nostr.connect(relays);
       if (!mounted) return;
+      widget.nostr.watchReplies();
       setState(() {
         _relays = open;
         _relayError = null;
@@ -142,11 +143,16 @@ class _TwineAppState extends State<TwineApp> {
     }
     if (!mounted) return;
     widget.nostr.account = account;
+    final daemon = _daemon;
     setState(() {
       _account = account;
       _showBackup = false;
       _busy = false;
+      _connecting = widget.connectRelays && daemon != null;
     });
+    if (widget.connectRelays && daemon != null) {
+      unawaited(_connect(daemon.relays));
+    }
   }
 
   Future<void> _saveDaemon(String pubkey, String relays) async {
@@ -208,6 +214,7 @@ class _TwineAppState extends State<TwineApp> {
     }
     if (!mounted) return;
     widget.nostr.account = null;
+    widget.nostr.stopWatching();
     setState(() {
       _account = null;
       _showBackup = false;
@@ -232,7 +239,14 @@ class _TwineAppState extends State<TwineApp> {
     } else if (_showBackup) {
       home = BackupPage(
         nsec: account.nsec,
-        onContinue: () => setState(() => _showBackup = false),
+        onContinue: () {
+          setState(() => _showBackup = false);
+          final daemon = _daemon;
+          if (widget.connectRelays && daemon != null) {
+            setState(() => _connecting = true);
+            unawaited(_connect(daemon.relays));
+          }
+        },
       );
     } else if (daemon == null || _editingDaemon) {
       home = DaemonPage(
