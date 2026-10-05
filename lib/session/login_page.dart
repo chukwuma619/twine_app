@@ -7,14 +7,12 @@ class LoginPage extends StatefulWidget {
     required this.onImport,
     required this.busy,
     this.error,
-    this.relayStatus,
   });
 
   final VoidCallback onCreate;
   final ValueChanged<String> onImport;
   final bool busy;
   final String? error;
-  final Widget? relayStatus;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -79,10 +77,6 @@ class _LoginPageState extends State<LoginPage> {
                         : () => widget.onImport(_secret.text),
                     child: const Text('Import'),
                   ),
-                  if (widget.relayStatus != null) ...[
-                    const SizedBox(height: 24),
-                    widget.relayStatus!,
-                  ],
                 ],
               ),
             ),
@@ -94,16 +88,10 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 class BackupPage extends StatelessWidget {
-  const BackupPage({
-    super.key,
-    required this.nsec,
-    required this.onContinue,
-    this.relayStatus,
-  });
+  const BackupPage({super.key, required this.nsec, required this.onContinue});
 
   final String nsec;
   final VoidCallback onContinue;
-  final Widget? relayStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -130,10 +118,6 @@ class BackupPage extends StatelessWidget {
                     onPressed: onContinue,
                     child: const Text('Continue'),
                   ),
-                  if (relayStatus != null) ...[
-                    const SizedBox(height: 24),
-                    relayStatus!,
-                  ],
                 ],
               ),
             ),

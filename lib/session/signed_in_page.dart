@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/account.dart';
+import 'package:twine_app/nostr/daemon.dart';
 
 class SignedInPage extends StatelessWidget {
   const SignedInPage({
     super.key,
     required this.account,
+    required this.daemon,
     required this.onLogOut,
-    this.relayStatus,
+    required this.onChangeDaemon,
+    this.connecting = false,
+    this.connectedRelays = const [],
+    this.relayError,
     this.error,
   });
 
   final TwineAccount account;
+  final TwineDaemon daemon;
   final VoidCallback onLogOut;
-  final Widget? relayStatus;
+  final VoidCallback onChangeDaemon;
+  final bool connecting;
+  final List<String> connectedRelays;
+  final String? relayError;
   final String? error;
 
   @override
@@ -28,8 +37,41 @@ class SignedInPage extends StatelessWidget {
             const SizedBox(height: 8),
             SelectableText(account.npub),
             const SizedBox(height: 24),
-            ?relayStatus,
+            Text('Daemon', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            SelectableText(daemon.npub),
+            const SizedBox(height: 16),
+            Text('Relays', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final relay in daemon.relays) Text(relay),
+            if (!connecting &&
+                relayError == null &&
+                connectedRelays.isNotEmpty &&
+                connectedRelays.length != daemon.relays.length) ...[
+              const SizedBox(height: 8),
+              Text('Connected', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              for (final relay in connectedRelays) Text(relay),
+            ],
+            if (connecting) ...[
+              const SizedBox(height: 8),
+              const Text('Connecting to relays…'),
+            ],
+            if (relayError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                relayError!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
+            OutlinedButton(
+              onPressed: onChangeDaemon,
+              child: const Text('Change daemon'),
+            ),
+            const SizedBox(height: 12),
             OutlinedButton(
               onPressed: () => _showSecret(context),
               child: const Text('Show secret'),

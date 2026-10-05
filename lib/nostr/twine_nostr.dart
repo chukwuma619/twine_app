@@ -1,7 +1,7 @@
 import 'package:dart_nostr/dart_nostr.dart';
 
 import 'account.dart';
-import 'relays.dart';
+import 'daemon.dart';
 
 class TwineRelayException implements Exception {
   TwineRelayException(this.message);
@@ -12,7 +12,7 @@ class TwineRelayException implements Exception {
   String toString() => message;
 }
 
-/// Nostr client for the app. Connects to [twineRelays].
+/// Nostr client for the app. Relays come from the daemon the user picked.
 class TwineNostr {
   TwineNostr({Nostr? nostr})
     : nostr =
@@ -33,9 +33,13 @@ class TwineNostr {
   /// Key that signs actions. Null until the user creates or imports one.
   TwineAccount? account;
 
+  /// Daemon this install is pointed at. Null until the user chooses one.
+  TwineDaemon? daemon;
+
   /// Opens [relays] and returns the ones whose sockets connected.
   /// Throws [TwineRelayException] when none do.
-  Future<List<String>> connect({List<String> relays = twineRelays}) async {
+  Future<List<String>> connect(List<String> relays) async {
+    await nostr.disconnect();
     final result = await nostr.connect(relays);
     if (result.isFailure) {
       throw TwineRelayException(result.failureOrNull!.message);

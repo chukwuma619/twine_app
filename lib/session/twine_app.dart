@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/account_store.dart';
+import 'package:twine_app/nostr/daemon.dart';
+import 'package:twine_app/nostr/daemon_store.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
+import 'package:twine_app/session/daemon_page.dart';
 import 'package:twine_app/session/login_page.dart';
-import 'package:twine_app/session/relay_status.dart';
 import 'package:twine_app/session/signed_in_page.dart';
 
 class TwineApp extends StatefulWidget {
@@ -13,13 +15,17 @@ class TwineApp extends StatefulWidget {
     super.key,
     required this.nostr,
     required this.store,
+    required this.daemonStore,
     this.initialAccount,
+    this.initialDaemon,
     this.connectRelays = false,
   });
 
   final TwineNostr nostr;
   final AccountStore store;
+  final DaemonStore daemonStore;
   final TwineAccount? initialAccount;
+  final TwineDaemon? initialDaemon;
   final bool connectRelays;
 
   @override
@@ -31,12 +37,20 @@ class _TwineAppState extends State<TwineApp> {
   static const _publicKeyPasted = 'That is the public key. Paste the nsec.';
   static const _saveFailed = 'Could not save the key on this device.';
   static const _removeFailed = 'Could not remove the key from this device.';
+  static const _daemonSecret =
+      "That is a secret key. Paste the daemon's public key.";
+  static const _daemonPubkey = "Enter the daemon's npub or public key.";
+  static const _daemonRelays = 'Enter at least one relay starting with wss://.';
+  static const _daemonSaveFailed = 'Could not save this daemon on the device.';
 
   TwineAccount? _account;
+  TwineDaemon? _daemon;
   bool _showBackup = false;
+  bool _editingDaemon = false;
   bool _busy = false;
   String? _error;
   String? _logoutError;
+  String? _daemonError;
   List<String> _relays = const [];
   String? _relayError;
   bool _connecting = false;
@@ -45,16 +59,19 @@ class _TwineAppState extends State<TwineApp> {
   void initState() {
     super.initState();
     _account = widget.initialAccount;
+    _daemon = widget.initialDaemon;
     widget.nostr.account = _account;
-    if (widget.connectRelays) {
+    widget.nostr.daemon = _daemon;
+    final daemon = _daemon;
+    if (widget.connectRelays && _account != null && daemon != null) {
       _connecting = true;
-      unawaited(_connect());
+      unawaited(_connect(daemon.relays));
     }
   }
 
-  Future<void> _connect() async {
+  Future<void> _connect(List<String> relays) async {
     try {
-      final open = await widget.nostr.connect();
+      final open = await widget.nostr.connect(relays);
       if (!mounted) return;
       setState(() {
         _relays = open;
@@ -132,6 +149,55 @@ class _TwineAppState extends State<TwineApp> {
     });
   }
 
+  Future<void> _saveDaemon(String pubkey, String relays) async {
+    if (_busy) return;
+    final trimmed = pubkey.trim().toLowerCase();
+    if (trimmed.startsWith('nsec1')) {
+      setState(() => _daemonError = _daemonSecret);
+      return;
+    }
+    final parsedKey = TwineDaemon.parsePublicKey(widget.nostr.nostr, pubkey);
+    if (parsedKey == null) {
+      setState(() => _daemonError = _daemonPubkey);
+      return;
+    }
+    final parsedRelays = TwineDaemon.parseRelays(relays);
+    if (parsedRelays == null) {
+      setState(() => _daemonError = _daemonRelays);
+      return;
+    }
+    final daemon = TwineDaemon(
+      publicKey: parsedKey,
+      npub: widget.nostr.nostr.bech32.encodePublicKeyToNpub(parsedKey),
+      relays: parsedRelays,
+    );
+    setState(() {
+      _busy = true;
+      _daemonError = null;
+    });
+    try {
+      await widget.daemonStore.write(daemon);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _daemonError = _daemonSaveFailed;
+      });
+      return;
+    }
+    if (!mounted) return;
+    widget.nostr.daemon = daemon;
+    setState(() {
+      _daemon = daemon;
+      _editingDaemon = false;
+      _busy = false;
+      _relays = const [];
+      _relayError = null;
+      _connecting = widget.connectRelays;
+    });
+    if (widget.connectRelays) unawaited(_connect(daemon.relays));
+  }
+
   Future<void> _logOut() async {
     try {
       await widget.store.clear();
@@ -145,6 +211,7 @@ class _TwineAppState extends State<TwineApp> {
     setState(() {
       _account = null;
       _showBackup = false;
+      _editingDaemon = false;
       _error = null;
       _logoutError = null;
     });
@@ -152,12 +219,8 @@ class _TwineAppState extends State<TwineApp> {
 
   @override
   Widget build(BuildContext context) {
-    final status = RelayStatus(
-      connecting: _connecting,
-      relays: _relays,
-      error: _relayError,
-    );
     final account = _account;
+    final daemon = _daemon;
     final Widget home;
     if (account == null) {
       home = LoginPage(
@@ -165,19 +228,34 @@ class _TwineAppState extends State<TwineApp> {
         onImport: _import,
         busy: _busy,
         error: _error,
-        relayStatus: status,
       );
     } else if (_showBackup) {
       home = BackupPage(
         nsec: account.nsec,
         onContinue: () => setState(() => _showBackup = false),
-        relayStatus: status,
+      );
+    } else if (daemon == null || _editingDaemon) {
+      home = DaemonPage(
+        current: _editingDaemon ? daemon : null,
+        busy: _busy,
+        error: _daemonError,
+        onSave: _saveDaemon,
+        onCancel: _editingDaemon && daemon != null
+            ? () => setState(() {
+                _editingDaemon = false;
+                _daemonError = null;
+              })
+            : null,
       );
     } else {
       home = SignedInPage(
         account: account,
+        daemon: daemon,
+        connecting: _connecting,
+        connectedRelays: _relays,
+        relayError: _relayError,
+        onChangeDaemon: () => setState(() => _editingDaemon = true),
         onLogOut: _logOut,
-        relayStatus: status,
         error: _logoutError,
       );
     }
