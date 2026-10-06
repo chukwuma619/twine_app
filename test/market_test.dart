@@ -47,14 +47,14 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: MarketPage(market: market, onAccount: () {}),
+        home: MarketPage(market: market, account: const SizedBox.shrink()),
       ),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sell'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sell · 10 CKB'), findsNWidgets(2));
+    expect(find.text('10 CKB'), findsNWidgets(2));
     expect(find.text('Take'), findsOneWidget);
     expect(find.text('Cancel post'), findsOneWidget);
     expect(find.text('Yours'), findsOneWidget);
@@ -63,6 +63,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Fiat amount'), findsOneWidget);
     expect(find.text('GTBank · bank'), findsOneWidget);
+  });
+
+  testWidgets('a sell just posted shows under sell', (tester) async {
+    final market = _market(pubkey: 'taker');
+    market.pending.add(_order(id: 'local-1', maker: 'taker'));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MarketPage(market: market, account: const SizedBox.shrink()),
+      ),
+    );
+
+    expect(find.text('10 CKB'), findsNothing);
+    await tester.tap(find.text('Sell'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('10 CKB'), findsOneWidget);
+    expect(find.text('Yours'), findsOneWidget);
+    expect(find.text('Cancel post'), findsNothing);
   });
 
   testWidgets('buy lists buy posts and sell lists sell posts', (tester) async {
@@ -76,18 +95,16 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: MarketPage(market: market, onAccount: () {}),
+        home: MarketPage(market: market, account: const SizedBox.shrink()),
       ),
     );
 
-    expect(find.text('Buy · 10 CKB'), findsOneWidget);
-    expect(find.text('Sell · 10 CKB'), findsNothing);
+    expect(find.text('10 CKB'), findsOneWidget);
 
     await tester.tap(find.text('Sell'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sell · 10 CKB'), findsOneWidget);
-    expect(find.text('Buy · 10 CKB'), findsNothing);
+    expect(find.text('10 CKB'), findsOneWidget);
 
     await tester.tap(find.text('Trade'));
     await tester.pumpAndSettle();
@@ -109,7 +126,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: MarketPage(market: market, onAccount: () {}),
+        home: MarketPage(market: market, account: const SizedBox.shrink()),
       ),
     );
     await tester.tap(find.text('Sell'));

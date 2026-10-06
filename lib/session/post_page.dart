@@ -244,7 +244,7 @@ class _PostPageState extends State<PostPage> {
     );
     if (!mounted) return;
     if (error == null) {
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(_side);
       return;
     }
     setState(() {

@@ -13,6 +13,7 @@ class SignedInPage extends StatelessWidget {
     required this.onLogOut,
     required this.onChangeDaemon,
     this.onClose,
+    this.inShell = false,
     this.connecting = false,
     this.connectedRelays = const [],
     this.fiberNode,
@@ -25,6 +26,7 @@ class SignedInPage extends StatelessWidget {
   final VoidCallback onLogOut;
   final VoidCallback onChangeDaemon;
   final VoidCallback? onClose;
+  final bool inShell;
   final bool connecting;
   final List<String> connectedRelays;
   final String? fiberNode;
@@ -34,88 +36,90 @@ class SignedInPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final body = SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Text('Signed in', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SelectableText(account.npub),
+          const SizedBox(height: 24),
+          Text('Daemon', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          SelectableText(daemon.npub),
+          const SizedBox(height: 16),
+          Text('Relays', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          for (final relay in daemon.relays) Text(relay),
+          if (!connecting &&
+              relayError == null &&
+              connectedRelays.isNotEmpty &&
+              connectedRelays.length != daemon.relays.length) ...[
+            const SizedBox(height: 8),
+            Text('Connected', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final relay in connectedRelays) Text(relay),
+          ],
+          if (connecting) ...[
+            const SizedBox(height: 8),
+            const Text('Connecting to relays…'),
+          ],
+          if (relayError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              relayError!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          if (fiberNode != null) ...[
+            const SizedBox(height: 24),
+            Text('Fiber node', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            SelectableText(fiberNode!),
+            const SizedBox(height: 8),
+            const Text('Open a channel to this node in your Fiber wallet.'),
+          ] else if (!connecting &&
+              relayError == null &&
+              connectedRelays.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            const Text('Waiting for the Fiber node…'),
+          ],
+          const SizedBox(height: 24),
+          OutlinedButton(
+            onPressed: onChangeDaemon,
+            child: const Text('Change daemon'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () => _showSecret(context),
+            child: const Text('Show secret'),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => _confirmLogOut(context),
+            child: const Text('Log out'),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              error!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+    if (inShell) return body;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Twine'),
         leading: onClose == null ? null : BackButton(onPressed: onClose),
       ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Text('Signed in', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            SelectableText(account.npub),
-            const SizedBox(height: 24),
-            Text('Daemon', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            SelectableText(daemon.npub),
-            const SizedBox(height: 16),
-            Text('Relays', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            for (final relay in daemon.relays) Text(relay),
-            if (!connecting &&
-                relayError == null &&
-                connectedRelays.isNotEmpty &&
-                connectedRelays.length != daemon.relays.length) ...[
-              const SizedBox(height: 8),
-              Text('Connected', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              for (final relay in connectedRelays) Text(relay),
-            ],
-            if (connecting) ...[
-              const SizedBox(height: 8),
-              const Text('Connecting to relays…'),
-            ],
-            if (relayError != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                relayError!,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            ],
-            if (fiberNode != null) ...[
-              const SizedBox(height: 24),
-              Text('Fiber node', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              SelectableText(fiberNode!),
-              const SizedBox(height: 8),
-              const Text('Open a channel to this node in your Fiber wallet.'),
-            ] else if (!connecting &&
-                relayError == null &&
-                connectedRelays.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              const Text('Waiting for the Fiber node…'),
-            ],
-            const SizedBox(height: 24),
-            OutlinedButton(
-              onPressed: onChangeDaemon,
-              child: const Text('Change daemon'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => _showSecret(context),
-              child: const Text('Show secret'),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => _confirmLogOut(context),
-              child: const Text('Log out'),
-            ),
-            if (error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                error!,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+      body: body,
     );
   }
 

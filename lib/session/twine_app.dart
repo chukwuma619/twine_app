@@ -1,7 +1,6 @@
 /// Chooses the screen from the session.
 library;
 
-import 'package:cupertino_native_better/cupertino_native_better.dart';
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
@@ -70,9 +69,12 @@ class _TwineAppState extends State<TwineApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Twine',
-      navigatorObservers: [CNTabBarRouteObserver()],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+        inputDecorationTheme: const InputDecorationTheme(
+          border: OutlineInputBorder(),
+        ),
       ),
       home: ListenableBuilder(
         listenable: _session,
@@ -109,20 +111,6 @@ class _TwineAppState extends State<TwineApp> {
             : null,
       );
     }
-    if (session.viewingAccount) {
-      return SignedInPage(
-        account: account,
-        daemon: daemon,
-        connecting: session.connecting,
-        connectedRelays: session.relays,
-        fiberNode: session.fiberNode,
-        relayError: session.relayError,
-        onChangeDaemon: session.editDaemon,
-        onLogOut: session.logOut,
-        onClose: session.closeAccount,
-        error: session.logoutError,
-      );
-    }
     final market = session.market;
     if (market == null) {
       return const Scaffold(body: Center(child: Text('Opening the book…')));
@@ -133,7 +121,18 @@ class _TwineAppState extends State<TwineApp> {
       connecting: session.connecting,
       linked: session.relays.isNotEmpty,
       relayError: session.relayError,
-      onAccount: session.openAccount,
+      account: SignedInPage(
+        inShell: true,
+        account: account,
+        daemon: daemon,
+        connecting: session.connecting,
+        connectedRelays: session.relays,
+        fiberNode: session.fiberNode,
+        relayError: session.relayError,
+        onChangeDaemon: session.editDaemon,
+        onLogOut: session.logOut,
+        error: session.logoutError,
+      ),
     );
   }
 }

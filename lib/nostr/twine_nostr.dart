@@ -53,12 +53,15 @@ class TwineNostr {
   final _orders = StreamController<TwineOrder>.broadcast();
   StreamSubscription<NostrEvent>? _orderSub;
   NostrEventsStream? _orderStream;
+  NostrEventsStream? _orderReplay;
   final _fiberNodes = StreamController<String>.broadcast();
   StreamSubscription<NostrEvent>? _fiberSub;
   NostrEventsStream? _fiberStream;
   final _catalogs = StreamController<OpenedCatalog>.broadcast();
   StreamSubscription<NostrEvent>? _catalogSub;
   NostrEventsStream? _catalogStream;
+  Timer? _relayWatch;
+  String _openSockets = '';
 
   /// Replies from [daemon], decrypted and checked against that daemon's key.
   Stream<DaemonReplyEvent> get replies => _replies.stream;
@@ -108,7 +111,10 @@ class TwineNostr {
 
   /// Subscribes to kind-4242 events tagged to this account and authored by the daemon.
   void watchReplies() {
-    stopWatching();
+    _replySub?.cancel();
+    _replySub = null;
+    _replyStream?.close();
+    _replyStream = null;
     final signer = account;
     final target = daemon;
     if (signer == null || target == null) {
@@ -163,6 +169,27 @@ class TwineNostr {
       );
       if (order != null && !_orders.isClosed) _orders.add(order);
     }, onError: (_) {});
+  }
+
+  /// Asks the relays for the orders they already have, and leaves the open
+  /// subscription in place so a public order published a moment later still
+  /// arrives on it.
+  void replayOrders() {
+    if (_orderSub == null) {
+      watchOrders();
+      return;
+    }
+    final target = daemon;
+    if (target == null) {
+      throw StateError('choose a daemon first');
+    }
+    final result = nostr.subscribe(
+      NostrFilter(kinds: const [kindOrder], authors: [target.publicKey]),
+    );
+    if (result.isFailure) {
+      throw TwineRelayException(result.failureOrNull!.message);
+    }
+    _orderReplay = result.valueOrNull;
   }
 
   /// Subscribes to this daemon's Fiber node announcement.
@@ -226,6 +253,9 @@ class TwineNostr {
   }
 
   void stopWatching() {
+    _relayWatch?.cancel();
+    _relayWatch = null;
+    _openSockets = '';
     _replySub?.cancel();
     _replySub = null;
     _replyStream?.close();
@@ -238,6 +268,8 @@ class TwineNostr {
   void _stopOrders() {
     _orderSub?.cancel();
     _orderSub = null;
+    _orderReplay?.close();
+    _orderReplay = null;
     _orderStream?.close();
     _orderStream = null;
   }
@@ -270,6 +302,36 @@ class TwineNostr {
     if (open.isEmpty) {
       throw TwineRelayException('no nostr relay connected');
     }
+    _armRelayWatch();
     return open;
+  }
+
+  /// Asks again when a relay socket is replaced. A reconnect does not replay
+  /// the previous subscription, so a public order published into that gap
+  /// would never reach the book.
+  void _armRelayWatch() {
+    _relayWatch?.cancel();
+    _openSockets = _socketKey();
+    _relayWatch = Timer.periodic(const Duration(seconds: 1), (_) {
+      final next = _socketKey();
+      if (next == _openSockets) return;
+      _openSockets = next;
+      if (next.isEmpty || account == null || daemon == null) return;
+      try {
+        watchReplies();
+        watchFiberNode();
+        watchOrders();
+        watchCatalog();
+      } catch (_) {}
+    });
+  }
+
+  String _socketKey() {
+    final entries = nostr.relays.relaysWebSocketsRegistry.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return [
+      for (final entry in entries)
+        '${entry.key}@${identityHashCode(entry.value)}',
+    ].join(' ');
   }
 }

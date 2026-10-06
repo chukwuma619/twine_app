@@ -36,6 +36,9 @@ class TwineMarket extends ChangeNotifier {
   bool awaitingTake = false;
   String? status;
 
+  /// Posts sent from this device, shown until the public order comes back.
+  final List<TwineOrder> pending = [];
+
   StreamSubscription<DaemonReplyEvent>? _replySub;
   StreamSubscription<TwineOrder>? _orderSub;
   StreamSubscription<OpenedCatalog>? _catalogSub;
@@ -63,6 +66,7 @@ class TwineMarket extends ChangeNotifier {
     if (error != null) return error;
     book.fiberPubkey = draft.fiberPubkey.trim();
     _ordersBeforePost = before;
+    pending.add(_pendingOrder(draft));
     awaitingPost = true;
     _clearAwaitingPost();
     notifyListeners();
@@ -184,7 +188,12 @@ class TwineMarket extends ChangeNotifier {
   }
 
   void _onOrder(TwineOrder order) {
+    final known = book.order(order.orderId) != null;
     book.applyOrder(order);
+    if (!known &&
+        order.makerNostrPubkey.toLowerCase() == accountPubkey.toLowerCase()) {
+      pending.removeWhere((item) => item.side == order.side);
+    }
     _clearAwaitingPost();
     notifyListeners();
     unawaited(_persist());
@@ -213,6 +222,43 @@ class TwineMarket extends ChangeNotifier {
     }
   }
 
+  TwineOrder _pendingOrder(NewOrderDraft draft) {
+    final methods = <TwinePaymentMethod>[];
+    for (final id in draft.methodIds) {
+      for (final method in book.catalog) {
+        if (method.id != id) continue;
+        methods.add(
+          TwinePaymentMethod(
+            id: method.id,
+            kind: method.kind,
+            label: method.label,
+            currency: method.currency,
+          ),
+        );
+      }
+    }
+    return TwineOrder(
+      orderId: 'local-${pending.length}-${draft.side.wire}',
+      side: draft.side,
+      makerNostrPubkey: accountPubkey,
+      makerFiberPubkey: draft.fiberPubkey.trim(),
+      availableCkb: draft.availableCkb.trim(),
+      fiatCurrency: draft.fiatCurrency.trim(),
+      pricePerCkb: draft.pricePerCkb.trim(),
+      min: draft.min.trim(),
+      max: draft.max.trim(),
+      paymentMethods: methods,
+      holdHours: 36,
+      updatedAt: DateTime.now().toUtc(),
+    );
+  }
+
+  void _refreshOrders() {
+    try {
+      nostr.replayOrders();
+    } catch (_) {}
+  }
+
   Future<String?> _send(TwineEnvelope envelope) async {
     if (!ready) return 'The book is still opening.';
     if (sending) return 'Wait for the current request to finish.';
@@ -222,6 +268,7 @@ class TwineMarket extends ChangeNotifier {
     notifyListeners();
     try {
       await nostr.send(envelope);
+      _refreshOrders();
       sending = false;
       if (!_stopped) notifyListeners();
       return null;
