@@ -91,10 +91,36 @@ String nip44Decrypt({
     throw Nip44Exception('unknown version: ${bytes[0]}');
   }
 
+  return _openPayload(conversationKey(secretKey, publicKey), bytes);
+}
+
+/// Decrypts a base64 NIP-44 payload with a conversation key both traders share.
+/// [conversationKeyHex] is 32 bytes of hex, the value a dispute sends the solver.
+String nip44DecryptWithConversationKey({
+  required String conversationKeyHex,
+  required String payload,
+}) {
+  final Uint8List bytes;
+  try {
+    bytes = base64.decode(payload);
+  } catch (_) {
+    throw Nip44Exception('payload is not base64');
+  }
+  return _openPayload(_hex.decode(_hexKey(conversationKeyHex)), bytes);
+}
+
+String _openPayload(Uint8List conversation, Uint8List bytes) {
+  if (bytes.length < _minPayload) {
+    throw Nip44Exception('payload size is too short');
+  }
+  if (bytes[0] != _version) {
+    throw Nip44Exception('unknown version: ${bytes[0]}');
+  }
+
   final nonce = Uint8List.sublistView(bytes, 1, 33);
   final ciphertext = Uint8List.sublistView(bytes, 33, bytes.length - 32);
   final mac = Uint8List.sublistView(bytes, bytes.length - 32);
-  final keys = _messageKeys(conversationKey(secretKey, publicKey), nonce);
+  final keys = _messageKeys(conversation, nonce);
   final calculated = _hmac(
     Uint8List.sublistView(keys, 44, 76),
     Uint8List.fromList([...nonce, ...ciphertext]),

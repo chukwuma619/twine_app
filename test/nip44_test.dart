@@ -166,6 +166,33 @@ void main() {
       throwsA(isA<Nip44Exception>()),
     );
   });
+
+  test('either trader and the shared key open the same message', () {
+    final alice = TwineAccount.generate(nostr);
+    final bob = TwineAccount.generate(nostr);
+    final payload = nip44Encrypt(
+      secretKey: alice.privateKey,
+      publicKey: bob.publicKey,
+      plaintext: 'paid',
+    );
+    final key = nip44ConversationKeyHex(alice.privateKey, bob.publicKey);
+    expect(nip44ConversationKeyHex(bob.privateKey, alice.publicKey), key);
+    expect(
+      nip44Decrypt(
+        secretKey: bob.privateKey,
+        publicKey: alice.publicKey,
+        payload: payload,
+      ),
+      'paid',
+    );
+    expect(
+      nip44DecryptWithConversationKey(
+        conversationKeyHex: key,
+        payload: payload,
+      ),
+      'paid',
+    );
+  });
 }
 
 Uint8List _unhex(String hex) {

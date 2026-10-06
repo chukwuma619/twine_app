@@ -20,6 +20,8 @@ class TwineTrade {
     this.payoutFailure,
     this.notice,
     this.releaseFrom,
+    this.sellerNostr,
+    this.buyerNostr,
   });
 
   final String id;
@@ -40,6 +42,10 @@ class TwineTrade {
   /// Phase to restore when a release is refused.
   final TradePhase? releaseFrom;
 
+  /// Named by the daemon on the hold invoice and again when fiat is due.
+  final String? sellerNostr;
+  final String? buyerNostr;
+
   TwineTrade copyWith({
     String? orderId,
     TradePhase? phase,
@@ -58,6 +64,8 @@ class TwineTrade {
     bool keepNotice = true,
     TradePhase? releaseFrom,
     bool keepReleaseFrom = true,
+    String? sellerNostr,
+    String? buyerNostr,
   }) {
     return TwineTrade(
       id: id,
@@ -79,6 +87,8 @@ class TwineTrade {
       releaseFrom: keepReleaseFrom
           ? (releaseFrom ?? this.releaseFrom)
           : releaseFrom,
+      sellerNostr: sellerNostr ?? this.sellerNostr,
+      buyerNostr: buyerNostr ?? this.buyerNostr,
     );
   }
 
@@ -99,6 +109,8 @@ class TwineTrade {
       'payout_failure': payoutFailure,
       'notice': notice,
       'release_from': releaseFrom?.wire,
+      'seller_nostr': sellerNostr,
+      'buyer_nostr': buyerNostr,
     };
   }
 
@@ -126,6 +138,8 @@ class TwineTrade {
       payoutFailure: _optional(map, 'payout_failure'),
       notice: _optional(map, 'notice'),
       releaseFrom: TradePhase.parse(_text(map, 'release_from') ?? ''),
+      sellerNostr: _optional(map, 'seller_nostr'),
+      buyerNostr: _optional(map, 'buyer_nostr'),
     );
   }
 }

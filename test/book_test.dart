@@ -207,6 +207,51 @@ void main() {
     expect(await store.read('account', 'daemon'), isNull);
     expect(data, isEmpty);
   });
+
+  test('waiting for fiat names both traders', () {
+    final book = TwineBook();
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'pay-invoice',
+        tradeId: 'trade-1',
+        payload: {
+          'invoice': 'hold-invoice',
+          'amount_shannons': '100000000',
+          'order_id': 'order-1',
+          'seller_nostr': 'seller',
+          'buyer_nostr': 'buyer',
+        },
+      ),
+      DateTime.utc(2026, 10, 6, 1),
+    );
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'waiting-fiat',
+        tradeId: 'trade-1',
+        payload: {
+          'fiat_amount': '2500',
+          'fiat_currency': 'NGN',
+          'reference': 'trade-1',
+          'kind': 'bank',
+          'label': 'GTBank',
+          'currency': 'NGN',
+          'seller_nostr': 'seller',
+          'buyer_nostr': 'buyer',
+        },
+      ),
+      DateTime.utc(2026, 10, 6, 2),
+    );
+
+    final trade = book.trade('trade-1');
+    expect(trade?.sellerNostr, 'seller');
+    expect(trade?.buyerNostr, 'buyer');
+    expect(trade?.phase, TradePhase.waitingFiat);
+    expect(book.thread('trade-1').single.text, 'The hold is locked.');
+    expect(
+      TwineBook.fromJson(book.toJson())?.trade('trade-1')?.buyerNostr,
+      'buyer',
+    );
+  });
 }
 
 TwineOrder _order({

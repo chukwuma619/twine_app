@@ -4,6 +4,10 @@ library;
 /// Kind of an encrypted action or reply. The `p` tag is the recipient.
 const kindAction = 4242;
 
+/// Kind of a trade thread message. The `p` tag is the other trader.
+/// The `t` tag is the trade id. Not a NIP.
+const kindChat = 4243;
+
 /// Addressable order. The `d` tag is the order id. The daemon publishes these.
 const kindOrder = 31420;
 

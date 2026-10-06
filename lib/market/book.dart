@@ -5,6 +5,7 @@ import '../nostr/catalog.dart';
 import '../nostr/envelope.dart';
 import '../nostr/order.dart';
 import '../nostr/reply.dart';
+import 'chat.dart';
 import 'phase.dart';
 import 'trade.dart';
 
@@ -12,16 +13,19 @@ class TwineBook {
   TwineBook({
     List<TwineOrder>? orders,
     List<TwineTrade>? trades,
+    List<TradeNote>? notes,
     List<CatalogMethod>? catalog,
     this.catalogUpdatedAt,
     this.fiberPubkey,
     this.notice,
   }) : orders = [...?orders],
        trades = [...?trades],
+       notes = [...?notes],
        catalog = [...?catalog];
 
   final List<TwineOrder> orders;
   final List<TwineTrade> trades;
+  final List<TradeNote> notes;
   List<CatalogMethod> catalog;
   DateTime? catalogUpdatedAt;
   String? fiberPubkey;
@@ -39,6 +43,32 @@ class TwineBook {
       if (item.id == id) return item;
     }
     return null;
+  }
+
+  List<TradeNote> thread(String tradeId) {
+    final lines = notes.where((item) => item.tradeId == tradeId).toList();
+    lines.sort((a, b) => a.at.compareTo(b.at));
+    return lines;
+  }
+
+  TradeNote? paymentDetails(String tradeId) {
+    for (final item in thread(tradeId).reversed) {
+      if (item.kind == TradeNoteKind.paymentDetails) return item;
+    }
+    return null;
+  }
+
+  TradeNote? paymentProof(String tradeId) {
+    for (final item in thread(tradeId).reversed) {
+      if (item.kind == TradeNoteKind.paymentProof) return item;
+    }
+    return null;
+  }
+
+  void addNote(TradeNote note) {
+    if (notes.any((item) => item.id == note.id)) return;
+    notes.add(note);
+    notes.sort((a, b) => a.at.compareTo(b.at));
   }
 
   TwineTrade? openTradeFor(String orderId) {
@@ -237,10 +267,24 @@ class TwineBook {
         paymentLabel: fiat?.label ?? base.paymentLabel,
         paymentCurrency: fiat?.currency ?? base.paymentCurrency,
         reference: fiat?.reference ?? base.reference,
+        sellerNostr: pay?.sellerNostr ?? fiat?.sellerNostr ?? base.sellerNostr,
+        buyerNostr: pay?.buyerNostr ?? fiat?.buyerNostr ?? base.buyerNostr,
         payoutFailure:
             payoutFailure ?? (clearFailure ? null : base.payoutFailure),
         notice: moving ? null : base.notice,
         releaseFrom: moving ? null : base.releaseFrom,
+      ),
+    );
+    if (!moving) return;
+    final line = statusLine(phase);
+    if (line == null) return;
+    addNote(
+      TradeNote(
+        id: 'status:$tradeId:${phase.wire}',
+        tradeId: tradeId,
+        at: at,
+        kind: TradeNoteKind.status,
+        text: line,
       ),
     );
   }
@@ -263,6 +307,7 @@ class TwineBook {
       'catalog_updated_at': catalogUpdatedAt?.toIso8601String(),
       'orders': [for (final item in orders) item.toJson()],
       'trades': [for (final item in trades) item.toJson()],
+      'notes': [for (final item in notes) item.toJson()],
     };
   }
 
@@ -271,8 +316,10 @@ class TwineBook {
     final map = value.map((key, item) => MapEntry('$key', item));
     final orders = <TwineOrder>[];
     final trades = <TwineTrade>[];
+    final notes = <TradeNote>[];
     final rawOrders = map['orders'];
     final rawTrades = map['trades'];
+    final rawNotes = map['notes'];
     if (rawOrders is List) {
       for (final item in rawOrders) {
         final order = TwineOrder.fromJson(item);
@@ -285,6 +332,12 @@ class TwineBook {
         if (trade != null) trades.add(trade);
       }
     }
+    if (rawNotes is List) {
+      for (final item in rawNotes) {
+        final note = TradeNote.fromJson(item);
+        if (note != null) notes.add(note);
+      }
+    }
     final fiber = map['fiber_pubkey'];
     final notice = map['notice'];
     final catalogAt = DateTime.tryParse(
@@ -295,6 +348,7 @@ class TwineBook {
     return TwineBook(
       orders: orders,
       trades: trades,
+      notes: notes,
       catalog: _catalog(map['catalog']),
       catalogUpdatedAt: catalogAt,
       fiberPubkey: fiber is String && fiber.trim().isNotEmpty

@@ -26,6 +26,8 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Twine attaches a payment receipt from your photos.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

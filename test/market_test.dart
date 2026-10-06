@@ -181,6 +181,60 @@ void main() {
     expect(find.text("I've sent the fiat"), findsNothing);
   });
 
+  testWidgets('the seller shares an account and the buyer waits for it', (
+    tester,
+  ) async {
+    final order = _order(maker: 'seller');
+    TwineTrade trade(String id) {
+      return TwineTrade(
+        id: 'trade-1',
+        orderId: order.orderId,
+        phase: TradePhase.waitingFiat,
+        updatedAt: DateTime.utc(2026, 10, 6),
+        fiatAmount: '2500',
+        fiatCurrency: 'NGN',
+        paymentLabel: 'GTBank',
+        reference: 'trade-1',
+        sellerNostr: 'seller',
+        buyerNostr: 'buyer',
+      );
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TradePage(
+          market: _market(
+            pubkey: 'seller',
+            orders: [order],
+            trades: [trade('seller')],
+          ),
+          tradeId: 'trade-1',
+        ),
+      ),
+    );
+    expect(find.text('Share account'), findsOneWidget);
+    expect(find.text('Account name'), findsOneWidget);
+    expect(find.text('The hold is locked.'), findsNothing);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TradePage(
+          market: _market(
+            pubkey: 'buyer',
+            orders: [order],
+            trades: [trade('buyer')],
+          ),
+          tradeId: 'trade-1',
+        ),
+      ),
+    );
+    expect(
+      find.text('Waiting for the seller to share the account.'),
+      findsOneWidget,
+    );
+    expect(find.text("I've paid"), findsNothing);
+  });
+
   testWidgets('posting sends the draft and stays when the draft is refused', (
     tester,
   ) async {

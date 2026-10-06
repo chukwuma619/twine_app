@@ -56,11 +56,15 @@ class PayInvoice {
     required this.invoice,
     required this.amountShannons,
     required this.orderId,
+    this.sellerNostr,
+    this.buyerNostr,
   });
 
   final String invoice;
   final String amountShannons;
   final String orderId;
+  final String? sellerNostr;
+  final String? buyerNostr;
 
   static PayInvoice? tryParse(Object? payload) {
     final map = _map(payload);
@@ -69,10 +73,13 @@ class PayInvoice {
     final amount = _text(map, 'amount_shannons');
     final orderId = _text(map, 'order_id');
     if (invoice == null || amount == null || orderId == null) return null;
+    final parties = _parties(map);
     return PayInvoice(
       invoice: invoice,
       amountShannons: amount,
       orderId: orderId,
+      sellerNostr: parties?.$1,
+      buyerNostr: parties?.$2,
     );
   }
 }
@@ -85,6 +92,8 @@ class WaitingFiat {
     required this.kind,
     required this.label,
     required this.currency,
+    this.sellerNostr,
+    this.buyerNostr,
   });
 
   final String fiatAmount;
@@ -93,6 +102,8 @@ class WaitingFiat {
   final String kind;
   final String label;
   final String currency;
+  final String? sellerNostr;
+  final String? buyerNostr;
 
   static WaitingFiat? tryParse(Object? payload) {
     final map = _map(payload);
@@ -111,6 +122,7 @@ class WaitingFiat {
         currency == null) {
       return null;
     }
+    final parties = _parties(map);
     return WaitingFiat(
       fiatAmount: fiatAmount,
       fiatCurrency: fiatCurrency,
@@ -118,6 +130,8 @@ class WaitingFiat {
       kind: kind,
       label: label,
       currency: currency,
+      sellerNostr: parties?.$1,
+      buyerNostr: parties?.$2,
     );
   }
 }
@@ -139,6 +153,13 @@ class ReasonPayload {
 Map<String, Object?>? _map(Object? value) {
   if (value is! Map) return null;
   return value.map((key, item) => MapEntry('$key', item));
+}
+
+(String, String)? _parties(Map<String, Object?> map) {
+  final seller = _text(map, 'seller_nostr');
+  final buyer = _text(map, 'buyer_nostr');
+  if (seller == null || buyer == null) return null;
+  return (seller, buyer);
 }
 
 String? _text(Map<String, Object?> map, String key) {

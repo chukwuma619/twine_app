@@ -60,6 +60,12 @@ class TwineNostr {
   final _catalogs = StreamController<OpenedCatalog>.broadcast();
   StreamSubscription<NostrEvent>? _catalogSub;
   NostrEventsStream? _catalogStream;
+  final _chats = StreamController<NostrEvent>.broadcast();
+  StreamSubscription<NostrEvent>? _chatSub;
+  NostrEventsStream? _chatStream;
+  String? _chatAccount;
+  List<String> _chatAuthors = const [];
+  List<String> _chatTrades = const [];
   Timer? _relayWatch;
   String _openSockets = '';
 
@@ -74,6 +80,9 @@ class TwineNostr {
 
   /// Payment catalogs announced by [daemon].
   Stream<OpenedCatalog> get catalogs => _catalogs.stream;
+
+  /// Trade-thread events addressed to this account.
+  Stream<NostrEvent> get chats => _chats.stream;
 
   /// Encrypts [envelope] to the chosen daemon and signs it with [account].
   NostrEvent seal(TwineEnvelope envelope) {
@@ -103,10 +112,28 @@ class TwineNostr {
 
   /// Publishes [envelope] to the connected relays.
   Future<void> send(TwineEnvelope envelope) async {
-    final result = await nostr.publish(seal(envelope));
+    await publish(seal(envelope));
+  }
+
+  /// Publishes a signed event. Used for the trade thread.
+  Future<void> publish(NostrEvent event) async {
+    final result = await nostr.publish(event);
     if (result.isFailure) {
       throw TwineRelayException(result.failureOrNull!.message);
     }
+  }
+
+  /// Subscribes to kind-4243 messages from [authors] on [tradeIds].
+  /// Keeps the filter so a relay reconnect subscribes again.
+  void watchTradeChat({
+    required String accountPubkey,
+    required List<String> authors,
+    required List<String> tradeIds,
+  }) {
+    _chatAccount = accountPubkey;
+    _chatAuthors = [...authors]..sort();
+    _chatTrades = [...tradeIds]..sort();
+    _subscribeChat();
   }
 
   /// Subscribes to kind-4242 events tagged to this account and authored by the daemon.
@@ -263,6 +290,7 @@ class TwineNostr {
     _stopOrders();
     _stopFiber();
     _stopCatalog();
+    _stopChat();
   }
 
   void _stopOrders() {
@@ -288,6 +316,33 @@ class TwineNostr {
     _catalogStream = null;
   }
 
+  void _stopChat() {
+    _chatSub?.cancel();
+    _chatSub = null;
+    _chatStream?.close();
+    _chatStream = null;
+  }
+
+  void _subscribeChat() {
+    _stopChat();
+    final account = _chatAccount;
+    if (account == null || _chatAuthors.isEmpty || _chatTrades.isEmpty) return;
+    final result = nostr.subscribe(
+      NostrFilter(
+        kinds: const [kindChat],
+        authors: _chatAuthors,
+        p: [account],
+        additionalFilters: {'#t': _chatTrades},
+      ),
+    );
+    if (result.isFailure) return;
+    final events = result.valueOrNull!;
+    _chatStream = events;
+    _chatSub = events.stream.listen((event) {
+      if (!_chats.isClosed) _chats.add(event);
+    }, onError: (_) {});
+  }
+
   /// Opens [relays] and returns the ones whose sockets connected.
   /// Throws [TwineRelayException] when none do.
   Future<List<String>> connect(List<String> relays) async {
@@ -303,6 +358,7 @@ class TwineNostr {
       throw TwineRelayException('no nostr relay connected');
     }
     _armRelayWatch();
+    _subscribeChat();
     return open;
   }
 
@@ -322,6 +378,7 @@ class TwineNostr {
         watchFiberNode();
         watchOrders();
         watchCatalog();
+        _subscribeChat();
       } catch (_) {}
     });
   }

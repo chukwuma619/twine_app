@@ -3,11 +3,33 @@ library;
 
 import '../nostr/order.dart';
 import 'phase.dart';
+import 'trade.dart';
 
 enum TradeSide { seller, buyer }
 
 bool isMaker(TwineOrder order, String pubkey) {
   return order.makerNostrPubkey.toLowerCase() == pubkey.toLowerCase();
+}
+
+TradeSide? sideOn(TwineTrade trade, String pubkey, TwineOrder? order) {
+  final me = pubkey.toLowerCase();
+  final seller = trade.sellerNostr?.toLowerCase();
+  final buyer = trade.buyerNostr?.toLowerCase();
+  if (seller != null && seller == me) return TradeSide.seller;
+  if (buyer != null && buyer == me) return TradeSide.buyer;
+  if (order == null) return null;
+  return tradeSide(order, pubkey);
+}
+
+/// The other person on [trade], once the daemon has named both keys.
+String? counterparty(TwineTrade trade, String pubkey) {
+  final seller = trade.sellerNostr;
+  final buyer = trade.buyerNostr;
+  if (seller == null || buyer == null) return null;
+  final me = pubkey.toLowerCase();
+  if (seller.toLowerCase() == me) return buyer;
+  if (buyer.toLowerCase() == me) return seller;
+  return null;
 }
 
 TradeSide tradeSide(TwineOrder order, String pubkey) {
