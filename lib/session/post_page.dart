@@ -90,20 +90,25 @@ class _PostPageState extends State<PostPage> {
                   const SizedBox(height: 12),
                   _field(_available, 'CKB available', number: true),
                   const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _currency,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Currency',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
                       for (final currency in catalogCurrencies())
-                        ChoiceChip(
-                          label: Text(currency),
-                          selected: _currency == currency,
-                          onSelected: _busy
-                              ? null
-                              : (selected) {
-                                  if (selected) _chooseCurrency(currency);
-                                },
+                        DropdownMenuItem(
+                          value: currency,
+                          child: Text(currency),
                         ),
                     ],
+                    onChanged: _busy
+                        ? null
+                        : (currency) {
+                            if (currency != null) _chooseCurrency(currency);
+                          },
                   ),
                   const SizedBox(height: 12),
                   _field(_price, 'Price per CKB', number: true),

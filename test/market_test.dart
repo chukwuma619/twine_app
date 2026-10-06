@@ -144,6 +144,26 @@ void main() {
     expect(sent?.methodIds, ['gtbank']);
     expect(find.text('Open'), findsOneWidget);
   });
+
+  testWidgets('the currency select switches the payment methods', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: PostPage(onSubmit: (draft) async => draft.validate())),
+    );
+
+    expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+    expect(find.text('GTBank'), findsOneWidget);
+    expect(find.text('Zelle'), findsNothing);
+
+    await tester.tap(find.text('NGN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('USD').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zelle'), findsOneWidget);
+    expect(find.text('GTBank'), findsNothing);
+  });
 }
 
 TwineMarket _market({
