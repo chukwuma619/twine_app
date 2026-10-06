@@ -12,7 +12,11 @@ import 'trade_page.dart';
 
 enum _Section { post, trade, account }
 
-/// Which side of the book is open. Buy lists buy posts, and sell lists sell posts.
+/// Which side of the book is open.
+///
+/// Buy lists what this key can buy: other people selling, and this key's own
+/// buy posts. Sell lists what this key can sell into: other people buying,
+/// and this key's own sell posts.
 enum _Book { buy, sell }
 
 class MarketPage extends StatefulWidget {
@@ -152,12 +156,23 @@ class _MarketPageState extends State<MarketPage> {
   }
 }
 
-List<TwineOrder> _ordersFor(_Book book, List<TwineOrder> orders) {
-  final side = book == _Book.buy ? OrderSide.buy : OrderSide.sell;
+List<TwineOrder> _ordersFor(
+  _Book book,
+  List<TwineOrder> orders,
+  String pubkey,
+) {
   return [
     for (final order in orders)
-      if (order.side == side) order,
+      if (_onBook(book, order, pubkey)) order,
   ];
+}
+
+/// A sell is an offer to buy from. Your own post stays on the side you posted.
+bool _onBook(_Book book, TwineOrder order, String pubkey) {
+  final mine = isMaker(order, pubkey);
+  final offeredToBuy = order.side == OrderSide.sell;
+  final forBuyers = mine ? !offeredToBuy : offeredToBuy;
+  return book == _Book.buy ? forBuyers : !forBuyers;
 }
 
 class _LivePost extends StatelessWidget {
@@ -255,7 +270,10 @@ class _Posts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final orders = _ordersFor(book, [...market.pending, ...market.book.orders]);
+    final orders = _ordersFor(book, [
+      ...market.pending,
+      ...market.book.orders,
+    ], market.accountPubkey);
     if (orders.isEmpty) {
       return const _Empty(
         message: 'No posts yet.',

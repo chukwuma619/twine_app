@@ -51,14 +51,19 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    expect(find.text('Take'), findsOneWidget);
+    expect(find.text('Yours'), findsNothing);
+
     await tester.tap(find.text('Sell'));
     await tester.pumpAndSettle();
 
-    expect(find.text('10 CKB'), findsNWidgets(2));
-    expect(find.text('Take'), findsOneWidget);
-    expect(find.text('Cancel post'), findsOneWidget);
     expect(find.text('Yours'), findsOneWidget);
+    expect(find.text('Cancel post'), findsOneWidget);
+    expect(find.text('Take'), findsNothing);
 
+    await tester.tap(find.text('Buy'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Take'));
     await tester.pumpAndSettle();
     expect(find.text('Fiat amount'), findsOneWidget);
@@ -84,12 +89,14 @@ void main() {
     expect(find.text('Cancel post'), findsNothing);
   });
 
-  testWidgets('buy lists buy posts and sell lists sell posts', (tester) async {
+  testWidgets('a sell is offered under buy and a buy under sell', (
+    tester,
+  ) async {
     final market = _market(
       pubkey: 'taker',
       orders: [
-        _order(),
-        _order(id: 'buy-1', side: OrderSide.buy),
+        _order(available: '10'),
+        _order(id: 'buy-1', side: OrderSide.buy, available: '20'),
       ],
     );
 
@@ -100,11 +107,13 @@ void main() {
     );
 
     expect(find.text('10 CKB'), findsOneWidget);
+    expect(find.text('20 CKB'), findsNothing);
 
     await tester.tap(find.text('Sell'));
     await tester.pumpAndSettle();
 
-    expect(find.text('10 CKB'), findsOneWidget);
+    expect(find.text('20 CKB'), findsOneWidget);
+    expect(find.text('10 CKB'), findsNothing);
 
     await tester.tap(find.text('Trade'));
     await tester.pumpAndSettle();
@@ -129,11 +138,14 @@ void main() {
         home: MarketPage(market: market, account: const SizedBox.shrink()),
       ),
     );
+
+    expect(find.text('Canceled'), findsOneWidget);
+    expect(find.text('Take'), findsNothing);
+
     await tester.tap(find.text('Sell'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Canceled'), findsNWidgets(2));
-    expect(find.text('Take'), findsNothing);
+    expect(find.text('Canceled'), findsOneWidget);
     expect(find.text('Cancel post'), findsNothing);
   });
 
@@ -286,13 +298,14 @@ TwineOrder _order({
   String maker = 'maker',
   OrderSide side = OrderSide.sell,
   PostStatus status = PostStatus.open,
+  String available = '10',
 }) {
   return TwineOrder(
     orderId: id,
     side: side,
     makerNostrPubkey: maker,
     makerFiberPubkey: 'fiber',
-    availableCkb: '10',
+    availableCkb: available,
     fiatCurrency: 'NGN',
     pricePerCkb: '1500',
     min: '1000',
