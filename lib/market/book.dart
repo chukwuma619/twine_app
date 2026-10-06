@@ -1,6 +1,7 @@
 /// The posts and trades this device has heard, folded forward.
 library;
 
+import '../nostr/catalog.dart';
 import '../nostr/envelope.dart';
 import '../nostr/order.dart';
 import '../nostr/reply.dart';
@@ -11,13 +12,18 @@ class TwineBook {
   TwineBook({
     List<TwineOrder>? orders,
     List<TwineTrade>? trades,
+    List<CatalogMethod>? catalog,
+    this.catalogUpdatedAt,
     this.fiberPubkey,
     this.notice,
   }) : orders = [...?orders],
-       trades = [...?trades];
+       trades = [...?trades],
+       catalog = [...?catalog];
 
   final List<TwineOrder> orders;
   final List<TwineTrade> trades;
+  List<CatalogMethod> catalog;
+  DateTime? catalogUpdatedAt;
   String? fiberPubkey;
   String? notice;
 
@@ -44,15 +50,26 @@ class TwineBook {
 
   void applyOrder(TwineOrder incoming) {
     final index = orders.indexWhere((item) => item.orderId == incoming.orderId);
-    if (index >= 0 && incoming.updatedAt.isBefore(orders[index].updatedAt)) {
-      return;
-    }
     if (index >= 0) {
+      final current = orders[index];
+      if (incoming.updatedAt.isBefore(current.updatedAt)) return;
+      if (current.status == PostStatus.canceled &&
+          incoming.status == PostStatus.open &&
+          !incoming.updatedAt.isAfter(current.updatedAt)) {
+        return;
+      }
       orders[index] = incoming;
     } else {
       orders.add(incoming);
     }
     orders.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  }
+
+  void applyCatalog(List<CatalogMethod> methods, DateTime at) {
+    final current = catalogUpdatedAt;
+    if (current != null && at.isBefore(current)) return;
+    catalog = [...methods];
+    catalogUpdatedAt = at;
   }
 
   void applyReply(TwineEnvelope envelope, DateTime at) {
@@ -138,11 +155,22 @@ class TwineBook {
 
   void _canceled(TwineEnvelope envelope, DateTime at) {
     final tradeId = envelope.tradeId;
-    if (tradeId == null || tradeId.isEmpty) {
+    if (tradeId != null && tradeId.isNotEmpty) {
+      _move(envelope, at, TradePhase.canceled);
+      return;
+    }
+    final orderId = _orderId(envelope.payload);
+    if (orderId == null) {
       notice = 'Canceled.';
       return;
     }
-    _move(envelope, at, TradePhase.canceled);
+    final index = orders.indexWhere((item) => item.orderId == orderId);
+    if (index < 0) {
+      notice = 'Canceled.';
+      return;
+    }
+    orders[index] = orders[index].copyWith(status: PostStatus.canceled);
+    notice = null;
   }
 
   void _cantDo(TwineEnvelope envelope) {
@@ -231,6 +259,8 @@ class TwineBook {
     return {
       'fiber_pubkey': fiberPubkey,
       'notice': notice,
+      'catalog': [for (final method in catalog) method.toJson()],
+      'catalog_updated_at': catalogUpdatedAt?.toIso8601String(),
       'orders': [for (final item in orders) item.toJson()],
       'trades': [for (final item in trades) item.toJson()],
     };
@@ -257,9 +287,16 @@ class TwineBook {
     }
     final fiber = map['fiber_pubkey'];
     final notice = map['notice'];
+    final catalogAt = DateTime.tryParse(
+      map['catalog_updated_at'] is String
+          ? map['catalog_updated_at'] as String
+          : '',
+    );
     return TwineBook(
       orders: orders,
       trades: trades,
+      catalog: _catalog(map['catalog']),
+      catalogUpdatedAt: catalogAt,
       fiberPubkey: fiber is String && fiber.trim().isNotEmpty
           ? fiber.trim()
           : null,
@@ -268,6 +305,24 @@ class TwineBook {
           : null,
     );
   }
+}
+
+List<CatalogMethod> _catalog(Object? value) {
+  if (value is! List) return const [];
+  final methods = <CatalogMethod>[];
+  for (final item in value) {
+    final method = CatalogMethod.tryParse(item);
+    if (method == null) return const [];
+    methods.add(method);
+  }
+  return methods;
+}
+
+String? _orderId(Object? payload) {
+  if (payload is! Map) return null;
+  final id = payload['order_id'];
+  if (id is! String || id.trim().isEmpty) return null;
+  return id.trim();
 }
 
 String _keep(String? incoming, String current) {

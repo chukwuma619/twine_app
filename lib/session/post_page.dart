@@ -3,14 +3,20 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../constant.dart';
+import '../nostr/catalog.dart';
 import '../nostr/order.dart';
 import '../nostr/request.dart';
 
 class PostPage extends StatefulWidget {
-  const PostPage({super.key, required this.onSubmit, this.fiberPubkey});
+  const PostPage({
+    super.key,
+    required this.onSubmit,
+    this.fiberPubkey,
+    this.catalog = const [],
+  });
 
   final String? fiberPubkey;
+  final List<CatalogMethod> catalog;
   final Future<String?> Function(NewOrderDraft draft) onSubmit;
 
   @override
@@ -37,10 +43,28 @@ class _PostPageState extends State<PostPage> {
     _price = TextEditingController();
     _min = TextEditingController();
     _max = TextEditingController();
-    _currency = catalogCurrencies().first;
+    final currencies = catalogCurrencies(widget.catalog);
+    _currency = currencies.isEmpty ? '' : currencies.first;
     _methodIds = {
-      for (final method in methodsForCurrency(_currency)) method.id,
+      for (final method in methodsForCurrency(widget.catalog, _currency))
+        method.id,
     };
+  }
+
+  @override
+  void didUpdateWidget(PostPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final currencies = catalogCurrencies(widget.catalog);
+    if (currencies.isEmpty || currencies.contains(_currency)) return;
+    _currency = currencies.first;
+    _methodIds
+      ..clear()
+      ..addAll(
+        methodsForCurrency(
+          widget.catalog,
+          _currency,
+        ).map((method) => method.id),
+      );
   }
 
   @override
@@ -56,7 +80,8 @@ class _PostPageState extends State<PostPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final methods = methodsForCurrency(_currency);
+    final currencies = catalogCurrencies(widget.catalog);
+    final methods = methodsForCurrency(widget.catalog, _currency);
     return Scaffold(
       appBar: AppBar(title: const Text('New post')),
       body: SafeArea(
@@ -90,26 +115,29 @@ class _PostPageState extends State<PostPage> {
                   const SizedBox(height: 12),
                   _field(_available, 'CKB available', number: true),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _currency,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Currency',
-                      border: OutlineInputBorder(),
+                  if (currencies.isEmpty)
+                    const Text('Waiting for payment methods.')
+                  else
+                    DropdownButtonFormField<String>(
+                      initialValue: _currency,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Currency',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        for (final currency in currencies)
+                          DropdownMenuItem(
+                            value: currency,
+                            child: Text(currency),
+                          ),
+                      ],
+                      onChanged: _busy
+                          ? null
+                          : (currency) {
+                              if (currency != null) _chooseCurrency(currency);
+                            },
                     ),
-                    items: [
-                      for (final currency in catalogCurrencies())
-                        DropdownMenuItem(
-                          value: currency,
-                          child: Text(currency),
-                        ),
-                    ],
-                    onChanged: _busy
-                        ? null
-                        : (currency) {
-                            if (currency != null) _chooseCurrency(currency);
-                          },
-                  ),
                   const SizedBox(height: 12),
                   _field(_price, 'Price per CKB', number: true),
                   const SizedBox(height: 12),
@@ -138,7 +166,7 @@ class _PostPageState extends State<PostPage> {
                   ],
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: _busy ? null : _submit,
+                    onPressed: _busy || currencies.isEmpty ? null : _submit,
                     child: const Text('Post'),
                   ),
                 ],
@@ -175,7 +203,12 @@ class _PostPageState extends State<PostPage> {
       _currency = currency;
       _methodIds
         ..clear()
-        ..addAll(methodsForCurrency(currency).map((method) => method.id));
+        ..addAll(
+          methodsForCurrency(
+            widget.catalog,
+            currency,
+          ).map((method) => method.id),
+        );
     });
   }
 

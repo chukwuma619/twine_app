@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../constant.dart';
 import '../market/book.dart';
+import '../nostr/catalog.dart';
 import '../nostr/envelope.dart';
 import '../nostr/order.dart';
 import '../nostr/reply.dart';
@@ -37,6 +38,7 @@ class TwineMarket extends ChangeNotifier {
 
   StreamSubscription<DaemonReplyEvent>? _replySub;
   StreamSubscription<TwineOrder>? _orderSub;
+  StreamSubscription<OpenedCatalog>? _catalogSub;
   Future<void>? _opening;
   int _generation = 0;
   Set<String> _ordersBeforePost = const {};
@@ -54,7 +56,7 @@ class TwineMarket extends ChangeNotifier {
   }
 
   Future<String?> post(NewOrderDraft draft) async {
-    final invalid = draft.validate();
+    final invalid = draft.validate(book.catalog);
     if (invalid != null) return invalid;
     final before = {for (final order in book.orders) order.orderId};
     final error = await _send(draft.envelope());
@@ -141,8 +143,10 @@ class TwineMarket extends ChangeNotifier {
     _generation++;
     _replySub?.cancel();
     _orderSub?.cancel();
+    _catalogSub?.cancel();
     _replySub = null;
     _orderSub = null;
+    _catalogSub = null;
   }
 
   Future<void> _open() async {
@@ -154,6 +158,7 @@ class TwineMarket extends ChangeNotifier {
     }
     _replySub = nostr.replies.listen(_onReply, onError: (_) {});
     _orderSub = nostr.orders.listen(_onOrder, onError: (_) {});
+    _catalogSub = nostr.catalogs.listen(_onCatalog, onError: (_) {});
     if (generation != _generation) return;
     ready = true;
     if (!_stopped) notifyListeners();
@@ -167,6 +172,13 @@ class TwineMarket extends ChangeNotifier {
       status = null;
     }
     if (event.envelope.action == replyPayInvoice) _clearAwaitingTake();
+    notifyListeners();
+    unawaited(_persist());
+  }
+
+  void _onCatalog(OpenedCatalog catalog) {
+    book.applyCatalog(catalog.methods, catalog.updatedAt);
+    if (_stopped) return;
     notifyListeners();
     unawaited(_persist());
   }

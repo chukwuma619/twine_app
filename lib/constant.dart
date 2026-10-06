@@ -13,6 +13,12 @@ const kindFiberNode = 31421;
 /// `d` tag on a Fiber node announcement.
 const fiberNodeTag = 'fiber-node';
 
+/// Addressable payment catalog. The `d` tag is [paymentCatalogTag].
+const kindCatalog = 31422;
+
+/// `d` tag on a payment catalog announcement.
+const paymentCatalogTag = 'payment-methods';
+
 const actionNewOrder = 'new-order';
 const actionTake = 'take';
 const actionFiatSent = 'fiat-sent';
@@ -30,40 +36,3 @@ const replySettled = 'settled';
 const replyCanceled = 'canceled';
 const replyExpired = 'expired';
 const replyCantDo = 'cant-do';
-
-/// A payment method the daemon ships with. A post names these ids.
-/// Taking reads the methods off the public order, so a post can show a method
-/// this install did not use when it was created.
-class CatalogMethod {
-  const CatalogMethod({
-    required this.id,
-    required this.kind,
-    required this.label,
-    required this.currency,
-  });
-
-  final String id;
-  final String kind;
-  final String label;
-  final String currency;
-}
-
-const catalogMethods = <CatalogMethod>[
-  CatalogMethod(id: 'gtbank', kind: 'bank', label: 'GTBank', currency: 'NGN'),
-  CatalogMethod(id: 'zelle', kind: 'wallet', label: 'Zelle', currency: 'USD'),
-];
-
-List<CatalogMethod> methodsForCurrency(String currency) {
-  return [
-    for (final method in catalogMethods)
-      if (method.currency == currency) method,
-  ];
-}
-
-List<String> catalogCurrencies() {
-  final currencies = <String>[];
-  for (final method in catalogMethods) {
-    if (!currencies.contains(method.currency)) currencies.add(method.currency);
-  }
-  return currencies;
-}

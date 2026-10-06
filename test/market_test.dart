@@ -4,6 +4,7 @@ import 'package:twine_app/market/book.dart';
 import 'package:twine_app/market/phase.dart';
 import 'package:twine_app/market/role.dart';
 import 'package:twine_app/market/trade.dart';
+import 'package:twine_app/nostr/catalog.dart';
 import 'package:twine_app/nostr/order.dart';
 import 'package:twine_app/nostr/request.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
@@ -62,6 +63,28 @@ void main() {
     expect(find.text('GTBank · bank'), findsOneWidget);
   });
 
+  testWidgets('a canceled post cannot be taken or canceled again', (
+    tester,
+  ) async {
+    final market = _market(
+      pubkey: 'taker',
+      orders: [
+        _order(status: PostStatus.canceled),
+        _order(id: 'mine', maker: 'taker', status: PostStatus.canceled),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MarketPage(market: market, onAccount: () {}),
+      ),
+    );
+
+    expect(find.text('Canceled'), findsNWidgets(2));
+    expect(find.text('Take'), findsNothing);
+    expect(find.text('Cancel post'), findsNothing);
+  });
+
   testWidgets('a seller waiting on the hold sees the invoice to pay', (
     tester,
   ) async {
@@ -107,9 +130,10 @@ void main() {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (context) => PostPage(
+                      catalog: _catalog,
                       onSubmit: (draft) async {
                         sent = draft;
-                        return draft.validate();
+                        return draft.validate(_catalog);
                       },
                     ),
                   ),
@@ -149,7 +173,12 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(home: PostPage(onSubmit: (draft) async => draft.validate())),
+      MaterialApp(
+        home: PostPage(
+          catalog: _catalog,
+          onSubmit: (draft) async => draft.validate(_catalog),
+        ),
+      ),
     );
 
     expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
@@ -163,6 +192,21 @@ void main() {
 
     expect(find.text('Zelle'), findsOneWidget);
     expect(find.text('GTBank'), findsNothing);
+  });
+
+  testWidgets('the post form waits until the daemon publishes methods', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: PostPage(onSubmit: (draft) async => null)),
+    );
+
+    expect(find.text('Waiting for payment methods.'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Post'),
+    );
+    expect(button.onPressed, isNull);
   });
 }
 
@@ -180,7 +224,16 @@ TwineMarket _market({
   );
 }
 
-TwineOrder _order({String id = 'order-1', String maker = 'maker'}) {
+const _catalog = [
+  CatalogMethod(id: 'gtbank', kind: 'bank', label: 'GTBank', currency: 'NGN'),
+  CatalogMethod(id: 'zelle', kind: 'wallet', label: 'Zelle', currency: 'USD'),
+];
+
+TwineOrder _order({
+  String id = 'order-1',
+  String maker = 'maker',
+  PostStatus status = PostStatus.open,
+}) {
   return TwineOrder(
     orderId: id,
     side: OrderSide.sell,
@@ -201,6 +254,7 @@ TwineOrder _order({String id = 'order-1', String maker = 'maker'}) {
     ],
     holdHours: 36,
     updatedAt: DateTime.utc(2026, 10, 6),
+    status: status,
   );
 }
 

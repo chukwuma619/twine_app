@@ -8,6 +8,7 @@ import 'package:twine_app/market/amount.dart';
 import 'package:twine_app/market/book.dart';
 import 'package:twine_app/market/phase.dart';
 import 'package:twine_app/market/role.dart';
+import 'package:twine_app/nostr/catalog.dart';
 import 'package:twine_app/nostr/envelope.dart';
 import 'package:twine_app/nostr/order.dart';
 import 'package:twine_app/store/book_store.dart';
@@ -114,6 +115,55 @@ void main() {
     expect(book.trades, isEmpty);
   });
 
+  test(
+    'a cancel reply names the post and an older open copy cannot reopen it',
+    () {
+      final book = TwineBook();
+      final posted = DateTime.utc(2026, 10, 6, 1);
+      book.applyOrder(_order(at: posted));
+      book.applyReply(
+        const TwineEnvelope(
+          action: 'canceled',
+          payload: {'order_id': 'order-1'},
+        ),
+        DateTime.utc(2026, 10, 6, 2),
+      );
+      expect(book.order('order-1')?.status, PostStatus.canceled);
+      expect(book.notice, isNull);
+
+      book.applyOrder(_order(at: posted));
+      expect(book.order('order-1')?.status, PostStatus.canceled);
+
+      book.applyOrder(
+        _order(at: DateTime.utc(2026, 10, 6, 3), status: PostStatus.canceled),
+      );
+      expect(book.order('order-1')?.status, PostStatus.canceled);
+    },
+  );
+
+  test('an older payment catalog does not replace the newer one', () {
+    final book = TwineBook();
+    const gtbank = CatalogMethod(
+      id: 'gtbank',
+      kind: 'bank',
+      label: 'GTBank',
+      currency: 'NGN',
+    );
+    const zelle = CatalogMethod(
+      id: 'zelle',
+      kind: 'wallet',
+      label: 'Zelle',
+      currency: 'USD',
+    );
+    book.applyCatalog(const [gtbank, zelle], DateTime.utc(2026, 10, 6, 2));
+    book.applyCatalog(const [gtbank], DateTime.utc(2026, 10, 6, 1));
+    expect(book.catalog.map((method) => method.id), ['gtbank', 'zelle']);
+
+    final restored = TwineBook.fromJson(book.toJson());
+    expect(restored?.catalog.map((method) => method.id), ['gtbank', 'zelle']);
+    expect(restored?.catalogUpdatedAt, DateTime.utc(2026, 10, 6, 2));
+  });
+
   test('a failed payout asks for a new invoice', () {
     final book = TwineBook();
     book.applyReply(_pay(), DateTime.utc(2026, 10, 6, 1));
@@ -163,6 +213,7 @@ TwineOrder _order({
   OrderSide side = OrderSide.sell,
   String available = '10',
   DateTime? at,
+  PostStatus status = PostStatus.open,
 }) {
   return TwineOrder(
     orderId: 'order-1',
@@ -184,6 +235,7 @@ TwineOrder _order({
     ],
     holdHours: 36,
     updatedAt: at ?? DateTime.utc(2026, 10, 6),
+    status: status,
   );
 }
 

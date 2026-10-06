@@ -8,6 +8,31 @@ import 'package:dart_nostr/dart_nostr.dart';
 import '../constant.dart';
 import 'verify.dart';
 
+enum PostStatus {
+  open,
+  canceled;
+
+  String get wire {
+    switch (this) {
+      case PostStatus.open:
+        return 'open';
+      case PostStatus.canceled:
+        return 'canceled';
+    }
+  }
+
+  static PostStatus? parse(String value) {
+    switch (value) {
+      case 'open':
+        return PostStatus.open;
+      case 'canceled':
+        return PostStatus.canceled;
+      default:
+        return null;
+    }
+  }
+}
+
 enum OrderSide {
   sell,
   buy;
@@ -88,6 +113,7 @@ class TwineOrder {
     required this.paymentMethods,
     required this.holdHours,
     required this.updatedAt,
+    this.status = PostStatus.open,
   });
 
   final String orderId;
@@ -102,6 +128,25 @@ class TwineOrder {
   final List<TwinePaymentMethod> paymentMethods;
   final int holdHours;
   final DateTime updatedAt;
+  final PostStatus status;
+
+  TwineOrder copyWith({PostStatus? status}) {
+    return TwineOrder(
+      orderId: orderId,
+      side: side,
+      makerNostrPubkey: makerNostrPubkey,
+      makerFiberPubkey: makerFiberPubkey,
+      availableCkb: availableCkb,
+      fiatCurrency: fiatCurrency,
+      pricePerCkb: pricePerCkb,
+      min: min,
+      max: max,
+      paymentMethods: paymentMethods,
+      holdHours: holdHours,
+      updatedAt: updatedAt,
+      status: status ?? this.status,
+    );
+  }
 
   bool get hasCkb {
     final value = double.tryParse(availableCkb);
@@ -147,6 +192,9 @@ class TwineOrder {
     final max = _text(map, 'max');
     final holdHours = _hours(map['hold_hours']);
     final methods = _methods(map['payment_methods']);
+    final status = map.containsKey('status')
+        ? PostStatus.parse(_text(map, 'status') ?? '')
+        : PostStatus.open;
     if (orderId == null ||
         side == null ||
         makerNostr == null ||
@@ -157,7 +205,8 @@ class TwineOrder {
         min == null ||
         max == null ||
         holdHours == null ||
-        methods == null) {
+        methods == null ||
+        status == null) {
       return null;
     }
     return TwineOrder(
@@ -173,6 +222,7 @@ class TwineOrder {
       paymentMethods: methods,
       holdHours: holdHours,
       updatedAt: updatedAt,
+      status: status,
     );
   }
 
@@ -197,6 +247,7 @@ class TwineOrder {
           },
       ],
       'hold_hours': holdHours,
+      'status': status.wire,
       'updated_at': updatedAt.toIso8601String(),
     };
   }

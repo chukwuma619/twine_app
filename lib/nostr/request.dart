@@ -2,6 +2,7 @@
 library;
 
 import '../constant.dart';
+import 'catalog.dart';
 import 'envelope.dart';
 import 'order.dart';
 
@@ -26,7 +27,7 @@ class NewOrderDraft {
   final String max;
   final List<String> methodIds;
 
-  String? validate() {
+  String? validate(List<CatalogMethod> catalog) {
     if (fiberPubkey.trim().isEmpty) return 'Enter your Fiber pubkey.';
     final available = _amount(availableCkb, 'how much CKB this post covers');
     if (available != null) return available;
@@ -39,9 +40,11 @@ class NewOrderDraft {
     final low = double.parse(min.trim());
     final high = double.parse(max.trim());
     if (low > high) return 'The minimum is above the maximum.';
-    if (methodIds.isEmpty) return 'Pick a payment method.';
-    if (methodsForCurrency(fiatCurrency.trim()).isEmpty) {
-      return 'Pick a currency this daemon accepts.';
+    final known = methodsForCurrency(catalog, fiatCurrency.trim());
+    if (known.isEmpty) return 'Pick a currency this daemon accepts.';
+    if (methodIds.isEmpty ||
+        methodIds.any((id) => !known.any((method) => method.id == id))) {
+      return 'Pick a payment method.';
     }
     return null;
   }

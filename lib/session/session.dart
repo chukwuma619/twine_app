@@ -71,7 +71,7 @@ class TwineSession extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  /// Opens [relays] and watches replies and the Fiber node announcement.
+  /// Opens [relays] and watches replies, orders, the Fiber node, and the payment catalog.
   Future<void> connect(List<String> relays) async {
     await _fiberSub?.cancel();
     fiberNode = null;
@@ -82,6 +82,7 @@ class TwineSession extends ChangeNotifier {
       nostr.watchReplies();
       nostr.watchFiberNode();
       nostr.watchOrders();
+      nostr.watchCatalog();
       _fiberSub = nostr.fiberNodes.listen((pubkey) {
         if (_disposed) return;
         fiberNode = pubkey;

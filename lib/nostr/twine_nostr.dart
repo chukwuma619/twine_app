@@ -10,6 +10,7 @@ import 'account.dart';
 import 'action.dart';
 import 'daemon.dart';
 import 'envelope.dart';
+import 'catalog.dart';
 import 'fiber_node.dart';
 import 'order.dart';
 import 'reply.dart';
@@ -55,6 +56,9 @@ class TwineNostr {
   final _fiberNodes = StreamController<String>.broadcast();
   StreamSubscription<NostrEvent>? _fiberSub;
   NostrEventsStream? _fiberStream;
+  final _catalogs = StreamController<OpenedCatalog>.broadcast();
+  StreamSubscription<NostrEvent>? _catalogSub;
+  NostrEventsStream? _catalogStream;
 
   /// Replies from [daemon], decrypted and checked against that daemon's key.
   Stream<DaemonReplyEvent> get replies => _replies.stream;
@@ -64,6 +68,9 @@ class TwineNostr {
 
   /// Fiber node pubkeys announced by [daemon].
   Stream<String> get fiberNodes => _fiberNodes.stream;
+
+  /// Payment catalogs announced by [daemon].
+  Stream<OpenedCatalog> get catalogs => _catalogs.stream;
 
   /// Encrypts [envelope] to the chosen daemon and signs it with [account].
   NostrEvent seal(TwineEnvelope envelope) {
@@ -188,6 +195,36 @@ class TwineNostr {
     }, onError: (_) {});
   }
 
+  /// Subscribes to this daemon's payment catalog.
+  void watchCatalog() {
+    _stopCatalog();
+    final target = daemon;
+    if (target == null) {
+      throw StateError('choose a daemon first');
+    }
+    final result = nostr.subscribe(
+      NostrFilter(
+        kinds: const [kindCatalog],
+        authors: [target.publicKey],
+        additionalFilters: const {
+          '#d': [paymentCatalogTag],
+        },
+      ),
+    );
+    if (result.isFailure) {
+      throw TwineRelayException(result.failureOrNull!.message);
+    }
+    final events = result.valueOrNull!;
+    _catalogStream = events;
+    _catalogSub = events.stream.listen((event) {
+      final catalog = openCatalog(
+        daemonPublicKey: target.publicKey,
+        event: event,
+      );
+      if (catalog != null && !_catalogs.isClosed) _catalogs.add(catalog);
+    }, onError: (_) {});
+  }
+
   void stopWatching() {
     _replySub?.cancel();
     _replySub = null;
@@ -195,6 +232,7 @@ class TwineNostr {
     _replyStream = null;
     _stopOrders();
     _stopFiber();
+    _stopCatalog();
   }
 
   void _stopOrders() {
@@ -209,6 +247,13 @@ class TwineNostr {
     _fiberSub = null;
     _fiberStream?.close();
     _fiberStream = null;
+  }
+
+  void _stopCatalog() {
+    _catalogSub?.cancel();
+    _catalogSub = null;
+    _catalogStream?.close();
+    _catalogStream = null;
   }
 
   /// Opens [relays] and returns the ones whose sockets connected.

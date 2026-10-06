@@ -81,10 +81,27 @@ class MarketPage extends StatelessWidget {
 
   Future<void> _openPost(BuildContext context) {
     return Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) =>
-            PostPage(fiberPubkey: market.fiberPubkey, onSubmit: market.post),
-      ),
+      MaterialPageRoute<void>(builder: (context) => _LivePost(market: market)),
+    );
+  }
+}
+
+class _LivePost extends StatelessWidget {
+  const _LivePost({required this.market});
+
+  final TwineMarket market;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: market,
+      builder: (context, _) {
+        return PostPage(
+          fiberPubkey: market.fiberPubkey,
+          catalog: market.book.catalog,
+          onSubmit: market.post,
+        );
+      },
     );
   }
 }
@@ -185,6 +202,7 @@ class _PostCard extends StatelessWidget {
     final theme = Theme.of(context);
     final mine = isMaker(order, market.accountPubkey);
     final open = market.book.openTradeFor(order.orderId);
+    final listed = order.status == PostStatus.open;
     final methods = order.paymentMethods
         .map((method) => method.label)
         .join(', ');
@@ -199,6 +217,7 @@ class _PostCard extends StatelessWidget {
               style: theme.textTheme.titleMedium,
             ),
             if (mine) ...[const SizedBox(height: 4), const Text('Yours')],
+            if (!listed) ...[const SizedBox(height: 4), const Text('Canceled')],
             const SizedBox(height: 8),
             Text('${order.pricePerCkb} ${order.fiatCurrency} per CKB'),
             Text('${order.min}–${order.max} ${order.fiatCurrency}'),
@@ -213,12 +232,12 @@ class _PostCard extends StatelessWidget {
                     onPressed: () => _openTrade(context, open.id),
                     child: const Text('Trade'),
                   ),
-                if (open == null && !mine && order.hasCkb)
+                if (listed && open == null && !mine && order.hasCkb)
                   TextButton(
                     onPressed: market.sending ? null : () => _openTake(context),
                     child: const Text('Take'),
                   ),
-                if (mine && open == null)
+                if (listed && mine && open == null)
                   TextButton(
                     onPressed: market.sending ? null : () => _cancel(context),
                     child: const Text('Cancel post'),

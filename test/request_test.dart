@@ -1,7 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:twine_app/constant.dart';
+import 'package:twine_app/nostr/catalog.dart';
 import 'package:twine_app/nostr/order.dart';
 import 'package:twine_app/nostr/request.dart';
+
+const _catalog = [
+  CatalogMethod(id: 'gtbank', kind: 'bank', label: 'GTBank', currency: 'NGN'),
+  CatalogMethod(id: 'zelle', kind: 'wallet', label: 'Zelle', currency: 'USD'),
+];
 
 void main() {
   test('a post names the side, the amounts, and catalog method ids', () {
@@ -16,7 +22,7 @@ void main() {
       methodIds: ['gtbank'],
     );
 
-    expect(draft.validate(), isNull);
+    expect(draft.validate(_catalog), isNull);
     final envelope = draft.envelope();
     expect(envelope.action, actionNewOrder);
     expect(envelope.payload, {
@@ -44,7 +50,7 @@ void main() {
       max: '10',
       methodIds: ['zelle'],
     );
-    expect(draft.validate(), 'The minimum is above the maximum.');
+    expect(draft.validate(_catalog), 'The minimum is above the maximum.');
   });
 
   test('a take names the post, the amount, and one method', () {
