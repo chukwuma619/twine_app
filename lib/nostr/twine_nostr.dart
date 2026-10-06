@@ -11,6 +11,8 @@ import 'action.dart';
 import 'daemon.dart';
 import 'envelope.dart';
 import 'fiber_node.dart';
+import 'order.dart';
+import 'reply.dart';
 
 class TwineRelayException implements Exception {
   TwineRelayException(this.message);
@@ -44,15 +46,21 @@ class TwineNostr {
   /// Daemon this install is pointed at. Null until the user chooses one.
   TwineDaemon? daemon;
 
-  final _replies = StreamController<TwineEnvelope>.broadcast();
+  final _replies = StreamController<DaemonReplyEvent>.broadcast();
   StreamSubscription<NostrEvent>? _replySub;
   NostrEventsStream? _replyStream;
+  final _orders = StreamController<TwineOrder>.broadcast();
+  StreamSubscription<NostrEvent>? _orderSub;
+  NostrEventsStream? _orderStream;
   final _fiberNodes = StreamController<String>.broadcast();
   StreamSubscription<NostrEvent>? _fiberSub;
   NostrEventsStream? _fiberStream;
 
   /// Replies from [daemon], decrypted and checked against that daemon's key.
-  Stream<TwineEnvelope> get replies => _replies.stream;
+  Stream<DaemonReplyEvent> get replies => _replies.stream;
+
+  /// Public orders [daemon] has published.
+  Stream<TwineOrder> get orders => _orders.stream;
 
   /// Fiber node pubkeys announced by [daemon].
   Stream<String> get fiberNodes => _fiberNodes.stream;
@@ -117,7 +125,36 @@ class TwineNostr {
         senderPublicKey: target.publicKey,
         event: event,
       );
-      if (envelope != null && !_replies.isClosed) _replies.add(envelope);
+      final createdAt = event.createdAt;
+      if (envelope != null && createdAt != null && !_replies.isClosed) {
+        _replies.add(
+          DaemonReplyEvent(envelope: envelope, createdAt: createdAt),
+        );
+      }
+    }, onError: (_) {});
+  }
+
+  /// Subscribes to public orders this daemon has published.
+  void watchOrders() {
+    _stopOrders();
+    final target = daemon;
+    if (target == null) {
+      throw StateError('choose a daemon first');
+    }
+    final result = nostr.subscribe(
+      NostrFilter(kinds: const [kindOrder], authors: [target.publicKey]),
+    );
+    if (result.isFailure) {
+      throw TwineRelayException(result.failureOrNull!.message);
+    }
+    final events = result.valueOrNull!;
+    _orderStream = events;
+    _orderSub = events.stream.listen((event) {
+      final order = TwineOrder.open(
+        daemonPublicKey: target.publicKey,
+        event: event,
+      );
+      if (order != null && !_orders.isClosed) _orders.add(order);
     }, onError: (_) {});
   }
 
@@ -156,7 +193,15 @@ class TwineNostr {
     _replySub = null;
     _replyStream?.close();
     _replyStream = null;
+    _stopOrders();
     _stopFiber();
+  }
+
+  void _stopOrders() {
+    _orderSub?.cancel();
+    _orderSub = null;
+    _orderStream?.close();
+    _orderStream = null;
   }
 
   void _stopFiber() {

@@ -12,6 +12,7 @@ class SignedInPage extends StatelessWidget {
     required this.daemon,
     required this.onLogOut,
     required this.onChangeDaemon,
+    this.onClose,
     this.connecting = false,
     this.connectedRelays = const [],
     this.fiberNode,
@@ -23,6 +24,7 @@ class SignedInPage extends StatelessWidget {
   final TwineDaemon daemon;
   final VoidCallback onLogOut;
   final VoidCallback onChangeDaemon;
+  final VoidCallback? onClose;
   final bool connecting;
   final List<String> connectedRelays;
   final String? fiberNode;
@@ -33,7 +35,10 @@ class SignedInPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Twine')),
+      appBar: AppBar(
+        title: const Text('Twine'),
+        leading: onClose == null ? null : BackButton(onPressed: onClose),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),

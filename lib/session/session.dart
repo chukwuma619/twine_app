@@ -8,23 +8,28 @@ import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/store/account_store.dart';
+import 'package:twine_app/store/book_store.dart';
 import 'package:twine_app/store/daemon_store.dart';
+
+import 'market.dart';
 
 class TwineSession extends ChangeNotifier {
   TwineSession({
     required this.nostr,
     required this.store,
     required this.daemonStore,
+    required this.bookStore,
     this.account,
     this.daemon,
     this.connectRelays = false,
   }) {
     nostr.account = account;
     nostr.daemon = daemon;
+    _bindMarket();
     final current = daemon;
-    if (connectRelays && account != null && current != null) {
+    if (connectRelays && account != null && current != null && !showBackup) {
       connecting = true;
-      unawaited(connect(current.relays));
+      unawaited(_openAndConnect(current));
     }
   }
 
@@ -41,12 +46,15 @@ class TwineSession extends ChangeNotifier {
   final TwineNostr nostr;
   final AccountStore store;
   final DaemonStore daemonStore;
+  final BookStore bookStore;
   final bool connectRelays;
 
   TwineAccount? account;
   TwineDaemon? daemon;
+  TwineMarket? market;
   bool showBackup = false;
   bool editingDaemon = false;
+  bool viewingAccount = false;
   bool busy = false;
   String? error;
   String? logoutError;
@@ -73,6 +81,7 @@ class TwineSession extends ChangeNotifier {
       if (_disposed) return;
       nostr.watchReplies();
       nostr.watchFiberNode();
+      nostr.watchOrders();
       _fiberSub = nostr.fiberNodes.listen((pubkey) {
         if (_disposed) return;
         fiberNode = pubkey;
@@ -105,6 +114,7 @@ class TwineSession extends ChangeNotifier {
       account = created;
       showBackup = true;
       busy = false;
+      _bindMarket();
       _notify();
     } catch (_) {
       if (_disposed) return;
@@ -146,10 +156,11 @@ class TwineSession extends ChangeNotifier {
     account = parsed;
     showBackup = false;
     busy = false;
+    _bindMarket();
     connecting = connectRelays && current != null;
     _notify();
     if (connectRelays && current != null) {
-      unawaited(connect(current.relays));
+      unawaited(_openAndConnect(current));
     }
   }
 
@@ -198,9 +209,10 @@ class TwineSession extends ChangeNotifier {
     this.relays = const [];
     fiberNode = null;
     relayError = null;
+    _bindMarket();
     connecting = connectRelays;
     _notify();
-    if (connectRelays) unawaited(connect(parsed.relays));
+    if (connectRelays) unawaited(_openAndConnect(parsed));
   }
 
   void continueFromBackup() {
@@ -209,13 +221,24 @@ class TwineSession extends ChangeNotifier {
     if (connectRelays && current != null) {
       connecting = true;
       _notify();
-      unawaited(connect(current.relays));
+      unawaited(_openAndConnect(current));
       return;
     }
     _notify();
   }
 
+  void openAccount() {
+    viewingAccount = true;
+    _notify();
+  }
+
+  void closeAccount() {
+    viewingAccount = false;
+    _notify();
+  }
+
   void editDaemon() {
+    viewingAccount = false;
     editingDaemon = true;
     _notify();
   }
@@ -241,17 +264,51 @@ class TwineSession extends ChangeNotifier {
     await _fiberSub?.cancel();
     _fiberSub = null;
     account = null;
+    viewingAccount = false;
     fiberNode = null;
     showBackup = false;
     editingDaemon = false;
     error = null;
     logoutError = null;
+    _bindMarket();
     _notify();
+  }
+
+  void _bindMarket() {
+    final currentAccount = account;
+    final currentDaemon = daemon;
+    if (currentAccount == null || currentDaemon == null) {
+      market?.stop();
+      market = null;
+      return;
+    }
+    final current = market;
+    if (current != null &&
+        current.accountPubkey == currentAccount.publicKey &&
+        current.daemonPubkey == currentDaemon.publicKey) {
+      return;
+    }
+    current?.stop();
+    final next = TwineMarket(
+      nostr: nostr,
+      store: bookStore,
+      accountPubkey: currentAccount.publicKey,
+      daemonPubkey: currentDaemon.publicKey,
+    );
+    market = next;
+    unawaited(next.open());
+  }
+
+  Future<void> _openAndConnect(TwineDaemon current) async {
+    await market?.open();
+    if (_disposed) return;
+    await connect(current.relays);
   }
 
   @override
   void dispose() {
     _disposed = true;
+    market?.stop();
     _fiberSub?.cancel();
     super.dispose();
   }

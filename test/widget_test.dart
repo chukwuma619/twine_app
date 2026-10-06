@@ -125,6 +125,11 @@ void main() {
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Posts'), findsOneWidget);
+    expect(find.text('No posts yet.'), findsOneWidget);
+    await tester.tap(find.text('Account'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Signed in'), findsOneWidget);
     expect(find.text(daemonKey.npub), findsOneWidget);
     expect(find.text('wss://relay.example.com'), findsOneWidget);
@@ -178,6 +183,8 @@ void main() {
         initialDaemon: daemon,
       ),
     );
+    await tester.tap(find.text('Account'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Log out'));
     await tester.pumpAndSettle();
     await tester.tap(

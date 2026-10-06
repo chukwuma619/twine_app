@@ -6,11 +6,13 @@ import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/store/account_store.dart';
+import 'package:twine_app/store/book_store.dart';
 import 'package:twine_app/store/daemon_store.dart';
 
 import 'backup_page.dart';
 import 'daemon_page.dart';
 import 'login_page.dart';
+import 'market_page.dart';
 import 'session.dart';
 import 'signed_in_page.dart';
 
@@ -20,6 +22,7 @@ class TwineApp extends StatefulWidget {
     required this.nostr,
     required this.store,
     required this.daemonStore,
+    this.bookStore,
     this.initialAccount,
     this.initialDaemon,
     this.connectRelays = false,
@@ -28,6 +31,7 @@ class TwineApp extends StatefulWidget {
   final TwineNostr nostr;
   final AccountStore store;
   final DaemonStore daemonStore;
+  final BookStore? bookStore;
   final TwineAccount? initialAccount;
   final TwineDaemon? initialDaemon;
   final bool connectRelays;
@@ -38,14 +42,17 @@ class TwineApp extends StatefulWidget {
 
 class _TwineAppState extends State<TwineApp> {
   late final TwineSession _session;
+  late final BookStore _books;
 
   @override
   void initState() {
     super.initState();
+    _books = widget.bookStore ?? MemoryBookStore();
     _session = TwineSession(
       nostr: widget.nostr,
       store: widget.store,
       daemonStore: widget.daemonStore,
+      bookStore: _books,
       account: widget.initialAccount,
       daemon: widget.initialDaemon,
       connectRelays: widget.connectRelays,
@@ -60,17 +67,15 @@ class _TwineAppState extends State<TwineApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _session,
-      builder: (context, _) {
-        return MaterialApp(
-          title: 'Twine',
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          ),
-          home: _home(_session),
-        );
-      },
+    return MaterialApp(
+      title: 'Twine',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      ),
+      home: ListenableBuilder(
+        listenable: _session,
+        builder: (context, _) => _home(_session),
+      ),
     );
   }
 
@@ -102,16 +107,31 @@ class _TwineAppState extends State<TwineApp> {
             : null,
       );
     }
-    return SignedInPage(
-      account: account,
-      daemon: daemon,
-      connecting: session.connecting,
-      connectedRelays: session.relays,
+    if (session.viewingAccount) {
+      return SignedInPage(
+        account: account,
+        daemon: daemon,
+        connecting: session.connecting,
+        connectedRelays: session.relays,
+        fiberNode: session.fiberNode,
+        relayError: session.relayError,
+        onChangeDaemon: session.editDaemon,
+        onLogOut: session.logOut,
+        onClose: session.closeAccount,
+        error: session.logoutError,
+      );
+    }
+    final market = session.market;
+    if (market == null) {
+      return const Scaffold(body: Center(child: Text('Opening the book…')));
+    }
+    return MarketPage(
+      market: market,
       fiberNode: session.fiberNode,
+      connecting: session.connecting,
+      linked: session.relays.isNotEmpty,
       relayError: session.relayError,
-      onChangeDaemon: session.editDaemon,
-      onLogOut: session.logOut,
-      error: session.logoutError,
+      onAccount: session.openAccount,
     );
   }
 }

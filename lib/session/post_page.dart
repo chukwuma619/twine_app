@@ -1,0 +1,214 @@
+/// Form for a new post.
+library;
+
+import 'package:flutter/material.dart';
+
+import '../constant.dart';
+import '../nostr/order.dart';
+import '../nostr/request.dart';
+
+class PostPage extends StatefulWidget {
+  const PostPage({super.key, required this.onSubmit, this.fiberPubkey});
+
+  final String? fiberPubkey;
+  final Future<String?> Function(NewOrderDraft draft) onSubmit;
+
+  @override
+  State<PostPage> createState() => _PostPageState();
+}
+
+class _PostPageState extends State<PostPage> {
+  late final TextEditingController _fiber;
+  late final TextEditingController _available;
+  late final TextEditingController _price;
+  late final TextEditingController _min;
+  late final TextEditingController _max;
+  late String _currency;
+  late Set<String> _methodIds;
+  OrderSide _side = OrderSide.sell;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fiber = TextEditingController(text: widget.fiberPubkey ?? '');
+    _available = TextEditingController();
+    _price = TextEditingController();
+    _min = TextEditingController();
+    _max = TextEditingController();
+    _currency = catalogCurrencies().first;
+    _methodIds = {
+      for (final method in methodsForCurrency(_currency)) method.id,
+    };
+  }
+
+  @override
+  void dispose() {
+    _fiber.dispose();
+    _available.dispose();
+    _price.dispose();
+    _min.dispose();
+    _max.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final methods = methodsForCurrency(_currency);
+    return Scaffold(
+      appBar: AppBar(title: const Text('New post')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final side in OrderSide.values)
+                        ChoiceChip(
+                          label: Text(
+                            side == OrderSide.sell ? 'Sell CKB' : 'Buy CKB',
+                          ),
+                          selected: _side == side,
+                          onSelected: _busy
+                              ? null
+                              : (selected) {
+                                  if (selected) setState(() => _side = side);
+                                },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _field(_fiber, 'Your Fiber pubkey'),
+                  const SizedBox(height: 12),
+                  _field(_available, 'CKB available', number: true),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final currency in catalogCurrencies())
+                        ChoiceChip(
+                          label: Text(currency),
+                          selected: _currency == currency,
+                          onSelected: _busy
+                              ? null
+                              : (selected) {
+                                  if (selected) _chooseCurrency(currency);
+                                },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _field(_price, 'Price per CKB', number: true),
+                  const SizedBox(height: 12),
+                  _field(_min, 'Minimum', number: true),
+                  const SizedBox(height: 12),
+                  _field(_max, 'Maximum', number: true),
+                  const SizedBox(height: 8),
+                  for (final method in methods)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(method.label),
+                      subtitle: Text(method.kind),
+                      value: _methodIds.contains(method.id),
+                      onChanged: _busy
+                          ? null
+                          : (checked) => _toggle(method.id, checked ?? false),
+                    ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _error!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _busy ? null : _submit,
+                    child: const Text('Post'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String label, {
+    bool number = false,
+  }) {
+    return TextField(
+      controller: controller,
+      enabled: !_busy,
+      keyboardType: number
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : TextInputType.text,
+      autocorrect: false,
+      enableSuggestions: false,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
+    );
+  }
+
+  void _chooseCurrency(String currency) {
+    setState(() {
+      _currency = currency;
+      _methodIds
+        ..clear()
+        ..addAll(methodsForCurrency(currency).map((method) => method.id));
+    });
+  }
+
+  void _toggle(String id, bool selected) {
+    setState(() {
+      if (selected) {
+        _methodIds.add(id);
+      } else {
+        _methodIds.remove(id);
+      }
+    });
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final error = await widget.onSubmit(
+      NewOrderDraft(
+        side: _side,
+        fiberPubkey: _fiber.text,
+        availableCkb: _available.text,
+        fiatCurrency: _currency,
+        pricePerCkb: _price.text,
+        min: _min.text,
+        max: _max.text,
+        methodIds: _methodIds.toList(),
+      ),
+    );
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = error;
+    });
+  }
+}

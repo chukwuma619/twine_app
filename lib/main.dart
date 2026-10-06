@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/session/twine_app.dart';
 import 'package:twine_app/store/account_store.dart';
+import 'package:twine_app/store/book_store.dart';
 import 'package:twine_app/store/daemon_store.dart';
 
 Future<void> main() async {
@@ -12,6 +13,7 @@ Future<void> main() async {
   final nostr = TwineNostr();
   final store = SecureAccountStore(nostr.nostr);
   final daemonStore = SecureDaemonStore(nostr.nostr);
+  final bookStore = SecureBookStore();
   try {
     final account = await store.read();
     final daemon = await daemonStore.read();
@@ -22,6 +24,7 @@ Future<void> main() async {
         nostr: nostr,
         store: store,
         daemonStore: daemonStore,
+        bookStore: bookStore,
         initialAccount: account,
         initialDaemon: daemon,
         connectRelays: true,
