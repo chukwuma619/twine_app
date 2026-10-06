@@ -31,9 +31,12 @@ class _DaemonPageState extends State<DaemonPage> {
   @override
   void initState() {
     super.initState();
-    _pubkey = TextEditingController(text: widget.current?.npub ?? '');
+    _pubkey = TextEditingController(
+      text: widget.current?.npub ?? officialDaemonNpub,
+    );
     _relays = TextEditingController(
-      text: widget.current?.relays.join(', ') ?? '',
+      text:
+          widget.current?.relays.join(', ') ?? officialDaemonRelays.join(', '),
     );
   }
 
@@ -64,8 +67,10 @@ class _DaemonPageState extends State<DaemonPage> {
                     style: theme.textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'The person running Twine gives you their public key and relay list.',
+                  Text(
+                    editing
+                        ? 'Replace the public key and relays to use another daemon.'
+                        : 'The official daemon is filled in. Replace it to use another one.',
                   ),
                   const SizedBox(height: 24),
                   TextField(

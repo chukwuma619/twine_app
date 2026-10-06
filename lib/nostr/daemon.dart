@@ -3,6 +3,13 @@ library;
 
 import 'package:dart_nostr/dart_nostr.dart';
 
+/// The daemon a new install offers. A person can replace it before connecting.
+const officialDaemonNpub =
+    'npub18wyh0ympmw9gfu7dfu6eqyqef449smmg74k5p5m79zunx8wusttqzpnmc8';
+
+/// Relays that daemon uses.
+const officialDaemonRelays = ['wss://relay.damus.io', 'wss://nos.lol'];
+
 /// A daemon somebody else is running. The app only stores its public key and relays.
 class TwineDaemon {
   const TwineDaemon({

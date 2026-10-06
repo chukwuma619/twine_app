@@ -38,8 +38,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Connect to a daemon'), findsOneWidget);
+    expect(find.text(officialDaemonNpub), findsOneWidget);
+    expect(find.text('wss://relay.damus.io, wss://nos.lol'), findsOneWidget);
     expect(find.text('Signed in'), findsNothing);
     expect(nostr.account?.publicKey, store.account!.publicKey);
+  });
+
+  testWidgets('connect uses the official daemon when the fields are left', (
+    tester,
+  ) async {
+    final nostr = TwineNostr();
+    final account = TwineAccount.generate(nostr.nostr);
+    final daemons = MemoryDaemonStore();
+
+    await tester.pumpWidget(
+      app(
+        nostr: nostr,
+        store: MemoryAccountStore()..account = account,
+        daemonStore: daemons,
+        initialAccount: account,
+      ),
+    );
+    await tester.tap(find.text('Connect'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Posts'), findsOneWidget);
+    expect(daemons.daemon?.npub, officialDaemonNpub);
+    expect(daemons.daemon?.relays, officialDaemonRelays);
+    expect(nostr.daemon?.publicKey, daemons.daemon?.publicKey);
   });
 
   testWidgets('importing an nsec asks which daemon to use', (tester) async {
