@@ -51,6 +51,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Sell'));
+    await tester.pumpAndSettle();
 
     expect(find.text('Sell · 10 CKB'), findsNWidgets(2));
     expect(find.text('Take'), findsOneWidget);
@@ -61,6 +63,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Fiat amount'), findsOneWidget);
     expect(find.text('GTBank · bank'), findsOneWidget);
+  });
+
+  testWidgets('buy lists buy posts and sell lists sell posts', (tester) async {
+    final market = _market(
+      pubkey: 'taker',
+      orders: [
+        _order(),
+        _order(id: 'buy-1', side: OrderSide.buy),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MarketPage(market: market, onAccount: () {}),
+      ),
+    );
+
+    expect(find.text('Buy · 10 CKB'), findsOneWidget);
+    expect(find.text('Sell · 10 CKB'), findsNothing);
+
+    await tester.tap(find.text('Sell'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sell · 10 CKB'), findsOneWidget);
+    expect(find.text('Buy · 10 CKB'), findsNothing);
+
+    await tester.tap(find.text('Trade'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No trades yet.'), findsOneWidget);
+    expect(find.text('Buy'), findsNothing);
   });
 
   testWidgets('a canceled post cannot be taken or canceled again', (
@@ -79,6 +112,8 @@ void main() {
         home: MarketPage(market: market, onAccount: () {}),
       ),
     );
+    await tester.tap(find.text('Sell'));
+    await tester.pumpAndSettle();
 
     expect(find.text('Canceled'), findsNWidgets(2));
     expect(find.text('Take'), findsNothing);
@@ -232,11 +267,12 @@ const _catalog = [
 TwineOrder _order({
   String id = 'order-1',
   String maker = 'maker',
+  OrderSide side = OrderSide.sell,
   PostStatus status = PostStatus.open,
 }) {
   return TwineOrder(
     orderId: id,
-    side: OrderSide.sell,
+    side: side,
     makerNostrPubkey: maker,
     makerFiberPubkey: 'fiber',
     availableCkb: '10',

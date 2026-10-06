@@ -62,7 +62,9 @@ void main() {
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Posts'), findsOneWidget);
+    expect(find.text('Post'), findsOneWidget);
+    expect(find.text('Trade'), findsOneWidget);
+    expect(find.text('Buy'), findsOneWidget);
     expect(daemons.daemon?.npub, officialDaemonNpub);
     expect(daemons.daemon?.relays, officialDaemonRelays);
     expect(nostr.daemon?.publicKey, daemons.daemon?.publicKey);
@@ -151,7 +153,9 @@ void main() {
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Posts'), findsOneWidget);
+    expect(find.text('Post'), findsOneWidget);
+    expect(find.text('Trade'), findsOneWidget);
+    expect(find.text('Buy'), findsOneWidget);
     expect(find.text('No posts yet.'), findsOneWidget);
     await tester.tap(find.text('Account'));
     await tester.pumpAndSettle();

@@ -1,22 +1,41 @@
 PODS:
+  - CocoaLumberjack (3.10.0):
+    - CocoaLumberjack/Core (= 3.10.0)
+  - CocoaLumberjack/Core (3.10.0)
+  - cupertino_native_better (0.0.1):
+    - Flutter
+    - SVGKit (~> 3.0)
   - Flutter (1.0.0)
   - flutter_secure_storage_darwin (10.0.0):
     - Flutter
     - FlutterMacOS
+  - SVGKit (3.0.0):
+    - CocoaLumberjack (~> 3.0)
 
 DEPENDENCIES:
+  - cupertino_native_better (from `.symlinks/plugins/cupertino_native_better/ios`)
   - Flutter (from `Flutter`)
   - flutter_secure_storage_darwin (from `.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
 
+SPEC REPOS:
+  trunk:
+    - CocoaLumberjack
+    - SVGKit
+
 EXTERNAL SOURCES:
+  cupertino_native_better:
+    :path: ".symlinks/plugins/cupertino_native_better/ios"
   Flutter:
     :path: Flutter
   flutter_secure_storage_darwin:
     :path: ".symlinks/plugins/flutter_secure_storage_darwin/darwin"
 
 SPEC CHECKSUMS:
+  CocoaLumberjack: 12545b2899dcaeec69b82c27b174042259c1ec27
+  cupertino_native_better: 48a6a9cd45efc9ea9e1eec30755b5a8ebe92f1f2
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_secure_storage_darwin: 46e401699982ee74142909676535e0f6a7321e58
+  SVGKit: 1ad7513f8c74d9652f94ed64ddecda1a23864dea
 
 PODFILE CHECKSUM: 288656d4464589360115d6f81dd5d8f559352730
 

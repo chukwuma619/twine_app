@@ -1,6 +1,8 @@
-/// Posts on this daemon, and the trades this key is part of.
+/// The book and this key's trades.
 library;
 
+import 'package:cupertino_native_better/cupertino_native_better.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../market/role.dart';
@@ -10,7 +12,12 @@ import 'post_page.dart';
 import 'take_page.dart';
 import 'trade_page.dart';
 
-class MarketPage extends StatelessWidget {
+enum _Section { post, trade }
+
+/// Which side of the book is open. Buy lists buy posts, and sell lists sell posts.
+enum _Book { buy, sell }
+
+class MarketPage extends StatefulWidget {
   const MarketPage({
     super.key,
     required this.market,
@@ -29,47 +36,53 @@ class MarketPage extends StatelessWidget {
   final String? relayError;
 
   @override
+  State<MarketPage> createState() => _MarketPageState();
+}
+
+class _MarketPageState extends State<MarketPage> {
+  _Section _section = _Section.post;
+  _Book _book = _Book.buy;
+
+  @override
   Widget build(BuildContext context) {
+    final market = widget.market;
+    final posting = _section == _Section.post;
     return ListenableBuilder(
       listenable: market,
       builder: (context, _) {
-        return DefaultTabController(
-          length: 2,
+        return CupertinoTheme(
+          data: CupertinoThemeData(
+            brightness: Theme.of(context).brightness,
+            primaryColor: CupertinoColors.label.resolveFrom(context),
+          ),
           child: Scaffold(
-            appBar: AppBar(
-              title: const Text('Twine'),
-              actions: [
-                TextButton(onPressed: onAccount, child: const Text('Account')),
-              ],
-              bottom: const TabBar(
-                tabs: [
-                  Tab(text: 'Posts'),
-                  Tab(text: 'Trades'),
-                ],
-              ),
-            ),
-            floatingActionButton: FloatingActionButton.extended(
-              onPressed: market.ready && !market.sending
-                  ? () => _openPost(context)
-                  : null,
-              label: const Text('Post'),
+            extendBody: _apple(context),
+            bottomNavigationBar: _SectionBar(
+              section: _section,
+              onChanged: (section) => setState(() => _section = section),
             ),
             body: Column(
               children: [
+                _TopBar(
+                  posting: posting,
+                  book: _book,
+                  onBook: (book) => setState(() => _book = book),
+                  onAccount: widget.onAccount,
+                  onPost: posting && market.ready && !market.sending
+                      ? () => _openPost(context)
+                      : null,
+                ),
                 _Status(
                   market: market,
-                  fiberNode: fiberNode,
-                  connecting: connecting,
-                  linked: linked,
-                  relayError: relayError,
+                  fiberNode: widget.fiberNode,
+                  connecting: widget.connecting,
+                  linked: widget.linked,
+                  relayError: widget.relayError,
                 ),
                 Expanded(
-                  child: TabBarView(
-                    children: [
-                      _Posts(market: market),
-                      _Trades(market: market),
-                    ],
-                  ),
+                  child: posting
+                      ? _Posts(market: market, book: _book)
+                      : _Trades(market: market),
                 ),
               ],
             ),
@@ -80,16 +93,227 @@ class MarketPage extends StatelessWidget {
   }
 
   Future<void> _openPost(BuildContext context) {
+    final side = _book == _Book.buy ? OrderSide.buy : OrderSide.sell;
     return Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (context) => _LivePost(market: market)),
+      MaterialPageRoute<void>(
+        builder: (context) => _LivePost(market: widget.market, side: side),
+      ),
     );
   }
 }
 
+class _TopBar extends StatelessWidget {
+  const _TopBar({
+    required this.posting,
+    required this.book,
+    required this.onBook,
+    required this.onAccount,
+    required this.onPost,
+  });
+
+  final bool posting;
+  final _Book book;
+  final ValueChanged<_Book> onBook;
+  final VoidCallback onAccount;
+  final VoidCallback? onPost;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = CupertinoColors.label.resolveFrom(context);
+    return SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: 52,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (posting)
+              _BookBar(book: book, onChanged: onBook)
+            else
+              Text(
+                'Trade',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: label,
+                ),
+              ),
+            Row(
+              children: [
+                SizedBox(
+                  width: 52,
+                  child: posting
+                      ? CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: onPost,
+                          child: Icon(
+                            CupertinoIcons.plus,
+                            color: label,
+                            size: 22,
+                          ),
+                        )
+                      : null,
+                ),
+                const Spacer(),
+                CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  onPressed: onAccount,
+                  child: Text(
+                    'Account',
+                    style: TextStyle(fontSize: 17, color: label),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BookBar extends StatelessWidget {
+  const _BookBar({required this.book, required this.onChanged});
+
+  final _Book book;
+  final ValueChanged<_Book> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _bookControl(context);
+  }
+
+  Widget _bookControl(BuildContext context) {
+    if (_apple(context) && !_inWidgetTest) {
+      return CNSegmentedControl(
+        labels: const ['Buy', 'Sell'],
+        selectedIndex: book == _Book.buy ? 0 : 1,
+        shrinkWrap: true,
+        onValueChanged: (next) => onChanged(next == 0 ? _Book.buy : _Book.sell),
+      );
+    }
+    if (_apple(context)) {
+      return SizedBox(
+        width: double.infinity,
+        child: CupertinoSlidingSegmentedControl<_Book>(
+          groupValue: book,
+          children: const {_Book.buy: Text('Buy'), _Book.sell: Text('Sell')},
+          onValueChanged: (next) {
+            if (next != null) onChanged(next);
+          },
+        ),
+      );
+    }
+    return SegmentedButton<_Book>(
+      segments: const [
+        ButtonSegment(value: _Book.buy, label: Text('Buy')),
+        ButtonSegment(value: _Book.sell, label: Text('Sell')),
+      ],
+      selected: {book},
+      showSelectedIcon: false,
+      onSelectionChanged: (next) => onChanged(next.first),
+    );
+  }
+}
+
+class _SectionBar extends StatelessWidget {
+  const _SectionBar({required this.section, required this.onChanged});
+
+  final _Section section;
+  final ValueChanged<_Section> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final index = section == _Section.post ? 0 : 1;
+    void select(int next) {
+      onChanged(next == 0 ? _Section.post : _Section.trade);
+    }
+
+    final platform = Theme.of(context).platform;
+    switch (platform) {
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+        if (!_inWidgetTest) {
+          return CNTabBar(
+            items: const [
+              CNTabBarItem(
+                label: 'Post',
+                icon: CNSymbol('list.bullet'),
+                activeIcon: CNSymbol('list.bullet'),
+              ),
+              CNTabBarItem(
+                label: 'Trade',
+                icon: CNSymbol('arrow.left.arrow.right'),
+                activeIcon: CNSymbol('arrow.left.arrow.right'),
+              ),
+            ],
+            currentIndex: index,
+            onTap: select,
+          );
+        }
+        return CupertinoTabBar(
+          currentIndex: index,
+          onTap: select,
+          activeColor: Theme.of(context).colorScheme.primary,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.list_bullet),
+              label: 'Post',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.arrow_right_arrow_left),
+              label: 'Trade',
+            ),
+          ],
+        );
+      case TargetPlatform.android:
+      case TargetPlatform.fuchsia:
+      case TargetPlatform.linux:
+      case TargetPlatform.windows:
+        return NavigationBar(
+          selectedIndex: index,
+          onDestinationSelected: select,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.edit_outlined),
+              selectedIcon: Icon(Icons.edit),
+              label: 'Post',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.swap_horiz_outlined),
+              selectedIcon: Icon(Icons.swap_horiz),
+              label: 'Trade',
+            ),
+          ],
+        );
+    }
+  }
+}
+
+bool _apple(BuildContext context) {
+  final platform = Theme.of(context).platform;
+  return platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
+}
+
+bool get _inWidgetTest {
+  return WidgetsBinding.instance.runtimeType.toString().contains(
+    'TestWidgetsFlutterBinding',
+  );
+}
+
+List<TwineOrder> _ordersFor(_Book book, List<TwineOrder> orders) {
+  final side = book == _Book.buy ? OrderSide.buy : OrderSide.sell;
+  return [
+    for (final order in orders)
+      if (order.side == side) order,
+  ];
+}
+
 class _LivePost extends StatelessWidget {
-  const _LivePost({required this.market});
+  const _LivePost({required this.market, required this.side});
 
   final TwineMarket market;
+  final OrderSide side;
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +323,7 @@ class _LivePost extends StatelessWidget {
         return PostPage(
           fiberPubkey: market.fiberPubkey,
           catalog: market.book.catalog,
+          initialSide: side,
           onSubmit: market.post,
         );
       },
@@ -144,10 +369,7 @@ class _Status extends StatelessWidget {
       lines.add(_errorLine(theme, relayError!));
     } else if (connecting) {
       lines.add(const Text('Connecting to relays…'));
-    } else if (fiberNode != null) {
-      lines.add(Text('Fiber node', style: theme.textTheme.titleSmall));
-      lines.add(SelectableText(fiberNode!));
-    } else if (linked) {
+    } else if (fiberNode == null && linked) {
       lines.add(const Text('Waiting for the Fiber node…'));
     }
     if (lines.isEmpty) return const SizedBox.shrink();
@@ -167,21 +389,22 @@ class _Status extends StatelessWidget {
 }
 
 class _Posts extends StatelessWidget {
-  const _Posts({required this.market});
+  const _Posts({required this.market, required this.book});
 
   final TwineMarket market;
+  final _Book book;
 
   @override
   Widget build(BuildContext context) {
-    final orders = market.book.orders;
+    final orders = _ordersFor(book, market.book.orders);
+    final bottom = _apple(context)
+        ? MediaQuery.paddingOf(context).bottom + 128
+        : 88.0;
     if (orders.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.all(24),
-        children: const [Text('No posts yet.')],
-      );
+      return const Center(child: Text('No posts yet.'));
     }
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 88),
+      padding: EdgeInsets.fromLTRB(24, 16, 24, bottom),
       itemCount: orders.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
@@ -285,14 +508,14 @@ class _Trades extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final trades = market.book.trades;
+    final bottom = _apple(context)
+        ? MediaQuery.paddingOf(context).bottom + 72
+        : 24.0;
     if (trades.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.all(24),
-        children: const [Text('No trades yet.')],
-      );
+      return const Center(child: Text('No trades yet.'));
     }
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 88),
+      padding: EdgeInsets.fromLTRB(24, 16, 24, bottom),
       itemCount: trades.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {

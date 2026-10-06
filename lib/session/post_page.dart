@@ -13,10 +13,12 @@ class PostPage extends StatefulWidget {
     required this.onSubmit,
     this.fiberPubkey,
     this.catalog = const [],
+    this.initialSide = OrderSide.sell,
   });
 
   final String? fiberPubkey;
   final List<CatalogMethod> catalog;
+  final OrderSide initialSide;
   final Future<String?> Function(NewOrderDraft draft) onSubmit;
 
   @override
@@ -31,13 +33,14 @@ class _PostPageState extends State<PostPage> {
   late final TextEditingController _max;
   late String _currency;
   late Set<String> _methodIds;
-  OrderSide _side = OrderSide.sell;
+  late OrderSide _side;
   bool _busy = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _side = widget.initialSide;
     _fiber = TextEditingController(text: widget.fiberPubkey ?? '');
     _available = TextEditingController();
     _price = TextEditingController();

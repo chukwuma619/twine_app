@@ -1,6 +1,7 @@
 /// Chooses the screen from the session.
 library;
 
+import 'package:cupertino_native_better/cupertino_native_better.dart';
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
@@ -69,6 +70,7 @@ class _TwineAppState extends State<TwineApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Twine',
+      navigatorObservers: [CNTabBarRouteObserver()],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
