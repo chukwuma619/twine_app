@@ -1,6 +1,3 @@
-/// Seals a trade-thread message to the other trader and opens one.
-library;
-
 import 'dart:convert';
 
 import 'package:dart_nostr/dart_nostr.dart';
@@ -98,7 +95,6 @@ class ChatBody {
   }
 }
 
-/// Signs a kind-4243 event encrypted to [peer].
 NostrEvent sealChat({
   required TwineAccount sender,
   required String peer,
@@ -122,7 +118,6 @@ NostrEvent sealChat({
   );
 }
 
-/// Decrypts a thread message from [senderPublicKey] addressed to [recipient].
 ChatBody? openChat({
   required TwineAccount recipient,
   required String senderPublicKey,

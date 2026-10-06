@@ -1,9 +1,5 @@
-/// Checks that a Nostr event was signed by the key it claims.
-library;
-
 import 'package:dart_nostr/dart_nostr.dart';
 
-/// True when [event] was signed by [publicKey] and its id matches the body.
 bool signedBy(NostrEvent event, String publicKey) {
   final kind = event.kind;
   final content = event.content;

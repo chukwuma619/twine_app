@@ -1,6 +1,3 @@
-/// Reads the saved account and daemon, then starts the app.
-library;
-
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/session/twine_app.dart';

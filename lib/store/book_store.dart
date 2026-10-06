@@ -1,6 +1,3 @@
-/// The posts and trades kept on this device, per account and daemon.
-library;
-
 import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';

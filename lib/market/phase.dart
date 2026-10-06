@@ -1,6 +1,3 @@
-/// Trade phases, in the daemon's words.
-library;
-
 enum TradePhase {
   waitingHold('waiting-hold', 'Waiting for the hold'),
   waitingFiat('waiting-fiat', 'Waiting for fiat'),

@@ -1,6 +1,3 @@
-/// Chooses the screen from the session.
-library;
-
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';

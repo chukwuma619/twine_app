@@ -3,7 +3,6 @@ library;
 
 import 'dart:convert';
 
-/// The envelope the daemon already parses.
 class TwineEnvelope {
   const TwineEnvelope({required this.action, this.tradeId, this.payload});
 

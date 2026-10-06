@@ -1,6 +1,3 @@
-/// One line on a trade thread, kept on this device.
-library;
-
 import 'phase.dart';
 
 /// A receipt image, after compression, has to fit in one relay event.

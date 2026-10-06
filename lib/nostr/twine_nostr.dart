@@ -1,6 +1,3 @@
-/// Relay client. Relays come from the daemon the user picked.
-library;
-
 import 'dart:async';
 
 import 'package:dart_nostr/dart_nostr.dart';
@@ -41,10 +38,8 @@ class TwineNostr {
 
   final Nostr nostr;
 
-  /// Key that signs actions. Null until the user creates or imports one.
   TwineAccount? account;
 
-  /// Daemon this install is pointed at. Null until the user chooses one.
   TwineDaemon? daemon;
 
   final _replies = StreamController<DaemonReplyEvent>.broadcast();
@@ -69,22 +64,16 @@ class TwineNostr {
   Timer? _relayWatch;
   String _openSockets = '';
 
-  /// Replies from [daemon], decrypted and checked against that daemon's key.
   Stream<DaemonReplyEvent> get replies => _replies.stream;
 
-  /// Public orders [daemon] has published.
   Stream<TwineOrder> get orders => _orders.stream;
 
-  /// Fiber node pubkeys announced by [daemon].
   Stream<String> get fiberNodes => _fiberNodes.stream;
 
-  /// Payment catalogs announced by [daemon].
   Stream<OpenedCatalog> get catalogs => _catalogs.stream;
 
-  /// Trade-thread events addressed to this account.
   Stream<NostrEvent> get chats => _chats.stream;
 
-  /// Encrypts [envelope] to the chosen daemon and signs it with [account].
   NostrEvent seal(TwineEnvelope envelope) {
     final signer = account;
     final target = daemon;
@@ -98,7 +87,6 @@ class TwineNostr {
     );
   }
 
-  /// Decrypts [event] when it was signed by the chosen daemon and addressed here.
   TwineEnvelope? open(NostrEvent event) {
     final signer = account;
     final target = daemon;
@@ -110,12 +98,10 @@ class TwineNostr {
     );
   }
 
-  /// Publishes [envelope] to the connected relays.
   Future<void> send(TwineEnvelope envelope) async {
     await publish(seal(envelope));
   }
 
-  /// Publishes a signed event. Used for the trade thread.
   Future<void> publish(NostrEvent event) async {
     final result = await nostr.publish(event);
     if (result.isFailure) {
@@ -123,8 +109,6 @@ class TwineNostr {
     }
   }
 
-  /// Subscribes to kind-4243 messages from [authors] on [tradeIds].
-  /// Keeps the filter so a relay reconnect subscribes again.
   void watchTradeChat({
     required String accountPubkey,
     required List<String> authors,
@@ -136,7 +120,6 @@ class TwineNostr {
     _subscribeChat();
   }
 
-  /// Subscribes to kind-4242 events tagged to this account and authored by the daemon.
   void watchReplies() {
     _replySub?.cancel();
     _replySub = null;
@@ -174,7 +157,6 @@ class TwineNostr {
     }, onError: (_) {});
   }
 
-  /// Subscribes to public orders this daemon has published.
   void watchOrders() {
     _stopOrders();
     final target = daemon;
@@ -219,7 +201,6 @@ class TwineNostr {
     _orderReplay = result.valueOrNull;
   }
 
-  /// Subscribes to this daemon's Fiber node announcement.
   void watchFiberNode() {
     _stopFiber();
     final target = daemon;
@@ -249,7 +230,6 @@ class TwineNostr {
     }, onError: (_) {});
   }
 
-  /// Subscribes to this daemon's payment catalog.
   void watchCatalog() {
     _stopCatalog();
     final target = daemon;
@@ -343,8 +323,6 @@ class TwineNostr {
     }, onError: (_) {});
   }
 
-  /// Opens [relays] and returns the ones whose sockets connected.
-  /// Throws [TwineRelayException] when none do.
   Future<List<String>> connect(List<String> relays) async {
     stopWatching();
     await nostr.disconnect();

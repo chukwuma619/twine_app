@@ -1,6 +1,3 @@
-/// The posts and trades this device has heard, folded forward.
-library;
-
 import '../nostr/catalog.dart';
 import '../nostr/envelope.dart';
 import '../nostr/order.dart';
@@ -129,7 +126,6 @@ class TwineBook {
     }
   }
 
-  /// Marks a release in progress. Returns an error when this phase cannot release.
   String? beginRelease(String tradeId) {
     final current = trade(tradeId);
     if (current == null) return 'That trade is not on this device yet.';

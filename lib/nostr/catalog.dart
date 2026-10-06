@@ -1,6 +1,3 @@
-/// The payment methods a daemon publishes for new posts.
-library;
-
 import 'dart:convert';
 
 import 'package:dart_nostr/dart_nostr.dart';
@@ -46,8 +43,6 @@ class OpenedCatalog {
   final DateTime updatedAt;
 }
 
-/// Methods from a kind-31422 event signed by [daemonPublicKey].
-/// Null when the event is not that announcement.
 OpenedCatalog? openCatalog({
   required String daemonPublicKey,
   required NostrEvent event,

@@ -1,6 +1,3 @@
-/// Seals a kind-4242 action to the daemon and opens a reply.
-library;
-
 import 'package:dart_nostr/dart_nostr.dart';
 
 import '../constant.dart';
@@ -9,7 +6,6 @@ import 'envelope.dart';
 import 'nip44.dart';
 import 'verify.dart';
 
-/// Signs a kind-4242 event encrypted to [recipientPublicKey].
 NostrEvent sealAction({
   required TwineAccount sender,
   required String recipientPublicKey,
@@ -32,8 +28,6 @@ NostrEvent sealAction({
   );
 }
 
-/// Decrypts a reply from [senderPublicKey]. Returns null when the author,
-/// signature, address, or ciphertext is not that sender writing to [recipient].
 TwineEnvelope? openReply({
   required TwineAccount recipient,
   required String senderPublicKey,

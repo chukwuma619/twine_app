@@ -1,6 +1,3 @@
-/// Sends trade actions and folds the daemon's orders and replies into a book.
-library;
-
 import 'dart:async';
 import 'dart:convert';
 
@@ -327,13 +324,11 @@ class TwineMarket extends ChangeNotifier {
       authors.add(peer);
       trades.add(trade.id);
     }
-    try {
-      nostr.watchTradeChat(
-        accountPubkey: accountPubkey,
-        authors: authors.toList(),
-        tradeIds: trades,
-      );
-    } catch (_) {}
+    nostr.watchTradeChat(
+      accountPubkey: accountPubkey,
+      authors: authors.toList(),
+      tradeIds: trades,
+    );
   }
 
   String? _conversationKey(String tradeId) {

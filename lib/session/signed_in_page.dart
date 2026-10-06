@@ -1,6 +1,3 @@
-/// The account, the daemon, and the Fiber node, after sign-in.
-library;
-
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';

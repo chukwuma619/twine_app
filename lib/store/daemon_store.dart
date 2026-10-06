@@ -1,6 +1,3 @@
-/// The daemon this install is pointed at, kept on this device.
-library;
-
 import 'dart:convert';
 
 import 'package:dart_nostr/dart_nostr.dart';

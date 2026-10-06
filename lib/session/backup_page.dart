@@ -1,6 +1,3 @@
-/// Shows a new secret once, before anything else.
-library;
-
 import 'package:flutter/material.dart';
 
 class BackupPage extends StatelessWidget {

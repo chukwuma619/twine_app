@@ -1,6 +1,3 @@
-/// Form for taking a post.
-library;
-
 import 'package:flutter/material.dart';
 
 import '../nostr/order.dart';

@@ -1,6 +1,3 @@
-/// Actions the app seals and sends to the daemon.
-library;
-
 import '../constant.dart';
 import 'catalog.dart';
 import 'envelope.dart';

@@ -1,6 +1,3 @@
-/// A public order the daemon published for everyone on its relays.
-library;
-
 import 'dart:convert';
 
 import 'package:dart_nostr/dart_nostr.dart';
@@ -154,7 +151,6 @@ class TwineOrder {
     return value > 0;
   }
 
-  /// The order inside a kind-31420 event signed by [daemonPublicKey].
   static TwineOrder? open({
     required String daemonPublicKey,
     required NostrEvent event,

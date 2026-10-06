@@ -1,6 +1,3 @@
-/// The key on this device, the daemon it points at, and the relay connection.
-library;
-
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -71,7 +68,6 @@ class TwineSession extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  /// Opens [relays] and watches replies, orders, the Fiber node, and the payment catalog.
   Future<void> connect(List<String> relays) async {
     await _fiberSub?.cancel();
     fiberNode = null;

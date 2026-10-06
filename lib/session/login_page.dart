@@ -1,6 +1,3 @@
-/// Create a key, or import an nsec.
-library;
-
 import 'package:flutter/material.dart';
 
 class LoginPage extends StatefulWidget {

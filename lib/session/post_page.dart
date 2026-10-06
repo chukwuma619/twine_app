@@ -1,6 +1,3 @@
-/// Form for a new post.
-library;
-
 import 'package:flutter/material.dart';
 
 import '../nostr/catalog.dart';

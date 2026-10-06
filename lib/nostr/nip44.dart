@@ -30,8 +30,6 @@ String nip44ConversationKeyHex(String secretKey, String publicKey) {
   return _hex.encode(conversationKey(secretKey, publicKey));
 }
 
-/// Encrypts [plaintext] to [publicKey]. Returns the base64 payload the
-/// daemon stores in the event content. [nonce] must be 32 bytes when set.
 String nip44Encrypt({
   required String secretKey,
   required String publicKey,
@@ -72,7 +70,6 @@ String nip44Encrypt({
   return base64.encode([_version, ...messageNonce, ...padded, ...mac]);
 }
 
-/// Decrypts a base64 NIP-44 payload from [publicKey].
 String nip44Decrypt({
   required String secretKey,
   required String publicKey,
@@ -94,7 +91,6 @@ String nip44Decrypt({
   return _openPayload(conversationKey(secretKey, publicKey), bytes);
 }
 
-/// Decrypts a base64 NIP-44 payload with a conversation key both traders share.
 /// [conversationKeyHex] is 32 bytes of hex, the value a dispute sends the solver.
 String nip44DecryptWithConversationKey({
   required String conversationKeyHex,

@@ -1,6 +1,3 @@
-/// Who this key is on a post, and which buttons that allows.
-library;
-
 import '../nostr/order.dart';
 import 'phase.dart';
 import 'trade.dart';

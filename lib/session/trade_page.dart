@@ -1,6 +1,3 @@
-/// One trade: the hold, the fiat, the receipt, and the thread.
-library;
-
 import 'dart:convert';
 
 import 'package:flutter/material.dart';

@@ -1,6 +1,3 @@
-/// One trade, as far as this device has heard from the daemon.
-library;
-
 import 'phase.dart';
 
 class TwineTrade {

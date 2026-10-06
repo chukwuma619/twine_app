@@ -1,6 +1,3 @@
-/// The public key and relays of the daemon this install uses.
-library;
-
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/daemon.dart';
 

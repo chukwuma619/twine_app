@@ -1,6 +1,3 @@
-/// CKB amounts the daemon sends as shannons.
-library;
-
 const shannonsPerCkb = 100000000;
 
 String shannonsToCkb(String shannons) {

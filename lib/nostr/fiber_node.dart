@@ -1,6 +1,3 @@
-/// The Fiber node pubkey a daemon announces.
-library;
-
 import 'dart:convert';
 
 import 'package:dart_nostr/dart_nostr.dart';
@@ -8,8 +5,6 @@ import 'package:dart_nostr/dart_nostr.dart';
 import '../constant.dart';
 import 'verify.dart';
 
-/// The Fiber node pubkey from a daemon announcement. Null when the event is
-/// not from [daemonPublicKey] or is not that announcement.
 String? openFiberNode({
   required String daemonPublicKey,
   required NostrEvent event,

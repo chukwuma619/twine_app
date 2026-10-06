@@ -1,6 +1,3 @@
-/// The secret kept on this device.
-library;
-
 import 'package:dart_nostr/dart_nostr.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -33,7 +30,6 @@ class MemoryAccountStore implements AccountStore {
   }
 }
 
-/// Keychain on Apple platforms, Keystore-backed storage on Android.
 class SecureAccountStore implements AccountStore {
   SecureAccountStore(this._nostr, {FlutterSecureStorage? storage})
     : _storage = storage ?? twineSecureStorage();

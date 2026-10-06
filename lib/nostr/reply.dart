@@ -1,6 +1,3 @@
-/// A decrypted reply from the daemon, and the payloads those replies carry.
-library;
-
 import '../constant.dart';
 import 'envelope.dart';
 

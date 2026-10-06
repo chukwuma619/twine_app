@@ -1,6 +1,3 @@
-/// The book and this key's trades.
-library;
-
 import 'package:flutter/material.dart';
 
 import '../market/role.dart';
