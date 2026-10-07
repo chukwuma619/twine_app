@@ -246,7 +246,7 @@ void main() {
     expect(trade?.sellerNostr, 'seller');
     expect(trade?.buyerNostr, 'buyer');
     expect(trade?.phase, TradePhase.waitingFiat);
-    expect(book.thread('trade-1').single.text, 'The hold is locked.');
+    expect(book.thread('trade-1').single.text, 'The CKB is locked.');
     expect(
       TwineBook.fromJson(book.toJson())?.trade('trade-1')?.buyerNostr,
       'buyer',

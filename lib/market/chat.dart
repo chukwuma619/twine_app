@@ -110,19 +110,19 @@ class TradeNote {
 String? statusLine(TradePhase phase) {
   switch (phase) {
     case TradePhase.waitingFiat:
-      return 'The hold is locked.';
+      return 'The CKB is locked.';
     case TradePhase.fiatSent:
-      return 'The buyer marked the fiat as sent.';
+      return 'The buyer marked the payment as sent.';
     case TradePhase.disputed:
       return 'A dispute is open.';
     case TradePhase.settled:
-      return 'The seller released the hold.';
+      return 'The seller released the CKB.';
     case TradePhase.canceled:
       return 'The trade was canceled.';
     case TradePhase.expired:
       return 'The trade expired.';
     case TradePhase.refunding:
-      return 'The hold is being refunded.';
+      return 'The CKB is being returned to the seller.';
     case TradePhase.waitingHold:
     case TradePhase.releasing:
     case TradePhase.awaitingInvoice:

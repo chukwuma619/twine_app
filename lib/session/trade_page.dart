@@ -8,6 +8,7 @@ import '../market/amount.dart';
 import '../market/chat.dart';
 import '../market/phase.dart';
 import '../market/role.dart';
+import '../market/steps.dart';
 import '../market/trade.dart';
 import 'market.dart';
 
@@ -77,7 +78,7 @@ class _TradePageState extends State<TradePage> {
             trade.phase == TradePhase.waitingFiat &&
             details == null;
         return Scaffold(
-          appBar: AppBar(title: Text(trade.phase.label)),
+          appBar: AppBar(title: Text(tradeTitle(trade.phase, side))),
           body: SafeArea(
             child: Column(
               children: [
@@ -97,18 +98,23 @@ class _TradePageState extends State<TradePage> {
                       const SizedBox(height: 8),
                       Text('Reference', style: theme.textTheme.titleSmall),
                       SelectableText(trade.reference ?? trade.id),
-                      if (trade.fiatAmount != null) ...[
+                      if (trade.fiatAmount != null &&
+                          trade.phase != TradePhase.waitingHold) ...[
                         const SizedBox(height: 16),
-                        Text(
-                          'Send ${trade.fiatAmount} ${trade.fiatCurrency ?? ''} with ${trade.paymentLabel ?? 'the named method'}.',
-                        ),
-                        const SizedBox(height: 8),
-                        const Text('Put the reference on the payment.'),
+                        Text(_paymentLine(side, trade)),
+                        if (side == TradeSide.buyer) ...[
+                          const SizedBox(height: 8),
+                          const Text('Put the reference on the payment.'),
+                        ],
                       ],
                       if (details != null) ...[
                         const SizedBox(height: 16),
                         _AccountCard(details: details),
                       ] else if (shareAccount && peer != null) ...[
+                        const SizedBox(height: 16),
+                        const Text(
+                          'The CKB is locked. Share the account the buyer should pay.',
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Account for ${trade.paymentLabel ?? 'this method'}',
@@ -149,7 +155,7 @@ class _TradePageState extends State<TradePage> {
                       ] else if (waitingFiat) ...[
                         const SizedBox(height: 16),
                         const Text(
-                          'Waiting for the seller to share the account.',
+                          'The CKB is locked. Waiting for the seller to share the account you should pay.',
                         ),
                       ],
                       if (proof != null) ...[
@@ -162,19 +168,50 @@ class _TradePageState extends State<TradePage> {
                       ],
                       if (actions.payHold) ...[
                         const SizedBox(height: 16),
-                        const Text('Pay this invoice in your Fiber wallet.'),
+                        const Text(
+                          'A buyer took this. Pay the invoice below from your Fiber wallet. That locks the CKB until you release it.',
+                        ),
                         const SizedBox(height: 8),
-                        SelectableText(trade.holdInvoice!),
-                      ] else if (side == null &&
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: SelectableText(trade.holdInvoice!)),
+                            IconButton(
+                              tooltip: 'Copy invoice',
+                              onPressed: () => Clipboard.setData(
+                                ClipboardData(text: trade.holdInvoice!),
+                              ),
+                              icon: const Icon(Icons.copy),
+                            ),
+                          ],
+                        ),
+                      ] else if (side == TradeSide.buyer &&
                           trade.phase == TradePhase.waitingHold) ...[
                         const SizedBox(height: 16),
                         const Text(
-                          'Waiting for the post to confirm who locks the hold.',
+                          'The seller is locking the CKB. You pay them after that. You can cancel until the lock is in.',
+                        ),
+                      ] else if (side == null &&
+                          trade.phase == TradePhase.waitingHold) ...[
+                        const SizedBox(height: 16),
+                        const Text('Waiting to learn who locks the CKB.'),
+                      ],
+                      if (trade.phase == TradePhase.fiatSent &&
+                          side == TradeSide.seller) ...[
+                        const SizedBox(height: 16),
+                        const Text(
+                          'The buyer says they paid. Release the CKB after the money is in your account.',
+                        ),
+                      ] else if (trade.phase == TradePhase.fiatSent &&
+                          side == TradeSide.buyer) ...[
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Waiting for the seller to release the CKB.',
                         ),
                       ],
                       if (trade.phase == TradePhase.releasing) ...[
                         const SizedBox(height: 16),
-                        const Text('Releasing the hold.'),
+                        const Text('Sending the CKB to the buyer.'),
                       ],
                       if (waitingFiat && details != null) ...[
                         const SizedBox(height: 16),
@@ -199,7 +236,9 @@ class _TradePageState extends State<TradePage> {
                           autocorrect: false,
                           enableSuggestions: false,
                           decoration: const InputDecoration(
-                            labelText: 'Payout invoice',
+                            labelText: 'Fiber invoice for the CKB',
+                            helperText:
+                                'Create this in your Fiber wallet. The CKB is sent to it.',
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -216,7 +255,7 @@ class _TradePageState extends State<TradePage> {
                           onPressed: widget.market.sending
                               ? null
                               : () => _release(trade),
-                          child: const Text('Release'),
+                          child: const Text('Release the CKB'),
                         ),
                       ],
                       if (actions.dispute) ...[
@@ -355,8 +394,8 @@ class _TradePageState extends State<TradePage> {
   Future<void> _release(TwineTrade trade) async {
     final confirmed = await _confirm(
       context,
-      'Release the hold?',
-      'Release after the credit is in your account. The receipt is the buyer\'s claim.',
+      'Release the CKB?',
+      'Do this after the money is in your account. The receipt is the buyer\'s claim.',
     );
     if (!confirmed || !mounted) return;
     final error = await widget.market.release(trade.id);
@@ -368,7 +407,7 @@ class _TradePageState extends State<TradePage> {
     final confirmed = await _confirm(
       context,
       'Open a dispute?',
-      'The hold stays locked until the solver decides. The solver can read this chat.',
+      'The CKB stays locked until someone decides. They can read this chat.',
     );
     if (!confirmed || !mounted) return;
     final invoice = _invoice.text.trim();
@@ -384,7 +423,7 @@ class _TradePageState extends State<TradePage> {
     final confirmed = await _confirm(
       context,
       'Cancel this trade?',
-      'This drops the hold before it locks.',
+      'This ends the trade before the CKB is locked.',
     );
     if (!confirmed || !mounted) return;
     final error = await widget.market.cancelTrade(trade.id);
@@ -549,7 +588,11 @@ class _PaidSheetState extends State<_PaidSheet> {
             maxLines: 4,
             autocorrect: false,
             enableSuggestions: false,
-            decoration: const InputDecoration(labelText: 'Payout invoice'),
+            decoration: const InputDecoration(
+              labelText: 'Fiber invoice for the CKB',
+              helperText:
+                  'Create this in your Fiber wallet. The CKB is sent to it.',
+            ),
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
@@ -589,7 +632,7 @@ class _PaidSheetState extends State<_PaidSheet> {
   void _submit() {
     final invoice = _invoice.text.trim();
     if (invoice.isEmpty) {
-      setState(() => _error = 'Paste the payout invoice.');
+      setState(() => _error = 'Paste the Fiber invoice for the CKB.');
       return;
     }
     if (widget.needsReceipt) {
@@ -610,6 +653,19 @@ class _PaidSheetState extends State<_PaidSheet> {
         image: _image,
       ),
     );
+  }
+}
+
+String _paymentLine(TradeSide? side, TwineTrade trade) {
+  final amount = '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}'.trim();
+  final method = trade.paymentLabel ?? 'the named method';
+  switch (side) {
+    case TradeSide.buyer:
+      return 'Pay $amount with $method.';
+    case TradeSide.seller:
+      return 'The buyer pays you $amount with $method.';
+    case null:
+      return 'This trade is for $amount with $method.';
   }
 }
 

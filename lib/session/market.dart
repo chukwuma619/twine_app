@@ -149,7 +149,7 @@ class TwineMarket extends ChangeNotifier {
       return 'The seller shares the account.';
     }
     if (trade.phase != TradePhase.waitingFiat) {
-      return 'Share the account while the trade is waiting for fiat.';
+      return 'Share the account after the CKB is locked.';
     }
     if (book.paymentDetails(tradeId) != null) {
       return 'The account is already on this trade.';
@@ -188,7 +188,7 @@ class TwineMarket extends ChangeNotifier {
     if (trade == null) return 'That trade is not on this device yet.';
     final order = trade.orderId.isEmpty ? null : book.order(trade.orderId);
     if (sideOn(trade, accountPubkey, order) != TradeSide.buyer) {
-      return 'The buyer marks the fiat as sent.';
+      return 'The buyer marks the payment as sent.';
     }
     if (book.paymentDetails(tradeId) == null) {
       return 'Wait for the seller to share the account.';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../market/role.dart';
+import '../market/steps.dart';
 import '../nostr/order.dart';
 import 'market.dart';
 import 'post_page.dart';
@@ -220,7 +221,7 @@ class _Status extends StatelessWidget {
       lines.add(const Text('Waiting for the post to appear.'));
     }
     if (market.awaitingTake) {
-      lines.add(const Text('Waiting for the hold invoice.'));
+      lines.add(const Text('Opening the trade…'));
     }
     final status = market.status;
     if (status != null) lines.add(Text(status));
@@ -472,9 +473,10 @@ class _Trades extends StatelessWidget {
       itemBuilder: (context, index) {
         final trade = trades[index];
         final order = market.book.order(trade.orderId);
+        final side = sideOn(trade, market.accountPubkey, order);
         final title = order == null
-            ? trade.phase.label
-            : '${order.side.label} · ${trade.phase.label}';
+            ? tradeTitle(trade.phase, side)
+            : '${order.side.label} · ${tradeTitle(trade.phase, side)}';
         final detail = trade.fiatAmount == null
             ? trade.id
             : '${trade.fiatAmount} ${trade.fiatCurrency ?? order?.fiatCurrency ?? ''}';

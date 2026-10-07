@@ -131,7 +131,7 @@ class TwineBook {
     if (current == null) return 'That trade is not on this device yet.';
     if (current.phase == TradePhase.releasing) return null;
     if (!canEnter(current.phase, TradePhase.releasing)) {
-      return 'The seller can release after the fiat is sent.';
+      return 'Release after the buyer has paid.';
     }
     _putTrade(
       current.copyWith(

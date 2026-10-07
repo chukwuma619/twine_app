@@ -174,11 +174,55 @@ void main() {
       ),
     );
 
-    expect(find.text('Pay this invoice in your Fiber wallet.'), findsOneWidget);
+    expect(find.text('Lock the CKB'), findsOneWidget);
+    expect(
+      find.text(
+        'A buyer took this. Pay the invoice below from your Fiber wallet. That locks the CKB until you release it.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('hold-invoice'), findsOneWidget);
     expect(find.text('1 CKB'), findsOneWidget);
     expect(find.text('Cancel trade'), findsOneWidget);
     expect(find.text("I've sent the fiat"), findsNothing);
+  });
+
+  testWidgets('a buyer waiting on the hold is told the seller is locking', (
+    tester,
+  ) async {
+    final order = _order(maker: 'seller');
+    final market = _market(
+      pubkey: 'buyer',
+      orders: [order],
+      trades: [
+        TwineTrade(
+          id: 'trade-1',
+          orderId: order.orderId,
+          phase: TradePhase.waitingHold,
+          updatedAt: DateTime.utc(2026, 10, 6),
+          holdInvoice: 'hold-invoice',
+          amountShannons: '100000000',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TradePage(market: market, tradeId: 'trade-1'),
+      ),
+    );
+
+    expect(find.text('Waiting for the seller'), findsOneWidget);
+    expect(
+      find.text(
+        'The seller is locking the CKB. You pay them after that. You can cancel until the lock is in.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('hold-invoice'), findsNothing);
+    expect(find.text('Cancel trade'), findsOneWidget);
   });
 
   testWidgets('the seller shares an account and the buyer waits for it', (
@@ -228,10 +272,14 @@ void main() {
         ),
       ),
     );
+    expect(find.text('Pay the seller'), findsOneWidget);
     expect(
-      find.text('Waiting for the seller to share the account.'),
+      find.text(
+        'The CKB is locked. Waiting for the seller to share the account you should pay.',
+      ),
       findsOneWidget,
     );
+    expect(find.text('Pay 2500 NGN with GTBank.'), findsOneWidget);
     expect(find.text("I've paid"), findsNothing);
   });
 
