@@ -49,7 +49,8 @@ class TwineNostr {
   StreamSubscription<NostrEvent>? _orderSub;
   NostrEventsStream? _orderStream;
   NostrEventsStream? _orderReplay;
-  final _fiberNodes = StreamController<String>.broadcast();
+  final _fiberNodes = StreamController<FiberAnnouncement>.broadcast();
+  void Function()? onSocketsReplaced;
   StreamSubscription<NostrEvent>? _fiberSub;
   NostrEventsStream? _fiberStream;
   final _catalogs = StreamController<OpenedCatalog>.broadcast();
@@ -68,7 +69,7 @@ class TwineNostr {
 
   Stream<TwineOrder> get orders => _orders.stream;
 
-  Stream<String> get fiberNodes => _fiberNodes.stream;
+  Stream<FiberAnnouncement> get fiberNodes => _fiberNodes.stream;
 
   Stream<OpenedCatalog> get catalogs => _catalogs.stream;
 
@@ -222,11 +223,13 @@ class TwineNostr {
     final events = result.valueOrNull!;
     _fiberStream = events;
     _fiberSub = events.stream.listen((event) {
-      final pubkey = openFiberNode(
+      final announcement = openFiberAnnouncement(
         daemonPublicKey: target.publicKey,
         event: event,
       );
-      if (pubkey != null && !_fiberNodes.isClosed) _fiberNodes.add(pubkey);
+      if (announcement != null && !_fiberNodes.isClosed) {
+        _fiberNodes.add(announcement);
+      }
     }, onError: (_) {});
   }
 
@@ -357,6 +360,7 @@ class TwineNostr {
         watchOrders();
         watchCatalog();
         _subscribeChat();
+        onSocketsReplaced?.call();
       } catch (_) {}
     });
   }

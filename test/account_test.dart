@@ -55,6 +55,29 @@ void main() {
     expect(data, isEmpty);
   });
 
+  test('backup confirmation survives a new store', () async {
+    final data = <String, String>{};
+    FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(
+      data,
+    );
+    final store = SecureAccountStore(
+      nostr,
+      storage: const FlutterSecureStorage(),
+    );
+    final account = TwineAccount.generate(nostr);
+    await store.write(account);
+    expect(await store.backupConfirmed(), isTrue);
+
+    await store.setBackupConfirmed(false);
+    final again = SecureAccountStore(
+      nostr,
+      storage: const FlutterSecureStorage(),
+    );
+    expect(await again.backupConfirmed(), isFalse);
+    await again.setBackupConfirmed(true);
+    expect(await again.backupConfirmed(), isTrue);
+  });
+
   test('accepts an uppercase nsec', () {
     final created = TwineAccount.generate(nostr);
     final imported = TwineAccount.tryParse(nostr, created.nsec.toUpperCase());

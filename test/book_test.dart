@@ -252,6 +252,89 @@ void main() {
       'buyer',
     );
   });
+
+  test('pay-invoice and waiting-fiat store the daemon clocks', () {
+    final book = TwineBook();
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'pay-invoice',
+        tradeId: 'trade-1',
+        payload: {
+          'invoice': 'hold-invoice',
+          'amount_shannons': '100000000',
+          'order_id': 'order-1',
+          'lock_by': 1700003600,
+          'hold_ends_at': 1700132400,
+        },
+      ),
+      DateTime.utc(2026, 10, 6, 1),
+    );
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'waiting-fiat',
+        tradeId: 'trade-1',
+        payload: {
+          'fiat_amount': '2500',
+          'fiat_currency': 'NGN',
+          'reference': 'trade-1',
+          'kind': 'bank',
+          'label': 'GTBank',
+          'currency': 'NGN',
+          'pay_by': 1700000900,
+          'release_by': 1700130600,
+        },
+      ),
+      DateTime.utc(2026, 10, 6, 2),
+    );
+
+    final trade = book.trade('trade-1');
+    expect(trade?.lockBy, DateTime.fromMillisecondsSinceEpoch(1700003600 * 1000, isUtc: true));
+    expect(trade?.holdEndsAt, DateTime.fromMillisecondsSinceEpoch(1700132400 * 1000, isUtc: true));
+    expect(trade?.payBy, DateTime.fromMillisecondsSinceEpoch(1700000900 * 1000, isUtc: true));
+    expect(trade?.releaseBy, DateTime.fromMillisecondsSinceEpoch(1700130600 * 1000, isUtc: true));
+    expect(
+      TwineBook.fromJson(book.toJson())?.trade('trade-1')?.payBy,
+      trade?.payBy,
+    );
+  });
+
+  test('a trades reply merges only the caller snapshots', () {
+    final book = TwineBook();
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'trades',
+        payload: {
+          'trades': [
+            {
+              'trade_id': 'trade-1',
+              'order_id': 'order-1',
+              'state': 'waiting-fiat',
+              'seller_nostr': 'seller',
+              'buyer_nostr': 'buyer',
+              'fiat_amount': '2500',
+              'fiat_currency': 'NGN',
+              'amount_shannons': '100000000',
+              'payment_label': 'GTBank',
+              'reference': 'tw-1',
+              'hold_invoice': 'hold-invoice',
+              'lock_by': 1700003600,
+              'hold_ends_at': 1700132400,
+              'pay_by': 1700000900,
+              'release_by': 1700130600,
+            },
+          ],
+        },
+      ),
+      DateTime.utc(2026, 10, 6, 3),
+    );
+
+    final trade = book.trade('trade-1');
+    expect(trade?.phase, TradePhase.waitingFiat);
+    expect(trade?.sellerNostr, 'seller');
+    expect(trade?.buyerNostr, 'buyer');
+    expect(trade?.holdInvoice, 'hold-invoice');
+    expect(trade?.payBy, DateTime.fromMillisecondsSinceEpoch(1700000900 * 1000, isUtc: true));
+  });
 }
 
 TwineOrder _order({

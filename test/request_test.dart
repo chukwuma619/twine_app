@@ -77,4 +77,14 @@ void main() {
     expect(cancelOrderRequest('order-1').payload, {'order_id': 'order-1'});
     expect(disputeRequest(tradeId: 'trade-1').payload, isNull);
   });
+
+  test('a payout invoice cannot be the hold invoice', () {
+    expect(invoiceError(''), 'Paste the payout invoice.');
+    expect(
+      invoiceError('hold-invoice', holdInvoice: 'hold-invoice'),
+      'That is the hold invoice. Paste the invoice that should receive the CKB.',
+    );
+    expect(invoiceError('payout', holdInvoice: 'hold-invoice'), isNull);
+    expect(myTradesRequest().action, actionMyTrades);
+  });
 }

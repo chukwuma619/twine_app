@@ -5,12 +5,14 @@ import 'package:twine_app/market/phase.dart';
 import 'package:twine_app/market/role.dart';
 import 'package:twine_app/market/trade.dart';
 import 'package:twine_app/nostr/catalog.dart';
+import 'package:twine_app/nostr/envelope.dart';
 import 'package:twine_app/nostr/order.dart';
 import 'package:twine_app/nostr/request.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/session/market.dart';
 import 'package:twine_app/session/market_page.dart';
 import 'package:twine_app/session/post_page.dart';
+import 'package:twine_app/session/take_page.dart';
 import 'package:twine_app/session/trade_page.dart';
 import 'package:twine_app/store/book_store.dart';
 
@@ -47,7 +49,11 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: MarketPage(market: market, account: const SizedBox.shrink()),
+        home: MarketPage(
+          market: market,
+          account: const SizedBox.shrink(),
+          fiberNode: '02abc',
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -66,6 +72,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Take'));
     await tester.pumpAndSettle();
+    expect(find.text('Buy CKB'), findsWidgets);
+    expect(
+      find.text('You pay by mobile transfer after the seller locks.'),
+      findsOneWidget,
+    );
     expect(find.text('Fiat amount'), findsOneWidget);
     expect(find.text('GTBank · bank'), findsOneWidget);
   });
@@ -85,7 +96,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('10 CKB'), findsOneWidget);
-    expect(find.text('Yours'), findsOneWidget);
+    expect(find.text('Publishing'), findsOneWidget);
     expect(find.text('Cancel post'), findsNothing);
   });
 
@@ -139,6 +150,12 @@ void main() {
       ),
     );
 
+    expect(find.text('Canceled'), findsNothing);
+    expect(find.text('Take'), findsNothing);
+
+    await tester.tap(find.text('Show canceled'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Canceled'), findsOneWidget);
     expect(find.text('Take'), findsNothing);
 
@@ -177,7 +194,7 @@ void main() {
     expect(find.text('Lock the CKB'), findsOneWidget);
     expect(
       find.text(
-        'A buyer took this. Pay the invoice below from your Fiber wallet. That locks the CKB until you release it.',
+        'A buyer took this. Pay this in your Fiber wallet. You cannot cancel after it locks.',
       ),
       findsOneWidget,
     );
@@ -217,7 +234,7 @@ void main() {
     expect(find.text('Waiting for the seller'), findsOneWidget);
     expect(
       find.text(
-        'The seller is locking the CKB. You pay them after that. You can cancel until the lock is in.',
+        'You will have 15 minutes for a mobile transfer once the seller locks.',
       ),
       findsOneWidget,
     );
@@ -318,7 +335,7 @@ void main() {
     await tester.tap(find.text('Post'));
     await tester.pump();
     expect(find.text('Enter your Fiber pubkey.'), findsOneWidget);
-    expect(sent?.fiberPubkey.trim(), isEmpty);
+    expect(sent, isNull);
 
     await tester.enterText(_field('Your Fiber pubkey'), '02abc');
     await tester.enterText(_field('CKB available'), '10');
@@ -327,6 +344,8 @@ void main() {
     await tester.enterText(_field('Maximum'), '5000');
     await tester.ensureVisible(find.text('Post'));
     await tester.tap(find.text('Post'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
 
     expect(sent?.side, OrderSide.sell);
@@ -351,13 +370,163 @@ void main() {
     expect(find.text('GTBank'), findsOneWidget);
     expect(find.text('Zelle'), findsNothing);
 
-    await tester.tap(find.text('NGN'));
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('USD').last);
     await tester.pumpAndSettle();
 
     expect(find.text('Zelle'), findsOneWidget);
     expect(find.text('GTBank'), findsNothing);
+  });
+
+  test('dispute is hidden when the solver is absent', () {
+    final hidden = TradeActions.of(
+      phase: TradePhase.waitingFiat,
+      side: TradeSide.buyer,
+      hasHoldInvoice: true,
+      solverAvailable: false,
+    );
+    expect(hidden.dispute, isFalse);
+
+    final shown = TradeActions.of(
+      phase: TradePhase.waitingFiat,
+      side: TradeSide.buyer,
+      hasHoldInvoice: true,
+      solverAvailable: null,
+    );
+    expect(shown.dispute, isTrue);
+  });
+
+  testWidgets('a trade countdown uses the stored deadline', (tester) async {
+    final order = _order(maker: 'seller');
+    final market = _market(
+      pubkey: 'buyer',
+      orders: [order],
+      trades: [
+        TwineTrade(
+          id: 'trade-1',
+          orderId: order.orderId,
+          phase: TradePhase.waitingFiat,
+          updatedAt: DateTime.utc(2026, 10, 6),
+          fiatAmount: '2500',
+          fiatCurrency: 'NGN',
+          paymentLabel: 'GTBank',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+          payBy: DateTime.now().toUtc().add(const Duration(hours: 2, minutes: 3)),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: TradePage(market: market, tradeId: 'trade-1')),
+    );
+
+    expect(find.textContaining('2h'), findsOneWidget);
+    expect(find.textContaining('left'), findsOneWidget);
+  });
+
+  testWidgets('a settled trade names the outcome', (tester) async {
+    final market = _market(
+      pubkey: 'buyer',
+      trades: [
+        TwineTrade(
+          id: 'trade-1',
+          orderId: 'order-1',
+          phase: TradePhase.settled,
+          updatedAt: DateTime.utc(2026, 10, 6),
+          amountShannons: '100000000',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: TradePage(market: market, tradeId: 'trade-1')),
+    );
+
+    expect(
+      find.text('The buyer received the CKB. Fiat was never held by this app.'),
+      findsOneWidget,
+    );
+    expect(find.text('Message'), findsNothing);
+  });
+
+  testWidgets('dispute stays off the trade when the solver is null', (
+    tester,
+  ) async {
+    final order = _order(maker: 'seller');
+    final market = _market(
+      pubkey: 'buyer',
+      orders: [order],
+      trades: [
+        TwineTrade(
+          id: 'trade-1',
+          orderId: order.orderId,
+          phase: TradePhase.waitingFiat,
+          updatedAt: DateTime.utc(2026, 10, 6),
+          fiatAmount: '2500',
+          fiatCurrency: 'NGN',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TradePage(
+          market: market,
+          tradeId: 'trade-1',
+          solverAvailable: false,
+        ),
+      ),
+    );
+
+    expect(find.text('Dispute'), findsNothing);
+  });
+
+  test('a cant-do for a post removes the local card', () {
+    final market = _market(pubkey: 'taker');
+    market.pending.add(_order(id: 'local-1', maker: 'taker'));
+    market.awaitingPost = true;
+    market.applyDaemonReply(
+      const TwineEnvelope(
+        action: 'cant-do',
+        payload: {'reason': 'that post is too small'},
+      ),
+      DateTime.utc(2026, 10, 6),
+    );
+    expect(market.pending, isEmpty);
+    expect(market.book.notice, 'that post is too small');
+  });
+
+  testWidgets('taking a buy post confirms the seller role', (tester) async {
+    final market = _market(
+      pubkey: 'taker',
+      orders: [_order(id: 'buy-1', side: OrderSide.buy)],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TakePage(
+          market: market,
+          orderId: 'buy-1',
+          fiberNode: '02abc',
+        ),
+      ),
+    );
+
+    expect(find.text('Sell CKB'), findsOneWidget);
+    expect(find.text('You lock CKB in your Fiber wallet.'), findsOneWidget);
+    await tester.enterText(_field('Your Fiber pubkey'), '02abc');
+    await tester.enterText(_field('Fiat amount'), '1500');
+    await tester.pump();
+    expect(find.text('About 1.00 CKB'), findsOneWidget);
+    await tester.ensureVisible(find.text('Take'));
+    await tester.tap(find.text('Take'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sell CKB?'), findsOneWidget);
+    expect(find.textContaining('About 1.00 CKB'), findsWidgets);
   });
 
   testWidgets('the post form waits until the daemon publishes methods', (

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
 
@@ -34,12 +35,25 @@ class SignedInPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final body = SafeArea(
-      child: ListView(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           Text('Signed in', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
+          const Text(
+            'This phone stores your Nostr secret. CKB stays in your Fiber wallet.',
+          ),
+          const SizedBox(height: 8),
           SelectableText(account.npub),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => _copy(context, account.npub),
+              child: const Text('Copy'),
+            ),
+          ),
           const SizedBox(height: 24),
           Text('Daemon', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -108,6 +122,7 @@ class SignedInPage extends StatelessWidget {
             ),
           ],
         ],
+        ),
       ),
     );
     if (inShell) return body;
@@ -126,8 +141,22 @@ class SignedInPage extends StatelessWidget {
       builder: (context) {
         return AlertDialog(
           title: const Text('Secret key'),
-          content: SelectableText(account.nsec),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Anyone with this key controls the account.',
+              ),
+              const SizedBox(height: 12),
+              SelectableText(account.nsec),
+            ],
+          ),
           actions: [
+            TextButton(
+              onPressed: () => _copy(context, account.nsec),
+              child: const Text('Copy'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Close'),
@@ -144,7 +173,9 @@ class SignedInPage extends StatelessWidget {
       builder: (context) {
         return AlertDialog(
           title: const Text('Log out?'),
-          content: const Text('This removes the key from this device.'),
+          content: const Text(
+            'This removes the key from this phone. Open posts and trades keep running. Sign back in with the same nsec to ask this daemon for those trades. The chat thread still depends on the relays.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -159,5 +190,13 @@ class SignedInPage extends StatelessWidget {
       },
     );
     if (confirmed == true) onLogOut();
+  }
+
+  Future<void> _copy(BuildContext context, String value) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Copied')));
   }
 }

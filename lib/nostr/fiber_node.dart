@@ -5,7 +5,21 @@ import 'package:dart_nostr/dart_nostr.dart';
 import '../constant.dart';
 import 'verify.dart';
 
-String? openFiberNode({
+class FiberAnnouncement {
+  const FiberAnnouncement({
+    required this.pubkey,
+    required this.hasSolverField,
+    this.solver,
+  });
+
+  final String pubkey;
+  final bool hasSolverField;
+  final String? solver;
+
+  bool get solverConfigured => solver != null && solver!.isNotEmpty;
+}
+
+FiberAnnouncement? openFiberAnnouncement({
   required String daemonPublicKey,
   required NostrEvent event,
 }) {
@@ -22,9 +36,32 @@ String? openFiberNode({
     return null;
   }
   if (decoded is! Map) return null;
-  final pubkey = decoded['pubkey'];
+  final map = decoded.map((key, item) => MapEntry('$key', item));
+  final pubkey = map['pubkey'];
   if (pubkey is! String || pubkey.trim().isEmpty) return null;
-  return pubkey.trim();
+  final hasSolverField = map.containsKey('solver');
+  final rawSolver = map['solver'];
+  final String? solver;
+  if (rawSolver is String && rawSolver.trim().isNotEmpty) {
+    solver = rawSolver.trim();
+  } else {
+    solver = null;
+  }
+  return FiberAnnouncement(
+    pubkey: pubkey.trim(),
+    hasSolverField: hasSolverField,
+    solver: solver,
+  );
+}
+
+String? openFiberNode({
+  required String daemonPublicKey,
+  required NostrEvent event,
+}) {
+  return openFiberAnnouncement(
+    daemonPublicKey: daemonPublicKey,
+    event: event,
+  )?.pubkey;
 }
 
 bool _tagged(List<List<String>>? tags, String identifier) {

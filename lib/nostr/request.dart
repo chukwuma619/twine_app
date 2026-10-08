@@ -140,8 +140,16 @@ TwineEnvelope disputeRequest({
   );
 }
 
-String? invoiceError(String invoice) {
+TwineEnvelope myTradesRequest() {
+  return const TwineEnvelope(action: actionMyTrades);
+}
+
+String? invoiceError(String invoice, {String? holdInvoice}) {
   if (invoice.trim().isEmpty) return 'Paste the payout invoice.';
+  final hold = holdInvoice?.trim();
+  if (hold != null && hold.isNotEmpty && invoice.trim() == hold) {
+    return 'That is the hold invoice. Paste the invoice that should receive the CKB.';
+  }
   return null;
 }
 

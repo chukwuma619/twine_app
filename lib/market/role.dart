@@ -58,6 +58,7 @@ class TradeActions {
     required TradePhase phase,
     required TradeSide? side,
     required bool hasHoldInvoice,
+    bool? solverAvailable,
   }) {
     return TradeActions(
       payHold:
@@ -72,7 +73,8 @@ class TradeActions {
       release:
           side == TradeSide.seller &&
           (phase == TradePhase.fiatSent || phase == TradePhase.disputed),
-      dispute: _canDispute(phase) && side != null,
+      dispute:
+          _canDispute(phase) && side != null && solverAvailable != false,
       cancel: phase == TradePhase.waitingHold && side != null,
     );
   }

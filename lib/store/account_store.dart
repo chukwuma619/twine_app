@@ -10,11 +10,16 @@ abstract class AccountStore {
   Future<void> write(TwineAccount account);
 
   Future<void> clear();
+
+  Future<bool> backupConfirmed();
+
+  Future<void> setBackupConfirmed(bool confirmed);
 }
 
 /// Keeps the secret in memory. Used by tests and anywhere a keychain is absent.
 class MemoryAccountStore implements AccountStore {
   TwineAccount? account;
+  bool confirmedBackup = true;
 
   @override
   Future<TwineAccount?> read() async => account;
@@ -27,6 +32,15 @@ class MemoryAccountStore implements AccountStore {
   @override
   Future<void> clear() async {
     account = null;
+    confirmedBackup = true;
+  }
+
+  @override
+  Future<bool> backupConfirmed() async => confirmedBackup;
+
+  @override
+  Future<void> setBackupConfirmed(bool confirmed) async {
+    confirmedBackup = confirmed;
   }
 }
 
@@ -35,6 +49,7 @@ class SecureAccountStore implements AccountStore {
     : _storage = storage ?? twineSecureStorage();
 
   static const _secretKey = 'twine_nostr_secret';
+  static const _backupKey = 'twine_backup_ack';
 
   final Nostr _nostr;
   final FlutterSecureStorage _storage;
@@ -56,7 +71,20 @@ class SecureAccountStore implements AccountStore {
   }
 
   @override
-  Future<void> clear() {
-    return _storage.delete(key: _secretKey);
+  Future<void> clear() async {
+    await _storage.delete(key: _secretKey);
+    await _storage.delete(key: _backupKey);
+  }
+
+  @override
+  Future<bool> backupConfirmed() async {
+    final saved = await _storage.read(key: _backupKey);
+    if (saved == null) return true;
+    return saved == '1';
+  }
+
+  @override
+  Future<void> setBackupConfirmed(bool confirmed) {
+    return _storage.write(key: _backupKey, value: confirmed ? '1' : '0');
   }
 }

@@ -1,3 +1,4 @@
+import 'clocks.dart';
 import 'phase.dart';
 
 class TwineTrade {
@@ -19,6 +20,11 @@ class TwineTrade {
     this.releaseFrom,
     this.sellerNostr,
     this.buyerNostr,
+    this.lockBy,
+    this.holdEndsAt,
+    this.payBy,
+    this.releaseBy,
+    this.solver,
   });
 
   final String id;
@@ -42,6 +48,11 @@ class TwineTrade {
   /// Named by the daemon on the hold invoice and again when fiat is due.
   final String? sellerNostr;
   final String? buyerNostr;
+  final DateTime? lockBy;
+  final DateTime? holdEndsAt;
+  final DateTime? payBy;
+  final DateTime? releaseBy;
+  final String? solver;
 
   TwineTrade copyWith({
     String? orderId,
@@ -63,6 +74,12 @@ class TwineTrade {
     bool keepReleaseFrom = true,
     String? sellerNostr,
     String? buyerNostr,
+    DateTime? lockBy,
+    DateTime? holdEndsAt,
+    DateTime? payBy,
+    DateTime? releaseBy,
+    String? solver,
+    bool keepClocks = true,
   }) {
     return TwineTrade(
       id: id,
@@ -86,6 +103,11 @@ class TwineTrade {
           : releaseFrom,
       sellerNostr: sellerNostr ?? this.sellerNostr,
       buyerNostr: buyerNostr ?? this.buyerNostr,
+      lockBy: lockBy ?? (keepClocks ? this.lockBy : null),
+      holdEndsAt: holdEndsAt ?? (keepClocks ? this.holdEndsAt : null),
+      payBy: payBy ?? (keepClocks ? this.payBy : null),
+      releaseBy: releaseBy ?? (keepClocks ? this.releaseBy : null),
+      solver: solver ?? this.solver,
     );
   }
 
@@ -108,6 +130,11 @@ class TwineTrade {
       'release_from': releaseFrom?.wire,
       'seller_nostr': sellerNostr,
       'buyer_nostr': buyerNostr,
+      'lock_by': unixJson(lockBy),
+      'hold_ends_at': unixJson(holdEndsAt),
+      'pay_by': unixJson(payBy),
+      'release_by': unixJson(releaseBy),
+      'solver': solver,
     };
   }
 
@@ -137,6 +164,11 @@ class TwineTrade {
       releaseFrom: TradePhase.parse(_text(map, 'release_from') ?? ''),
       sellerNostr: _optional(map, 'seller_nostr'),
       buyerNostr: _optional(map, 'buyer_nostr'),
+      lockBy: unixSeconds(map['lock_by']),
+      holdEndsAt: unixSeconds(map['hold_ends_at']),
+      payBy: unixSeconds(map['pay_by']),
+      releaseBy: unixSeconds(map['release_by']),
+      solver: _optional(map, 'solver'),
     );
   }
 }

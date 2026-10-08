@@ -112,7 +112,7 @@ class TwineBook {
       case DaemonReply.newInvoice:
         _newInvoice(envelope, at);
       case DaemonReply.disputed:
-        _move(envelope, at, TradePhase.disputed);
+        _disputed(envelope, at);
       case DaemonReply.refunding:
         _move(envelope, at, TradePhase.refunding);
       case DaemonReply.settled:
@@ -123,6 +123,8 @@ class TwineBook {
         _move(envelope, at, TradePhase.expired);
       case DaemonReply.cantDo:
         _cantDo(envelope);
+      case DaemonReply.trades:
+        _trades(envelope, at);
     }
   }
 
@@ -170,6 +172,62 @@ class TwineBook {
       return;
     }
     _move(envelope, at, TradePhase.waitingFiat, fiat: fiat);
+  }
+
+  void _disputed(TwineEnvelope envelope, DateTime at) {
+    final disputed = Disputed.tryParse(envelope.payload);
+    _move(envelope, at, TradePhase.disputed, solver: disputed.solver);
+  }
+
+  void _trades(TwineEnvelope envelope, DateTime at) {
+    final reply = TradesReply.tryParse(envelope.payload);
+    if (reply == null) {
+      notice = 'The daemon sent a trade list this app could not read.';
+      return;
+    }
+    for (final snapshot in reply.trades) {
+      _applySnapshot(snapshot, at);
+    }
+  }
+
+  void _applySnapshot(TradeSnapshot snapshot, DateTime at) {
+    final current = trade(snapshot.tradeId);
+    final moving = canEnter(current?.phase, snapshot.phase);
+    if (current == null && !moving) return;
+    final base =
+        current ??
+        TwineTrade(
+          id: snapshot.tradeId,
+          orderId: snapshot.orderId,
+          phase: snapshot.phase,
+          updatedAt: at,
+        );
+    _putTrade(
+      TwineTrade(
+        id: snapshot.tradeId,
+        orderId: _keep(snapshot.orderId, base.orderId),
+        phase: moving ? snapshot.phase : base.phase,
+        updatedAt: _later(base.updatedAt, at),
+        holdInvoice: snapshot.holdInvoice ?? base.holdInvoice,
+        amountShannons: snapshot.amountShannons,
+        fiatAmount: snapshot.fiatAmount,
+        fiatCurrency: snapshot.fiatCurrency,
+        paymentKind: snapshot.paymentKind ?? base.paymentKind,
+        paymentLabel: snapshot.paymentLabel ?? base.paymentLabel,
+        paymentCurrency: snapshot.paymentCurrency ?? base.paymentCurrency,
+        reference: snapshot.reference ?? base.reference,
+        sellerNostr: snapshot.sellerNostr,
+        buyerNostr: snapshot.buyerNostr,
+        payoutFailure: base.payoutFailure,
+        notice: base.notice,
+        releaseFrom: moving ? null : base.releaseFrom,
+        lockBy: snapshot.lockBy ?? base.lockBy,
+        holdEndsAt: snapshot.holdEndsAt ?? base.holdEndsAt,
+        payBy: snapshot.payBy ?? base.payBy,
+        releaseBy: snapshot.releaseBy ?? base.releaseBy,
+        solver: base.solver,
+      ),
+    );
   }
 
   void _newInvoice(TwineEnvelope envelope, DateTime at) {
@@ -225,6 +283,7 @@ class TwineBook {
     PayInvoice? pay,
     WaitingFiat? fiat,
     String? payoutFailure,
+    String? solver,
   }) {
     final tradeId = envelope.tradeId;
     if (tradeId == null || tradeId.isEmpty) {
@@ -269,6 +328,11 @@ class TwineBook {
             payoutFailure ?? (clearFailure ? null : base.payoutFailure),
         notice: moving ? null : base.notice,
         releaseFrom: moving ? null : base.releaseFrom,
+        lockBy: pay?.lockBy ?? base.lockBy,
+        holdEndsAt: pay?.holdEndsAt ?? base.holdEndsAt,
+        payBy: fiat?.payBy ?? base.payBy,
+        releaseBy: fiat?.releaseBy ?? base.releaseBy,
+        solver: solver ?? base.solver,
       ),
     );
     if (!moving) return;

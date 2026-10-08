@@ -42,22 +42,30 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   Text('Twine', style: theme.textTheme.headlineMedium),
                   const SizedBox(height: 8),
-                  const Text('Your Nostr key is your account.'),
+                  const Text(
+                    'Your Nostr key is your account. CKB stays in your Fiber wallet.',
+                  ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: widget.busy ? null : widget.onCreate,
-                    child: const Text('Create a key'),
+                    child: widget.busy
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Create a key'),
                   ),
                   const SizedBox(height: 24),
                   TextField(
                     controller: _secret,
                     enabled: !widget.busy,
-                    minLines: 1,
-                    maxLines: 3,
                     autocorrect: false,
                     enableSuggestions: false,
+                    obscureText: true,
                     decoration: const InputDecoration(
                       labelText: 'nsec',
+                      helperText: 'Paste an nsec or a 64-character hex secret.',
                       border: OutlineInputBorder(),
                     ),
                   ),

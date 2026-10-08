@@ -94,7 +94,11 @@ class _TwineAppState extends State<TwineApp> {
     if (session.showBackup) {
       return BackupPage(
         nsec: account.nsec,
-        onContinue: session.continueFromBackup,
+        busy: session.busy,
+        onContinue: () {
+          session.continueFromBackup();
+        },
+        onLogOut: session.logOut,
       );
     }
     if (daemon == null || session.editingDaemon) {
@@ -106,6 +110,7 @@ class _TwineAppState extends State<TwineApp> {
         onCancel: session.editingDaemon && daemon != null
             ? session.cancelDaemonEdit
             : null,
+        onLogOut: daemon == null ? session.logOut : null,
       );
     }
     final market = session.market;
@@ -115,9 +120,12 @@ class _TwineAppState extends State<TwineApp> {
     return MarketPage(
       market: market,
       fiberNode: session.fiberNode,
+      solverAvailable: session.solverAvailable,
       connecting: session.connecting,
       linked: session.relays.isNotEmpty,
       relayError: session.relayError,
+      connectedRelays: session.relays,
+      relayCount: daemon.relays.length,
       account: SignedInPage(
         inShell: true,
         account: account,

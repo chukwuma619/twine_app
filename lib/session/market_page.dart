@@ -23,17 +23,23 @@ class MarketPage extends StatefulWidget {
     required this.market,
     required this.account,
     this.fiberNode,
+    this.solverAvailable,
     this.connecting = false,
     this.linked = false,
     this.relayError,
+    this.connectedRelays = const [],
+    this.relayCount = 0,
   });
 
   final TwineMarket market;
   final Widget account;
   final String? fiberNode;
+  final bool? solverAvailable;
   final bool connecting;
   final bool linked;
   final String? relayError;
+  final List<String> connectedRelays;
+  final int relayCount;
 
   @override
   State<MarketPage> createState() => _MarketPageState();
@@ -42,6 +48,7 @@ class MarketPage extends StatefulWidget {
 class _MarketPageState extends State<MarketPage> {
   _Section _section = _Section.post;
   _Book _book = _Book.buy;
+  bool _showCanceled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +57,11 @@ class _MarketPageState extends State<MarketPage> {
     return ListenableBuilder(
       listenable: market,
       builder: (context, _) {
-        final canPost = posting && market.ready && !market.sending;
+        final canPost =
+            posting &&
+            market.ready &&
+            !market.sending &&
+            market.book.catalog.isNotEmpty;
         final title = switch (_section) {
           _Section.post => 'Book',
           _Section.trade => 'Trades',
@@ -99,7 +110,23 @@ class _MarketPageState extends State<MarketPage> {
             ],
           ),
           body: _section == _Section.account
-              ? widget.account
+              ? Column(
+                  children: [
+                    _Status(
+                      market: market,
+                      fiberNode: widget.fiberNode,
+                      connecting: widget.connecting,
+                      linked: widget.linked,
+                      relayError: widget.relayError,
+                      partialRelays:
+                          widget.linked &&
+                          widget.connectedRelays.isNotEmpty &&
+                          widget.relayCount > 0 &&
+                          widget.connectedRelays.length != widget.relayCount,
+                    ),
+                    Expanded(child: widget.account),
+                  ],
+                )
               : Column(
                   children: [
                     if (posting)
@@ -108,7 +135,10 @@ class _MarketPageState extends State<MarketPage> {
                         child: SegmentedButton<_Book>(
                           expandedInsets: EdgeInsets.zero,
                           segments: const [
-                            ButtonSegment(value: _Book.buy, label: Text('Buy')),
+                            ButtonSegment(
+                              value: _Book.buy,
+                              label: Text('Buy'),
+                            ),
                             ButtonSegment(
                               value: _Book.sell,
                               label: Text('Sell'),
@@ -121,17 +151,54 @@ class _MarketPageState extends State<MarketPage> {
                           },
                         ),
                       ),
+                    if (posting)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Text(
+                          _book == _Book.buy
+                              ? 'Offers to sell CKB'
+                              : 'Bids you can fill',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    if (posting)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            setState(() => _showCanceled = !_showCanceled);
+                          },
+                          child: Text(
+                            _showCanceled ? 'Hide canceled' : 'Show canceled',
+                          ),
+                        ),
+                      ),
                     _Status(
                       market: market,
                       fiberNode: widget.fiberNode,
                       connecting: widget.connecting,
                       linked: widget.linked,
                       relayError: widget.relayError,
+                      partialRelays:
+                          widget.linked &&
+                          widget.connectedRelays.isNotEmpty &&
+                          widget.relayCount > 0 &&
+                          widget.connectedRelays.length != widget.relayCount,
                     ),
                     Expanded(
                       child: posting
-                          ? _Posts(market: market, book: _book)
-                          : _Trades(market: market),
+                          ? _Posts(
+                              market: market,
+                              book: _book,
+                              showCanceled: _showCanceled,
+                              solverAvailable: widget.solverAvailable,
+                              fiberNode: widget.fiberNode,
+                            )
+                          : _Trades(
+                              market: market,
+                              solverAvailable: widget.solverAvailable,
+                              fiberNode: widget.fiberNode,
+                            ),
                     ),
                   ],
                 ),
@@ -144,7 +211,11 @@ class _MarketPageState extends State<MarketPage> {
     final side = _book == _Book.buy ? OrderSide.buy : OrderSide.sell;
     final posted = await Navigator.of(context).push<OrderSide>(
       MaterialPageRoute<OrderSide>(
-        builder: (context) => _LivePost(market: widget.market, side: side),
+        builder: (context) => _LivePost(
+          market: widget.market,
+          side: side,
+          fiberNode: widget.fiberNode,
+        ),
       ),
     );
     if (!mounted || posted == null) return;
@@ -174,10 +245,15 @@ bool _onBook(_Book book, TwineOrder order, String pubkey) {
 }
 
 class _LivePost extends StatelessWidget {
-  const _LivePost({required this.market, required this.side});
+  const _LivePost({
+    required this.market,
+    required this.side,
+    this.fiberNode,
+  });
 
   final TwineMarket market;
   final OrderSide side;
+  final String? fiberNode;
 
   @override
   Widget build(BuildContext context) {
@@ -188,6 +264,7 @@ class _LivePost extends StatelessWidget {
           fiberPubkey: market.fiberPubkey,
           catalog: market.book.catalog,
           initialSide: side,
+          fiberNode: fiberNode,
           onSubmit: market.post,
         );
       },
@@ -202,6 +279,7 @@ class _Status extends StatelessWidget {
     required this.linked,
     this.fiberNode,
     this.relayError,
+    this.partialRelays = false,
   });
 
   final TwineMarket market;
@@ -209,6 +287,7 @@ class _Status extends StatelessWidget {
   final bool connecting;
   final bool linked;
   final String? relayError;
+  final bool partialRelays;
 
   @override
   Widget build(BuildContext context) {
@@ -218,10 +297,15 @@ class _Status extends StatelessWidget {
       lines.add(const Text('Opening the book…'));
     }
     if (market.awaitingPost) {
-      lines.add(const Text('Waiting for the post to appear.'));
+      lines.add(
+        const Text('Publishing. You cannot cancel until the daemon lists this post.'),
+      );
     }
     if (market.awaitingTake) {
       lines.add(const Text('Opening the trade…'));
+    }
+    if (partialRelays) {
+      lines.add(const Text('Some of the relays you entered are not connected.'));
     }
     final status = market.status;
     if (status != null) lines.add(Text(status));
@@ -261,20 +345,34 @@ class _Status extends StatelessWidget {
 }
 
 class _Posts extends StatelessWidget {
-  const _Posts({required this.market, required this.book});
+  const _Posts({
+    required this.market,
+    required this.book,
+    required this.showCanceled,
+    this.solverAvailable,
+    this.fiberNode,
+  });
 
   final TwineMarket market;
   final _Book book;
+  final bool showCanceled;
+  final bool? solverAvailable;
+  final String? fiberNode;
 
   @override
   Widget build(BuildContext context) {
-    final orders = _ordersFor(book, [
-      ...market.pending,
-      ...market.book.orders,
-    ], market.accountPubkey);
+    final orders = [
+      for (final order in _ordersFor(book, [
+        ...market.pending,
+        ...market.book.orders,
+      ], market.accountPubkey))
+        if (showCanceled || order.status != PostStatus.canceled) order,
+    ];
     if (orders.isEmpty) {
-      return const _Empty(
-        message: 'No posts yet.',
+      return _Empty(
+        message: book == _Book.buy
+            ? 'No one selling CKB here yet.'
+            : 'No buy bids yet.',
         icon: Icons.list_alt_outlined,
       );
     }
@@ -283,17 +381,29 @@ class _Posts extends StatelessWidget {
       itemCount: orders.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        return _PostCard(market: market, order: orders[index]);
+        return _PostCard(
+          market: market,
+          order: orders[index],
+          solverAvailable: solverAvailable,
+          fiberNode: fiberNode,
+        );
       },
     );
   }
 }
 
 class _PostCard extends StatelessWidget {
-  const _PostCard({required this.market, required this.order});
+  const _PostCard({
+    required this.market,
+    required this.order,
+    this.solverAvailable,
+    this.fiberNode,
+  });
 
   final TwineMarket market;
   final TwineOrder order;
+  final bool? solverAvailable;
+  final String? fiberNode;
 
   @override
   Widget build(BuildContext context) {
@@ -343,6 +453,22 @@ class _PostCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
+                        order.side == OrderSide.sell
+                            ? 'Offers ${order.availableCkb} CKB'
+                            : 'Wants to buy up to ${order.availableCkb} CKB',
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      Text(
+                        order.side == OrderSide.sell
+                            ? (mine
+                                  ? 'You are offering these coins'
+                                  : 'This trader is offering CKB')
+                            : (mine
+                                  ? 'You want these coins'
+                                  : 'This trader wants CKB'),
+                        style: muted,
+                      ),
+                      Text(
                         '${order.pricePerCkb} ${order.fiatCurrency}',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w600,
@@ -361,14 +487,20 @@ class _PostCard extends StatelessWidget {
                 spacing: 8,
                 children: [
                   if (mine)
-                    const Chip(
-                      label: Text('Yours'),
+                    Chip(
+                      label: Text(pending ? 'Publishing' : 'Yours'),
                       visualDensity: VisualDensity.compact,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   if (!listed)
                     const Chip(
                       label: Text('Canceled'),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  if (listed && !order.hasCkb)
+                    const Chip(
+                      label: Text('Fully taken'),
                       visualDensity: VisualDensity.compact,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
@@ -379,12 +511,20 @@ class _PostCard extends StatelessWidget {
             const Divider(height: 1),
             const SizedBox(height: 8),
             _Fact(label: 'Available', value: '${order.availableCkb} CKB'),
+            if (order.hasReserved)
+              _Fact(
+                label: 'Reserved',
+                value: '${order.reservedCkb} CKB in an open trade',
+              ),
             _Fact(
               label: 'Limits',
               value: '${order.min}–${order.max} ${order.fiatCurrency}',
             ),
             if (methods.isNotEmpty) _Fact(label: 'Payment', value: methods),
-            _Fact(label: 'Hold', value: _holdLabel(order.holdHours)),
+            _Fact(
+              label: 'Fiber hold',
+              value: '${_holdLabel(order.holdHours)} locked on Fiber',
+            ),
           ],
         ),
       ),
@@ -394,7 +534,12 @@ class _PostCard extends StatelessWidget {
   void _openTrade(BuildContext context, String tradeId) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => TradePage(market: market, tradeId: tradeId),
+        builder: (context) => TradePage(
+          market: market,
+          tradeId: tradeId,
+          solverAvailable: solverAvailable,
+          fiberNode: fiberNode,
+        ),
       ),
     );
   }
@@ -402,7 +547,11 @@ class _PostCard extends StatelessWidget {
   void _openTake(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => TakePage(market: market, orderId: order.orderId),
+        builder: (context) => TakePage(
+          market: market,
+          orderId: order.orderId,
+          fiberNode: fiberNode,
+        ),
       ),
     );
   }
@@ -453,9 +602,15 @@ String _holdLabel(int hours) {
 }
 
 class _Trades extends StatelessWidget {
-  const _Trades({required this.market});
+  const _Trades({
+    required this.market,
+    this.solverAvailable,
+    this.fiberNode,
+  });
 
   final TwineMarket market;
+  final bool? solverAvailable;
+  final String? fiberNode;
 
   @override
   Widget build(BuildContext context) {
@@ -489,8 +644,12 @@ class _Trades extends StatelessWidget {
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (context) =>
-                      TradePage(market: market, tradeId: trade.id),
+                  builder: (context) => TradePage(
+                    market: market,
+                    tradeId: trade.id,
+                    solverAvailable: solverAvailable,
+                    fiberNode: fiberNode,
+                  ),
                 ),
               );
             },

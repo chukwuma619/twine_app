@@ -8,9 +8,20 @@ import 'package:twine_app/store/daemon_store.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final nostr = TwineNostr();
-  final store = SecureAccountStore(nostr.nostr);
-  final daemonStore = SecureDaemonStore(nostr.nostr);
-  final bookStore = SecureBookStore();
+  await startTwine(
+    nostr: nostr,
+    store: SecureAccountStore(nostr.nostr),
+    daemonStore: SecureDaemonStore(nostr.nostr),
+    bookStore: SecureBookStore(),
+  );
+}
+
+Future<void> startTwine({
+  required TwineNostr nostr,
+  required AccountStore store,
+  required DaemonStore daemonStore,
+  required BookStore bookStore,
+}) async {
   try {
     final account = await store.read();
     final daemon = await daemonStore.read();
@@ -28,18 +39,58 @@ Future<void> main() async {
       ),
     );
   } catch (_) {
-    runApp(const _StorageFailureApp());
+    runApp(
+      _StorageFailureApp(
+        onRetry: () => startTwine(
+          nostr: nostr,
+          store: store,
+          daemonStore: daemonStore,
+          bookStore: bookStore,
+        ),
+        onImport: () {
+          nostr.account = null;
+          runApp(
+            TwineApp(
+              nostr: nostr,
+              store: store,
+              daemonStore: daemonStore,
+              bookStore: bookStore,
+              connectRelays: true,
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 
 class _StorageFailureApp extends StatelessWidget {
-  const _StorageFailureApp();
+  const _StorageFailureApp({required this.onRetry, required this.onImport});
+
+  final VoidCallback onRetry;
+  final VoidCallback onImport;
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       home: Scaffold(
-        body: Center(child: Text('Could not read the saved account.')),
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Could not read the saved account.'),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: onRetry, child: const Text('Try again')),
+                  const SizedBox(height: 12),
+                  OutlinedButton(onPressed: onImport, child: const Text('Import')),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

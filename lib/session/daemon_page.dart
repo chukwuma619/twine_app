@@ -9,6 +9,7 @@ class DaemonPage extends StatefulWidget {
     this.current,
     this.error,
     this.onCancel,
+    this.onLogOut,
   });
 
   final TwineDaemon? current;
@@ -16,6 +17,7 @@ class DaemonPage extends StatefulWidget {
   final String? error;
   final void Function(String pubkey, String relays) onSave;
   final VoidCallback? onCancel;
+  final VoidCallback? onLogOut;
 
   @override
   State<DaemonPage> createState() => _DaemonPageState();
@@ -66,8 +68,8 @@ class _DaemonPageState extends State<DaemonPage> {
                   const SizedBox(height: 8),
                   Text(
                     editing
-                        ? 'Replace the public key and relays to use another daemon.'
-                        : 'The official daemon is filled in. Replace it to use another one.',
+                        ? 'This switches the book. Posts and trades on the previous daemon stay with that daemon.'
+                        : 'This operator coordinates the hold. It does not hold your Fiber key. Relays carry public orders. The key below is the daemon this install ships with.',
                   ),
                   const SizedBox(height: 24),
                   TextField(
@@ -110,13 +112,26 @@ class _DaemonPageState extends State<DaemonPage> {
                     onPressed: widget.busy
                         ? null
                         : () => widget.onSave(_pubkey.text, _relays.text),
-                    child: Text(editing ? 'Save' : 'Connect'),
+                    child: widget.busy
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(editing ? 'Save' : 'Connect'),
                   ),
                   if (widget.onCancel != null) ...[
                     const SizedBox(height: 12),
                     TextButton(
                       onPressed: widget.busy ? null : widget.onCancel,
                       child: const Text('Cancel'),
+                    ),
+                  ],
+                  if (widget.onLogOut != null) ...[
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: widget.busy ? null : widget.onLogOut,
+                      child: const Text('Use a different key'),
                     ),
                   ],
                 ],

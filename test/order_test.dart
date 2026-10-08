@@ -24,6 +24,7 @@ void main() {
     expect(order?.paymentMethods.single.label, 'GTBank');
     expect(order?.holdHours, 36);
     expect(order?.status, PostStatus.open);
+    expect(order?.reservedCkb, '1');
     expect(order?.updatedAt, DateTime.utc(2026, 10, 6));
 
     expect(
@@ -83,6 +84,7 @@ NostrEvent _orderEvent(
         {'id': 'gtbank', 'kind': 'bank', 'label': 'GTBank', 'currency': 'NGN'},
       ],
       'hold_hours': 36,
+      'reserved_ckb': '1',
     }),
     keyPairs: NostrKeyPairs(private: daemon.privateKey),
     tags: [

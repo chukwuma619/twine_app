@@ -99,7 +99,8 @@ class TwineMarket extends ChangeNotifier {
   }
 
   Future<String?> fiatSent(String tradeId, String invoice) async {
-    final invalid = invoiceError(invoice);
+    final current = book.trade(tradeId);
+    final invalid = invoiceError(invoice, holdInvoice: current?.holdInvoice);
     if (invalid != null) return invalid;
     final error = await _send(
       fiatSentRequest(tradeId: tradeId, invoice: invoice),
@@ -148,8 +149,9 @@ class TwineMarket extends ChangeNotifier {
     if (sideOn(trade, accountPubkey, order) != TradeSide.seller) {
       return 'The seller shares the account.';
     }
-    if (trade.phase != TradePhase.waitingFiat) {
-      return 'Share the account after the CKB is locked.';
+    if (trade.phase != TradePhase.waitingFiat &&
+        trade.phase != TradePhase.waitingHold) {
+      return 'Share the account before the buyer pays.';
     }
     if (book.paymentDetails(tradeId) != null) {
       return 'The account is already on this trade.';
@@ -217,9 +219,16 @@ class TwineMarket extends ChangeNotifier {
           image: receipt,
         ),
       );
-      if (posted != null) return posted;
+      if (posted != null) {
+        return 'The mark did not go out. $posted';
+      }
     }
     return fiatSent(tradeId, invoice);
+  }
+
+  @visibleForTesting
+  void applyDaemonReply(TwineEnvelope envelope, DateTime at) {
+    _onReply(DaemonReplyEvent(envelope: envelope, createdAt: at));
   }
 
   Future<String?> dispute(String tradeId, {String? invoice}) async {
@@ -252,6 +261,7 @@ class TwineMarket extends ChangeNotifier {
   void stop() {
     _stopped = true;
     _generation++;
+    nostr.onSocketsReplaced = null;
     _replySub?.cancel();
     _orderSub?.cancel();
     _catalogSub?.cancel();
@@ -273,15 +283,25 @@ class TwineMarket extends ChangeNotifier {
     _orderSub = nostr.orders.listen(_onOrder, onError: (_) {});
     _catalogSub = nostr.catalogs.listen(_onCatalog, onError: (_) {});
     _chatSub = nostr.chats.listen(_onChat, onError: (_) {});
+    nostr.onSocketsReplaced = refreshTrades;
     if (generation != _generation) return;
     ready = true;
     _watchChat();
+    unawaited(refreshTrades());
     if (!_stopped) notifyListeners();
+  }
+
+  Future<void> refreshTrades() async {
+    if (!ready || sending || _stopped) return;
+    try {
+      await nostr.send(myTradesRequest());
+    } catch (_) {}
   }
 
   void _onReply(DaemonReplyEvent event) {
     book.applyReply(event.envelope, event.createdAt);
     if (event.envelope.action == replyCantDo) {
+      if (awaitingPost) pending.clear();
       awaitingPost = false;
       awaitingTake = false;
       status = null;

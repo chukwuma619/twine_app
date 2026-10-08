@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,17 +7,28 @@ import 'package:image_picker/image_picker.dart';
 
 import '../market/amount.dart';
 import '../market/chat.dart';
+import '../market/clocks.dart';
+import '../market/outcome.dart';
 import '../market/phase.dart';
 import '../market/role.dart';
 import '../market/steps.dart';
 import '../market/trade.dart';
+import '../nostr/request.dart';
 import 'market.dart';
 
 class TradePage extends StatefulWidget {
-  const TradePage({super.key, required this.market, required this.tradeId});
+  const TradePage({
+    super.key,
+    required this.market,
+    required this.tradeId,
+    this.solverAvailable,
+    this.fiberNode,
+  });
 
   final TwineMarket market;
   final String tradeId;
+  final bool? solverAvailable;
+  final String? fiberNode;
 
   @override
   State<TradePage> createState() => _TradePageState();
@@ -28,10 +40,21 @@ class _TradePageState extends State<TradePage> {
   final _accountNumber = TextEditingController();
   final _accountNote = TextEditingController();
   final _chat = TextEditingController();
+  Timer? _tick;
   String? _error;
+  bool _copiedHold = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
+    _tick?.cancel();
     _invoice.dispose();
     _accountName.dispose();
     _accountNumber.dispose();
@@ -65,27 +88,40 @@ class _TradePageState extends State<TradePage> {
           phase: trade.phase,
           side: side,
           hasHoldInvoice: trade.holdInvoice != null,
+          solverAvailable: widget.solverAvailable,
         );
         final details = widget.market.book.paymentDetails(trade.id);
         final proof = widget.market.book.paymentProof(trade.id);
         final peer = counterparty(trade, widget.market.accountPubkey);
         final theme = Theme.of(context);
-        final notice = trade.notice ?? _error;
+        final notice = trade.notice ?? widget.market.book.notice ?? _error;
         final waitingFiat =
             side == TradeSide.buyer && trade.phase == TradePhase.waitingFiat;
         final shareAccount =
             side == TradeSide.seller &&
-            trade.phase == TradePhase.waitingFiat &&
+            (trade.phase == TradePhase.waitingHold ||
+                trade.phase == TradePhase.waitingFiat) &&
             details == null;
+        final outcome = tradeOutcome(trade.phase);
+        final compose =
+            peer != null &&
+            !trade.phase.terminal &&
+            trade.phase != TradePhase.refunding;
         return Scaffold(
           appBar: AppBar(title: Text(tradeTitle(trade.phase, side))),
           body: SafeArea(
             child: Column(
               children: [
                 Expanded(
-                  child: ListView(
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.all(24),
-                    children: [
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                      if (outcome != null) ...[
+                        Text(outcome, style: theme.textTheme.titleSmall),
+                        const SizedBox(height: 16),
+                      ],
                       if (order != null) ...[
                         Text(
                           '${order.side.label} · ${order.fiatCurrency}',
@@ -95,6 +131,14 @@ class _TradePageState extends State<TradePage> {
                       ],
                       if (trade.amountShannons != null)
                         Text('${shannonsToCkb(trade.amountShannons!)} CKB'),
+                      const SizedBox(height: 12),
+                      _Parties(
+                        me: widget.market.accountPubkey,
+                        seller: trade.sellerNostr,
+                        buyer: trade.buyerNostr,
+                        encode: _npub,
+                      ),
+                      ..._clocks(trade, side),
                       const SizedBox(height: 8),
                       Text('Reference', style: theme.textTheme.titleSmall),
                       SelectableText(trade.reference ?? trade.id),
@@ -112,8 +156,10 @@ class _TradePageState extends State<TradePage> {
                         _AccountCard(details: details),
                       ] else if (shareAccount && peer != null) ...[
                         const SizedBox(height: 16),
-                        const Text(
-                          'The CKB is locked. Share the account the buyer should pay.',
+                        Text(
+                          trade.phase == TradePhase.waitingHold
+                              ? 'Share the account before you lock, so the buyer’s 15 minutes are only the transfer.'
+                              : 'The CKB is locked. Share the account the buyer should pay.',
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -147,7 +193,7 @@ class _TradePageState extends State<TradePage> {
                           onPressed: widget.market.sending
                               ? null
                               : () => _share(trade),
-                          child: const Text('Share account'),
+                          child: _actionChild('Share account'),
                         ),
                       ] else if (shareAccount) ...[
                         const SizedBox(height: 16),
@@ -169,8 +215,17 @@ class _TradePageState extends State<TradePage> {
                       if (actions.payHold) ...[
                         const SizedBox(height: 16),
                         const Text(
-                          'A buyer took this. Pay the invoice below from your Fiber wallet. That locks the CKB until you release it.',
+                          'A buyer took this. Pay this in your Fiber wallet. You cannot cancel after it locks.',
                         ),
+                        if (widget.fiberNode == null) ...[
+                          const SizedBox(height: 8),
+                          const Text('Waiting for the Fiber node.'),
+                        ] else ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Open a channel to the operator Fiber node in your wallet.',
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,18 +233,28 @@ class _TradePageState extends State<TradePage> {
                             Expanded(child: SelectableText(trade.holdInvoice!)),
                             IconButton(
                               tooltip: 'Copy invoice',
-                              onPressed: () => Clipboard.setData(
-                                ClipboardData(text: trade.holdInvoice!),
-                              ),
+                              onPressed: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: trade.holdInvoice!),
+                                );
+                                if (!mounted) return;
+                                setState(() => _copiedHold = true);
+                              },
                               icon: const Icon(Icons.copy),
                             ),
                           ],
                         ),
+                        if (_copiedHold) ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Waiting for the operator node to report the lock.',
+                          ),
+                        ],
                       ] else if (side == TradeSide.buyer &&
                           trade.phase == TradePhase.waitingHold) ...[
                         const SizedBox(height: 16),
                         const Text(
-                          'The seller is locking the CKB. You pay them after that. You can cancel until the lock is in.',
+                          'You will have 15 minutes for a mobile transfer once the seller locks.',
                         ),
                       ] else if (side == null &&
                           trade.phase == TradePhase.waitingHold) ...[
@@ -213,13 +278,17 @@ class _TradePageState extends State<TradePage> {
                         const SizedBox(height: 16),
                         const Text('Sending the CKB to the buyer.'),
                       ],
+                      if (trade.phase == TradePhase.disputed) ...[
+                        const SizedBox(height: 16),
+                        Text(_disputeLine(trade)),
+                      ],
                       if (waitingFiat && details != null) ...[
                         const SizedBox(height: 16),
                         FilledButton(
                           onPressed: widget.market.sending
                               ? null
                               : () => _paid(trade, proof != null),
-                          child: Text(
+                          child: _actionChild(
                             proof == null
                                 ? "I've paid"
                                 : 'Submit payout invoice',
@@ -235,10 +304,9 @@ class _TradePageState extends State<TradePage> {
                           maxLines: 4,
                           autocorrect: false,
                           enableSuggestions: false,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Fiber invoice for the CKB',
-                            helperText:
-                                'Create this in your Fiber wallet. The CKB is sent to it.',
+                            helperText: _invoiceHelp(trade),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -246,7 +314,7 @@ class _TradePageState extends State<TradePage> {
                           onPressed: widget.market.sending
                               ? null
                               : () => _fiat(trade),
-                          child: const Text('Submit payout invoice'),
+                          child: _actionChild('Submit payout invoice'),
                         ),
                       ],
                       if (actions.release) ...[
@@ -255,7 +323,7 @@ class _TradePageState extends State<TradePage> {
                           onPressed: widget.market.sending
                               ? null
                               : () => _release(trade),
-                          child: const Text('Release the CKB'),
+                          child: _actionChild('Release the CKB'),
                         ),
                       ],
                       if (actions.dispute) ...[
@@ -264,7 +332,15 @@ class _TradePageState extends State<TradePage> {
                           onPressed: widget.market.sending
                               ? null
                               : () => _dispute(trade),
-                          child: const Text('Dispute'),
+                          child: widget.market.sending
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Dispute'),
                         ),
                       ],
                       if (actions.cancel) ...[
@@ -279,6 +355,10 @@ class _TradePageState extends State<TradePage> {
                       if (peer != null) ...[
                         const SizedBox(height: 24),
                         Text('Chat', style: theme.textTheme.titleSmall),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'This thread is encrypted to the other trader. The relay can see that the two keys are talking.',
+                        ),
                         const SizedBox(height: 8),
                         for (final line in _lines(trade.id)) ...[
                           _Line(
@@ -300,9 +380,10 @@ class _TradePageState extends State<TradePage> {
                         ),
                       ],
                     ],
+                    ),
                   ),
                 ),
-                if (peer != null && !trade.phase.terminal)
+                if (compose)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     child: Row(
@@ -321,7 +402,15 @@ class _TradePageState extends State<TradePage> {
                           onPressed: widget.market.sending
                               ? null
                               : () => _send(trade),
-                          icon: const Icon(Icons.send),
+                          icon: widget.market.sending
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.send),
                         ),
                       ],
                     ),
@@ -332,6 +421,79 @@ class _TradePageState extends State<TradePage> {
         );
       },
     );
+  }
+
+  Widget _actionChild(String label) {
+    if (!widget.market.sending) return Text(label);
+    return const SizedBox(
+      height: 18,
+      width: 18,
+      child: CircularProgressIndicator(strokeWidth: 2),
+    );
+  }
+
+  List<Widget> _clocks(TwineTrade trade, TradeSide? side) {
+    final now = DateTime.now().toUtc();
+    final lines = <Widget>[];
+    if (trade.phase == TradePhase.waitingHold) {
+      if (side == TradeSide.seller) {
+        if (trade.lockBy != null) {
+          lines.add(Text(remainingLabel(trade.lockBy!, now)));
+        } else {
+          lines.add(const Text('Pay the hold invoice within an hour.'));
+        }
+      }
+    } else if (!trade.phase.terminal && trade.phase != TradePhase.refunding) {
+      if (side == TradeSide.buyer && trade.phase == TradePhase.waitingFiat) {
+        if (trade.payBy != null) {
+          lines.add(Text(remainingLabel(trade.payBy!, now)));
+        } else {
+          lines.add(
+            const Text('You have 15 minutes for a mobile transfer.'),
+          );
+        }
+      }
+      if (trade.releaseBy != null) {
+        lines.add(Text('Release window: ${remainingLabel(trade.releaseBy!, now)}'));
+      } else {
+        lines.add(
+          const Text('Release at least 30 minutes before the hold ends.'),
+        );
+      }
+      if (trade.holdEndsAt != null) {
+        lines.add(
+          Text(
+            'The hold returns the CKB to the seller ${remainingLabel(trade.holdEndsAt!, now)}.',
+          ),
+        );
+      } else {
+        lines.add(
+          const Text('The hold returns the CKB to the seller when it ends.'),
+        );
+      }
+    }
+    if (lines.isEmpty) return const [];
+    return [
+      const SizedBox(height: 12),
+      ...lines,
+    ];
+  }
+
+  String _npub(String hex) {
+    final key = hex.trim().toLowerCase();
+    if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(key)) return hex;
+    try {
+      return widget.market.nostr.nostr.bech32.encodePublicKeyToNpub(key);
+    } catch (_) {
+      return hex;
+    }
+  }
+
+  String _invoiceHelp(TwineTrade trade) {
+    final amount = trade.amountShannons == null
+        ? 'the locked CKB'
+        : '${shannonsToCkb(trade.amountShannons!)} CKB';
+    return 'Create this in your Fiber wallet. This invoice is where $amount goes.';
   }
 
   List<TradeNote> _lines(String tradeId) {
@@ -365,6 +527,10 @@ class _TradePageState extends State<TradePage> {
         accountName: details.accountName ?? '',
         accountNumber: details.accountNumber ?? '',
         needsReceipt: !hasProof,
+        holdInvoice: trade.holdInvoice,
+        ckb: trade.amountShannons == null
+            ? null
+            : shannonsToCkb(trade.amountShannons!),
       ),
     );
     if (paid == null || !mounted) return;
@@ -392,10 +558,16 @@ class _TradePageState extends State<TradePage> {
   }
 
   Future<void> _release(TwineTrade trade) async {
+    final ckb = trade.amountShannons == null
+        ? 'the locked CKB'
+        : '${shannonsToCkb(trade.amountShannons!)} CKB';
+    final fiat =
+        '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}'.trim();
+    final reference = trade.reference ?? trade.id;
     final confirmed = await _confirm(
       context,
       'Release the CKB?',
-      'Do this after the money is in your account. The receipt is the buyer\'s claim.',
+      'Release $ckb for $fiat (reference $reference). This pays the payout invoice on file.',
     );
     if (!confirmed || !mounted) return;
     final error = await widget.market.release(trade.id);
@@ -407,7 +579,7 @@ class _TradePageState extends State<TradePage> {
     final confirmed = await _confirm(
       context,
       'Open a dispute?',
-      'The CKB stays locked until someone decides. They can read this chat.',
+      '${_disputeLine(trade)} You can still release if a payout invoice is stored.',
     );
     if (!confirmed || !mounted) return;
     final invoice = _invoice.text.trim();
@@ -429,6 +601,61 @@ class _TradePageState extends State<TradePage> {
     final error = await widget.market.cancelTrade(trade.id);
     if (!mounted) return;
     setState(() => _error = error);
+  }
+}
+
+class _Parties extends StatelessWidget {
+  const _Parties({
+    required this.me,
+    required this.encode,
+    this.seller,
+    this.buyer,
+  });
+
+  final String me;
+  final String? seller;
+  final String? buyer;
+  final String Function(String hex) encode;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    void add(String label, String hex) {
+      final mine = hex.toLowerCase() == me.toLowerCase();
+      final npub = encode(hex);
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(mine ? 'You · $label' : 'Them · $label'),
+                    SelectableText(npub),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Copy',
+                onPressed: () => Clipboard.setData(ClipboardData(text: npub)),
+                icon: const Icon(Icons.copy),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (seller != null) add('Seller', seller!);
+    if (buyer != null) add('Buyer', buyer!);
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: rows,
+    );
   }
 }
 
@@ -531,12 +758,16 @@ class _PaidSheet extends StatefulWidget {
     required this.accountName,
     required this.accountNumber,
     required this.needsReceipt,
+    this.holdInvoice,
+    this.ckb,
   });
 
   final String amount;
   final String accountName;
   final String accountNumber;
   final bool needsReceipt;
+  final String? holdInvoice;
+  final String? ckb;
 
   @override
   State<_PaidSheet> createState() => _PaidSheetState();
@@ -574,11 +805,20 @@ class _PaidSheetState extends State<_PaidSheet> {
               decoration: const InputDecoration(labelText: 'Bank reference'),
             ),
             const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: _pick,
-              child: Text(
-                _image == null ? 'Attach receipt' : 'Receipt attached',
-              ),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: () => _pick(ImageSource.gallery),
+                  child: Text(
+                    _image == null ? 'Photo library' : 'Receipt attached',
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () => _pick(ImageSource.camera),
+                  child: const Text('Camera'),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
           ],
@@ -588,10 +828,11 @@ class _PaidSheetState extends State<_PaidSheet> {
             maxLines: 4,
             autocorrect: false,
             enableSuggestions: false,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Fiber invoice for the CKB',
-              helperText:
-                  'Create this in your Fiber wallet. The CKB is sent to it.',
+              helperText: widget.ckb == null
+                  ? 'Create this in your Fiber wallet. This invoice is where the coins go.'
+                  : 'Create this in your Fiber wallet. This invoice is where ${widget.ckb} CKB goes.',
             ),
           ),
           if (_error != null) ...[
@@ -610,29 +851,35 @@ class _PaidSheetState extends State<_PaidSheet> {
     );
   }
 
-  Future<void> _pick() async {
-    final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 720,
-      imageQuality: 35,
-    );
-    if (file == null || !mounted) return;
-    final bytes = await file.readAsBytes();
-    if (!mounted) return;
-    if (bytes.length > maxReceiptBytes) {
-      setState(() => _error = 'Crop the receipt and try a smaller picture.');
-      return;
+  Future<void> _pick(ImageSource source) async {
+    try {
+      final file = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 720,
+        imageQuality: 35,
+      );
+      if (file == null || !mounted) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      if (bytes.length > maxReceiptBytes) {
+        setState(() => _error = 'Crop the receipt and try a smaller picture.');
+        return;
+      }
+      setState(() {
+        _image = base64Encode(bytes);
+        _error = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not open the camera or library.');
     }
-    setState(() {
-      _image = base64Encode(bytes);
-      _error = null;
-    });
   }
 
   void _submit() {
     final invoice = _invoice.text.trim();
-    if (invoice.isEmpty) {
-      setState(() => _error = 'Paste the Fiber invoice for the CKB.');
+    final invalid = invoiceError(invoice, holdInvoice: widget.holdInvoice);
+    if (invalid != null) {
+      setState(() => _error = invalid);
       return;
     }
     if (widget.needsReceipt) {
@@ -667,6 +914,14 @@ String _paymentLine(TradeSide? side, TwineTrade trade) {
     case null:
       return 'This trade is for $amount with $method.';
   }
+}
+
+String _disputeLine(TwineTrade trade) {
+  final solver = trade.solver?.trim();
+  final who = solver == null || solver.isEmpty
+      ? 'The solver'
+      : 'The solver ($solver)';
+  return '$who can read this chat. The daemon cannot.';
 }
 
 Future<bool> _confirm(BuildContext context, String title, String body) async {

@@ -29,6 +29,7 @@ const actionFiatSent = 'fiat-sent';
 const actionRelease = 'release';
 const actionCancel = 'cancel';
 const actionDispute = 'dispute';
+const actionMyTrades = 'my-trades';
 
 const replyPayInvoice = 'pay-invoice';
 const replyWaitingFiat = 'waiting-fiat';
@@ -40,3 +41,4 @@ const replySettled = 'settled';
 const replyCanceled = 'canceled';
 const replyExpired = 'expired';
 const replyCantDo = 'cant-do';
+const replyTrades = 'trades';

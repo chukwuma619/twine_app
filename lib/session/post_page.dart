@@ -11,11 +11,13 @@ class PostPage extends StatefulWidget {
     this.fiberPubkey,
     this.catalog = const [],
     this.initialSide = OrderSide.sell,
+    this.fiberNode,
   });
 
   final String? fiberPubkey;
   final List<CatalogMethod> catalog;
   final OrderSide initialSide;
+  final String? fiberNode;
   final Future<String?> Function(NewOrderDraft draft) onSubmit;
 
   @override
@@ -110,8 +112,29 @@ class _PostPageState extends State<PostPage> {
                         ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _side == OrderSide.sell
+                        ? 'You lock CKB in your Fiber wallet when someone takes this.'
+                        : 'You pay by mobile transfer after the seller locks.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
                   const SizedBox(height: 16),
-                  _field(_fiber, 'Your Fiber pubkey'),
+                  _field(
+                    _fiber,
+                    'Your Fiber pubkey',
+                    helper: 'This is your Fiber node pubkey, not an npub.',
+                  ),
+                  if (_side == OrderSide.sell) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Open a channel to the operator Fiber node in your wallet before you post.',
+                    ),
+                    if (widget.fiberNode == null) ...[
+                      const SizedBox(height: 8),
+                      const Text('Waiting for the Fiber node.'),
+                    ],
+                  ],
                   const SizedBox(height: 12),
                   _field(_available, 'CKB available', number: true),
                   const SizedBox(height: 12),
@@ -141,9 +164,19 @@ class _PostPageState extends State<PostPage> {
                   const SizedBox(height: 12),
                   _field(_price, 'Price per CKB', number: true),
                   const SizedBox(height: 12),
-                  _field(_min, 'Minimum', number: true),
+                  _field(
+                    _min,
+                    'Minimum',
+                    number: true,
+                    suffix: _currency.isEmpty ? null : _currency,
+                  ),
                   const SizedBox(height: 12),
-                  _field(_max, 'Maximum', number: true),
+                  _field(
+                    _max,
+                    'Maximum',
+                    number: true,
+                    suffix: _currency.isEmpty ? null : _currency,
+                  ),
                   const SizedBox(height: 8),
                   for (final method in methods)
                     CheckboxListTile(
@@ -167,7 +200,13 @@ class _PostPageState extends State<PostPage> {
                   const SizedBox(height: 12),
                   FilledButton(
                     onPressed: _busy || currencies.isEmpty ? null : _submit,
-                    child: const Text('Post'),
+                    child: _busy
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Post'),
                   ),
                 ],
               ),
@@ -182,6 +221,8 @@ class _PostPageState extends State<PostPage> {
     TextEditingController controller,
     String label, {
     bool number = false,
+    String? helper,
+    String? suffix,
   }) {
     return TextField(
       controller: controller,
@@ -193,6 +234,8 @@ class _PostPageState extends State<PostPage> {
       enableSuggestions: false,
       decoration: InputDecoration(
         labelText: label,
+        helperText: helper,
+        suffixText: suffix,
         border: const OutlineInputBorder(),
       ),
     );
@@ -223,22 +266,50 @@ class _PostPageState extends State<PostPage> {
   }
 
   Future<void> _submit() async {
+    final draft = NewOrderDraft(
+      side: _side,
+      fiberPubkey: _fiber.text,
+      availableCkb: _available.text,
+      fiatCurrency: _currency,
+      pricePerCkb: _price.text,
+      min: _min.text,
+      max: _max.text,
+      methodIds: _methodIds.toList(),
+    );
+    final invalid = draft.validate(widget.catalog);
+    if (invalid != null) {
+      setState(() => _error = invalid);
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(_side == OrderSide.sell ? 'Sell CKB?' : 'Buy CKB?'),
+          content: Text(
+            _side == OrderSide.sell
+                ? 'You lock CKB in your Fiber wallet when someone takes this.'
+                : 'You pay by mobile transfer after the seller locks.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Back'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
     });
-    final error = await widget.onSubmit(
-      NewOrderDraft(
-        side: _side,
-        fiberPubkey: _fiber.text,
-        availableCkb: _available.text,
-        fiatCurrency: _currency,
-        pricePerCkb: _price.text,
-        min: _min.text,
-        max: _max.text,
-        methodIds: _methodIds.toList(),
-      ),
-    );
+    final error = await widget.onSubmit(draft);
     if (!mounted) return;
     if (error == null) {
       Navigator.of(context).pop(_side);

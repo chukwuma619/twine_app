@@ -111,6 +111,7 @@ class TwineOrder {
     required this.holdHours,
     required this.updatedAt,
     this.status = PostStatus.open,
+    this.reservedCkb,
   });
 
   final String orderId;
@@ -126,8 +127,15 @@ class TwineOrder {
   final int holdHours;
   final DateTime updatedAt;
   final PostStatus status;
+  final String? reservedCkb;
 
-  TwineOrder copyWith({PostStatus? status}) {
+  bool get hasReserved {
+    final value = double.tryParse(reservedCkb ?? '');
+    if (value == null) return false;
+    return value > 0;
+  }
+
+  TwineOrder copyWith({PostStatus? status, String? reservedCkb}) {
     return TwineOrder(
       orderId: orderId,
       side: side,
@@ -142,6 +150,7 @@ class TwineOrder {
       holdHours: holdHours,
       updatedAt: updatedAt,
       status: status ?? this.status,
+      reservedCkb: reservedCkb ?? this.reservedCkb,
     );
   }
 
@@ -219,6 +228,7 @@ class TwineOrder {
       holdHours: holdHours,
       updatedAt: updatedAt,
       status: status,
+      reservedCkb: _text(map, 'reserved_ckb'),
     );
   }
 
@@ -245,6 +255,7 @@ class TwineOrder {
       'hold_hours': holdHours,
       'status': status.wire,
       'updated_at': updatedAt.toIso8601String(),
+      'reserved_ckb': reservedCkb,
     };
   }
 

@@ -1,4 +1,6 @@
 import '../constant.dart';
+import '../market/clocks.dart';
+import '../market/phase.dart';
 import 'envelope.dart';
 
 class DaemonReplyEvent {
@@ -18,7 +20,8 @@ enum DaemonReply {
   settled,
   canceled,
   expired,
-  cantDo;
+  cantDo,
+  trades;
 
   static DaemonReply? parse(String action) {
     switch (action) {
@@ -42,6 +45,8 @@ enum DaemonReply {
         return DaemonReply.expired;
       case replyCantDo:
         return DaemonReply.cantDo;
+      case replyTrades:
+        return DaemonReply.trades;
       default:
         return null;
     }
@@ -55,6 +60,8 @@ class PayInvoice {
     required this.orderId,
     this.sellerNostr,
     this.buyerNostr,
+    this.lockBy,
+    this.holdEndsAt,
   });
 
   final String invoice;
@@ -62,6 +69,8 @@ class PayInvoice {
   final String orderId;
   final String? sellerNostr;
   final String? buyerNostr;
+  final DateTime? lockBy;
+  final DateTime? holdEndsAt;
 
   static PayInvoice? tryParse(Object? payload) {
     final map = _map(payload);
@@ -77,6 +86,8 @@ class PayInvoice {
       orderId: orderId,
       sellerNostr: parties?.$1,
       buyerNostr: parties?.$2,
+      lockBy: unixSeconds(map['lock_by']),
+      holdEndsAt: unixSeconds(map['hold_ends_at']),
     );
   }
 }
@@ -91,6 +102,8 @@ class WaitingFiat {
     required this.currency,
     this.sellerNostr,
     this.buyerNostr,
+    this.payBy,
+    this.releaseBy,
   });
 
   final String fiatAmount;
@@ -101,6 +114,8 @@ class WaitingFiat {
   final String currency;
   final String? sellerNostr;
   final String? buyerNostr;
+  final DateTime? payBy;
+  final DateTime? releaseBy;
 
   static WaitingFiat? tryParse(Object? payload) {
     final map = _map(payload);
@@ -129,7 +144,126 @@ class WaitingFiat {
       currency: currency,
       sellerNostr: parties?.$1,
       buyerNostr: parties?.$2,
+      payBy: unixSeconds(map['pay_by']),
+      releaseBy: unixSeconds(map['release_by']),
     );
+  }
+}
+
+class Disputed {
+  const Disputed({this.solver});
+
+  final String? solver;
+
+  static Disputed tryParse(Object? payload) {
+    final map = _map(payload);
+    if (map == null) return const Disputed();
+    return Disputed(solver: _text(map, 'solver'));
+  }
+}
+
+class TradeSnapshot {
+  const TradeSnapshot({
+    required this.tradeId,
+    required this.orderId,
+    required this.phase,
+    required this.sellerNostr,
+    required this.buyerNostr,
+    required this.fiatAmount,
+    required this.fiatCurrency,
+    required this.amountShannons,
+    this.paymentKind,
+    this.paymentLabel,
+    this.paymentCurrency,
+    this.reference,
+    this.holdInvoice,
+    this.payoutInvoice,
+    this.lockBy,
+    this.holdEndsAt,
+    this.payBy,
+    this.releaseBy,
+  });
+
+  final String tradeId;
+  final String orderId;
+  final TradePhase phase;
+  final String sellerNostr;
+  final String buyerNostr;
+  final String fiatAmount;
+  final String fiatCurrency;
+  final String amountShannons;
+  final String? paymentKind;
+  final String? paymentLabel;
+  final String? paymentCurrency;
+  final String? reference;
+  final String? holdInvoice;
+  final String? payoutInvoice;
+  final DateTime? lockBy;
+  final DateTime? holdEndsAt;
+  final DateTime? payBy;
+  final DateTime? releaseBy;
+
+  static TradeSnapshot? tryParse(Object? value) {
+    final map = _map(value);
+    if (map == null) return null;
+    final tradeId = _text(map, 'trade_id');
+    final orderId = _text(map, 'order_id');
+    final phase = TradePhase.parse(_text(map, 'state') ?? '');
+    final seller = _text(map, 'seller_nostr');
+    final buyer = _text(map, 'buyer_nostr');
+    final fiatAmount = _text(map, 'fiat_amount');
+    final fiatCurrency = _text(map, 'fiat_currency');
+    final amount = _text(map, 'amount_shannons');
+    if (tradeId == null ||
+        orderId == null ||
+        phase == null ||
+        seller == null ||
+        buyer == null ||
+        fiatAmount == null ||
+        fiatCurrency == null ||
+        amount == null) {
+      return null;
+    }
+    return TradeSnapshot(
+      tradeId: tradeId,
+      orderId: orderId,
+      phase: phase,
+      sellerNostr: seller,
+      buyerNostr: buyer,
+      fiatAmount: fiatAmount,
+      fiatCurrency: fiatCurrency,
+      amountShannons: amount,
+      paymentKind: _text(map, 'payment_kind'),
+      paymentLabel: _text(map, 'payment_label'),
+      paymentCurrency: _text(map, 'payment_currency'),
+      reference: _text(map, 'reference'),
+      holdInvoice: _text(map, 'hold_invoice'),
+      payoutInvoice: _text(map, 'payout_invoice'),
+      lockBy: unixSeconds(map['lock_by']),
+      holdEndsAt: unixSeconds(map['hold_ends_at']),
+      payBy: unixSeconds(map['pay_by']),
+      releaseBy: unixSeconds(map['release_by']),
+    );
+  }
+}
+
+class TradesReply {
+  const TradesReply(this.trades);
+
+  final List<TradeSnapshot> trades;
+
+  static TradesReply? tryParse(Object? payload) {
+    final map = _map(payload);
+    if (map == null) return null;
+    final raw = map['trades'];
+    if (raw is! List) return null;
+    final trades = <TradeSnapshot>[];
+    for (final item in raw) {
+      final snapshot = TradeSnapshot.tryParse(item);
+      if (snapshot == null) return null;
+      trades.add(snapshot);
+    }
+    return TradesReply(trades);
   }
 }
 

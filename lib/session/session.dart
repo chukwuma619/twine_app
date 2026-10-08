@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
+import 'package:twine_app/nostr/fiber_node.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/store/account_store.dart';
 import 'package:twine_app/store/book_store.dart';
@@ -23,11 +24,30 @@ class TwineSession extends ChangeNotifier {
     nostr.account = account;
     nostr.daemon = daemon;
     _bindMarket();
+    if (account != null) {
+      unawaited(_boot());
+    }
+  }
+
+  Future<void> _boot() async {
+    await _restoreBackupFlag();
+    if (_disposed) return;
     final current = daemon;
     if (connectRelays && account != null && current != null && !showBackup) {
       connecting = true;
+      _notify();
       unawaited(_openAndConnect(current));
     }
+  }
+
+  Future<void> _restoreBackupFlag() async {
+    try {
+      showBackup = !await store.backupConfirmed();
+    } catch (_) {
+      showBackup = false;
+    }
+    if (_disposed) return;
+    _notify();
   }
 
   static const _invalidKey = 'Enter an nsec or a 64-character hex key.';
@@ -58,10 +78,11 @@ class TwineSession extends ChangeNotifier {
   String? daemonError;
   List<String> relays = const [];
   String? fiberNode;
+  bool? solverAvailable;
   String? relayError;
   bool connecting = false;
 
-  StreamSubscription<String>? _fiberSub;
+  StreamSubscription<FiberAnnouncement>? _fiberSub;
   bool _disposed = false;
 
   void _notify() {
@@ -71,6 +92,7 @@ class TwineSession extends ChangeNotifier {
   Future<void> connect(List<String> relays) async {
     await _fiberSub?.cancel();
     fiberNode = null;
+    solverAvailable = null;
     _notify();
     try {
       final open = await nostr.connect(relays);
@@ -79,9 +101,12 @@ class TwineSession extends ChangeNotifier {
       nostr.watchFiberNode();
       nostr.watchOrders();
       nostr.watchCatalog();
-      _fiberSub = nostr.fiberNodes.listen((pubkey) {
+      _fiberSub = nostr.fiberNodes.listen((announcement) {
         if (_disposed) return;
-        fiberNode = pubkey;
+        fiberNode = announcement.pubkey;
+        solverAvailable = announcement.hasSolverField
+            ? announcement.solverConfigured
+            : null;
         _notify();
       });
       this.relays = open;
@@ -106,6 +131,7 @@ class TwineSession extends ChangeNotifier {
     try {
       final created = TwineAccount.generate(nostr.nostr);
       await store.write(created);
+      await store.setBackupConfirmed(false);
       if (_disposed) return;
       nostr.account = created;
       account = created;
@@ -151,14 +177,13 @@ class TwineSession extends ChangeNotifier {
     nostr.account = parsed;
     final current = daemon;
     account = parsed;
-    showBackup = false;
+    showBackup = true;
     busy = false;
     _bindMarket();
-    connecting = connectRelays && current != null;
     _notify();
-    if (connectRelays && current != null) {
-      unawaited(_openAndConnect(current));
-    }
+    try {
+      await store.setBackupConfirmed(false);
+    } catch (_) {}
   }
 
   Future<void> saveDaemon(String pubkey, String relays) async {
@@ -205,6 +230,7 @@ class TwineSession extends ChangeNotifier {
     busy = false;
     this.relays = const [];
     fiberNode = null;
+    solverAvailable = null;
     relayError = null;
     _bindMarket();
     connecting = connectRelays;
@@ -212,8 +238,12 @@ class TwineSession extends ChangeNotifier {
     if (connectRelays) unawaited(_openAndConnect(parsed));
   }
 
-  void continueFromBackup() {
+  Future<void> continueFromBackup() async {
     showBackup = false;
+    try {
+      await store.setBackupConfirmed(true);
+    } catch (_) {}
+    if (_disposed) return;
     final current = daemon;
     if (connectRelays && current != null) {
       connecting = true;
@@ -263,6 +293,7 @@ class TwineSession extends ChangeNotifier {
     account = null;
     viewingAccount = false;
     fiberNode = null;
+    solverAvailable = null;
     showBackup = false;
     editingDaemon = false;
     error = null;

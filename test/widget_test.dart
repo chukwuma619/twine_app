@@ -5,8 +5,10 @@ import 'package:twine_app/nostr/daemon.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/store/account_store.dart';
 import 'package:twine_app/store/daemon_store.dart';
+import 'package:twine_app/session/session.dart';
 import 'package:twine_app/session/signed_in_page.dart';
 import 'package:twine_app/session/twine_app.dart';
+import 'package:twine_app/store/book_store.dart';
 
 void main() {
   TwineApp app({
@@ -34,6 +36,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Save this key'), findsOneWidget);
+    await tester.tap(find.text('I saved this somewhere safe'));
+    await tester.pump();
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
@@ -78,6 +82,12 @@ void main() {
     await tester.pumpWidget(app(nostr: nostr, store: store));
     await tester.enterText(find.byType(TextField), existing.nsec);
     await tester.tap(find.text('Import'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Save this key'), findsOneWidget);
+    await tester.tap(find.text('I saved this somewhere safe'));
+    await tester.pump();
+    await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
 
     expect(find.text('Connect to a daemon'), findsOneWidget);
@@ -156,7 +166,7 @@ void main() {
     expect(find.text('Post'), findsOneWidget);
     expect(find.text('Trade'), findsOneWidget);
     expect(find.text('Buy'), findsOneWidget);
-    expect(find.text('No posts yet.'), findsOneWidget);
+    expect(find.text('No one selling CKB here yet.'), findsOneWidget);
     await tester.tap(find.text('Account'));
     await tester.pumpAndSettle();
 
@@ -215,6 +225,7 @@ void main() {
     );
     await tester.tap(find.text('Account'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Log out'));
     await tester.tap(find.text('Log out'));
     await tester.pumpAndSettle();
     await tester.tap(
@@ -225,9 +236,30 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Your Nostr key is your account.'), findsOneWidget);
+    expect(
+      find.text('Your Nostr key is your account. CKB stays in your Fiber wallet.'),
+      findsOneWidget,
+    );
     expect(nostr.account, isNull);
     expect(daemons.daemon?.publicKey, daemon.publicKey);
+  });
+
+  test('an unconfirmed backup is still required after a new session', () async {
+    final nostr = TwineNostr();
+    final account = TwineAccount.generate(nostr.nostr);
+    final store = MemoryAccountStore()
+      ..account = account
+      ..confirmedBackup = false;
+    final session = TwineSession(
+      nostr: nostr,
+      store: store,
+      daemonStore: MemoryDaemonStore(),
+      bookStore: MemoryBookStore(),
+      account: account,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(session.showBackup, isTrue);
+    session.dispose();
   });
 
   testWidgets('the signed-in screen shows the fiber node to open', (
