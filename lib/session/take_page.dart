@@ -25,6 +25,7 @@ class TakePage extends StatefulWidget {
 class _TakePageState extends State<TakePage> {
   late final TextEditingController _fiber;
   late final TextEditingController _amount;
+  late final TextEditingController _invoice;
   String? _methodId;
   bool _busy = false;
   String? _error;
@@ -34,6 +35,7 @@ class _TakePageState extends State<TakePage> {
     super.initState();
     _fiber = TextEditingController(text: widget.market.fiberPubkey ?? '');
     _amount = TextEditingController();
+    _invoice = TextEditingController();
     _amount.addListener(() {
       if (mounted) setState(() {});
     });
@@ -46,6 +48,7 @@ class _TakePageState extends State<TakePage> {
   void dispose() {
     _fiber.dispose();
     _amount.dispose();
+    _invoice.dispose();
     super.dispose();
   }
 
@@ -89,9 +92,7 @@ class _TakePageState extends State<TakePage> {
                         style: theme.textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '${order.side.label} · ${order.availableCkb} CKB',
-                      ),
+                      Text('${order.side.label} · ${order.availableCkb} CKB'),
                       const SizedBox(height: 8),
                       Text(
                         '${order.min}–${order.max} ${order.fiatCurrency} at ${order.pricePerCkb} ${order.fiatCurrency} per CKB',
@@ -129,6 +130,23 @@ class _TakePageState extends State<TakePage> {
                         ),
                       ),
                       const SizedBox(height: 12),
+                      if (role == TradeSide.buyer) ...[
+                        TextField(
+                          controller: _invoice,
+                          enabled: !_busy,
+                          minLines: 1,
+                          maxLines: 4,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          decoration: const InputDecoration(
+                            labelText: 'Fiber invoice for the CKB',
+                            helperText:
+                                'Create this in your Fiber wallet. The hold uses this invoice\'s payment hash.',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       const Text(
                         'Open a channel to the operator Fiber node in your wallet before you take.',
                       ),
@@ -200,6 +218,8 @@ class _TakePageState extends State<TakePage> {
       fiatAmount: _amount.text,
       fiberPubkey: _fiber.text,
       paymentMethodId: methodId,
+      invoice: role == TradeSide.buyer ? _invoice.text : null,
+      requireInvoice: role == TradeSide.buyer,
     );
     final invalid = draft.validate();
     if (invalid != null) {

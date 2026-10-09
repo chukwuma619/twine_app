@@ -1,4 +1,5 @@
 enum TradePhase {
+  waitingInvoice('waiting-invoice', 'Waiting for the invoice'),
   waitingHold('waiting-hold', 'Waiting for the hold'),
   waitingFiat('waiting-fiat', 'Waiting for fiat'),
   fiatSent('fiat-sent', 'Fiat sent'),
@@ -21,6 +22,7 @@ enum TradePhase {
       case TradePhase.canceled:
       case TradePhase.expired:
         return true;
+      case TradePhase.waitingInvoice:
       case TradePhase.waitingHold:
       case TradePhase.waitingFiat:
       case TradePhase.fiatSent:
@@ -47,6 +49,7 @@ bool canEnter(TradePhase? current, TradePhase next) {
     switch (next) {
       case TradePhase.releasing:
         return false;
+      case TradePhase.waitingInvoice:
       case TradePhase.waitingHold:
       case TradePhase.waitingFiat:
       case TradePhase.fiatSent:
@@ -62,8 +65,10 @@ bool canEnter(TradePhase? current, TradePhase next) {
   if (current.terminal) return false;
   if (current == next) return true;
   switch (next) {
-    case TradePhase.waitingHold:
+    case TradePhase.waitingInvoice:
       return false;
+    case TradePhase.waitingHold:
+      return current == TradePhase.waitingInvoice;
     case TradePhase.waitingFiat:
       return current == TradePhase.waitingHold;
     case TradePhase.fiatSent:

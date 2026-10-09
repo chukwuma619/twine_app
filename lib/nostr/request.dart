@@ -71,12 +71,16 @@ class TakeDraft {
     required this.fiatAmount,
     required this.fiberPubkey,
     required this.paymentMethodId,
+    this.invoice,
+    this.requireInvoice = false,
   });
 
   final String orderId;
   final String fiatAmount;
   final String fiberPubkey;
   final String paymentMethodId;
+  final String? invoice;
+  final bool requireInvoice;
 
   String? validate() {
     if (orderId.trim().isEmpty) return 'That post is missing an id.';
@@ -84,20 +88,35 @@ class TakeDraft {
     final amount = _amount(fiatAmount, 'the fiat amount');
     if (amount != null) return amount;
     if (paymentMethodId.trim().isEmpty) return 'Pick a payment method.';
+    if (requireInvoice) {
+      final payout = invoiceError(invoice ?? '');
+      if (payout != null) return payout;
+    }
     return null;
   }
 
   TwineEnvelope envelope() {
-    return TwineEnvelope(
-      action: actionTake,
-      payload: {
-        'order_id': orderId.trim(),
-        'fiat_amount': fiatAmount.trim(),
-        'fiber_pubkey': fiberPubkey.trim(),
-        'payment_method_id': paymentMethodId.trim(),
-      },
-    );
+    final payload = {
+      'order_id': orderId.trim(),
+      'fiat_amount': fiatAmount.trim(),
+      'fiber_pubkey': fiberPubkey.trim(),
+      'payment_method_id': paymentMethodId.trim(),
+    };
+    final payout = invoice?.trim();
+    if (payout != null && payout.isNotEmpty) payload['invoice'] = payout;
+    return TwineEnvelope(action: actionTake, payload: payload);
   }
+}
+
+TwineEnvelope payoutInvoiceRequest({
+  required String tradeId,
+  required String invoice,
+}) {
+  return TwineEnvelope(
+    action: actionPayoutInvoice,
+    tradeId: tradeId,
+    payload: {'invoice': invoice.trim()},
+  );
 }
 
 TwineEnvelope fiatSentRequest({
@@ -144,8 +163,14 @@ TwineEnvelope myTradesRequest() {
   return const TwineEnvelope(action: actionMyTrades);
 }
 
-String? invoiceError(String invoice, {String? holdInvoice}) {
-  if (invoice.trim().isEmpty) return 'Paste the payout invoice.';
+String? invoiceError(
+  String invoice, {
+  String? holdInvoice,
+  bool allowEmpty = false,
+}) {
+  if (invoice.trim().isEmpty) {
+    return allowEmpty ? null : 'Paste the payout invoice.';
+  }
   final hold = holdInvoice?.trim();
   if (hold != null && hold.isNotEmpty && invoice.trim() == hold) {
     return 'That is the hold invoice. Paste the invoice that should receive the CKB.';

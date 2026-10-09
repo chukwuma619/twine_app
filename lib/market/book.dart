@@ -105,6 +105,8 @@ class TwineBook {
     switch (reply) {
       case DaemonReply.payInvoice:
         _payInvoice(envelope, at);
+      case DaemonReply.needInvoice:
+        _needInvoice(envelope, at);
       case DaemonReply.waitingFiat:
         _waitingFiat(envelope, at);
       case DaemonReply.fiatSentOk:
@@ -163,6 +165,15 @@ class TwineBook {
       return;
     }
     _move(envelope, at, TradePhase.waitingHold, pay: pay);
+  }
+
+  void _needInvoice(TwineEnvelope envelope, DateTime at) {
+    final need = NeedInvoice.tryParse(envelope.payload);
+    if (need == null) {
+      notice = 'The daemon asked for an invoice this app could not read.';
+      return;
+    }
+    _move(envelope, at, TradePhase.waitingInvoice, need: need);
   }
 
   void _waitingFiat(TwineEnvelope envelope, DateTime at) {
@@ -281,6 +292,7 @@ class TwineBook {
     DateTime at,
     TradePhase phase, {
     PayInvoice? pay,
+    NeedInvoice? need,
     WaitingFiat? fiat,
     String? payoutFailure,
     String? solver,
@@ -315,15 +327,25 @@ class TwineBook {
         phase: moving ? phase : base.phase,
         updatedAt: _later(base.updatedAt, at),
         holdInvoice: pay?.invoice ?? base.holdInvoice,
-        amountShannons: pay?.amountShannons ?? base.amountShannons,
-        fiatAmount: fiat?.fiatAmount ?? base.fiatAmount,
-        fiatCurrency: fiat?.fiatCurrency ?? base.fiatCurrency,
+        amountShannons:
+            pay?.amountShannons ?? need?.amountShannons ?? base.amountShannons,
+        fiatAmount: fiat?.fiatAmount ?? need?.fiatAmount ?? base.fiatAmount,
+        fiatCurrency:
+            fiat?.fiatCurrency ?? need?.fiatCurrency ?? base.fiatCurrency,
         paymentKind: fiat?.kind ?? base.paymentKind,
         paymentLabel: fiat?.label ?? base.paymentLabel,
         paymentCurrency: fiat?.currency ?? base.paymentCurrency,
         reference: fiat?.reference ?? base.reference,
-        sellerNostr: pay?.sellerNostr ?? fiat?.sellerNostr ?? base.sellerNostr,
-        buyerNostr: pay?.buyerNostr ?? fiat?.buyerNostr ?? base.buyerNostr,
+        sellerNostr:
+            pay?.sellerNostr ??
+            fiat?.sellerNostr ??
+            need?.sellerNostr ??
+            base.sellerNostr,
+        buyerNostr:
+            pay?.buyerNostr ??
+            fiat?.buyerNostr ??
+            need?.buyerNostr ??
+            base.buyerNostr,
         payoutFailure:
             payoutFailure ?? (clearFailure ? null : base.payoutFailure),
         notice: moving ? null : base.notice,
@@ -332,6 +354,7 @@ class TwineBook {
         holdEndsAt: pay?.holdEndsAt ?? base.holdEndsAt,
         payBy: fiat?.payBy ?? base.payBy,
         releaseBy: fiat?.releaseBy ?? base.releaseBy,
+        invoiceBy: need?.submitBy ?? base.invoiceBy,
         solver: solver ?? base.solver,
       ),
     );

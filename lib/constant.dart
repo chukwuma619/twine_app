@@ -25,6 +25,7 @@ const paymentCatalogTag = 'payment-methods';
 
 const actionNewOrder = 'new-order';
 const actionTake = 'take';
+const actionPayoutInvoice = 'payout-invoice';
 const actionFiatSent = 'fiat-sent';
 const actionRelease = 'release';
 const actionCancel = 'cancel';
@@ -32,6 +33,7 @@ const actionDispute = 'dispute';
 const actionMyTrades = 'my-trades';
 
 const replyPayInvoice = 'pay-invoice';
+const replyNeedInvoice = 'need-invoice';
 const replyWaitingFiat = 'waiting-fiat';
 const replyFiatSentOk = 'fiat-sent-ok';
 const replyNewInvoice = 'new-invoice';

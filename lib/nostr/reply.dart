@@ -12,6 +12,7 @@ class DaemonReplyEvent {
 
 enum DaemonReply {
   payInvoice,
+  needInvoice,
   waitingFiat,
   fiatSentOk,
   newInvoice,
@@ -27,6 +28,8 @@ enum DaemonReply {
     switch (action) {
       case replyPayInvoice:
         return DaemonReply.payInvoice;
+      case replyNeedInvoice:
+        return DaemonReply.needInvoice;
       case replyWaitingFiat:
         return DaemonReply.waitingFiat;
       case replyFiatSentOk:
@@ -88,6 +91,44 @@ class PayInvoice {
       buyerNostr: parties?.$2,
       lockBy: unixSeconds(map['lock_by']),
       holdEndsAt: unixSeconds(map['hold_ends_at']),
+    );
+  }
+}
+
+class NeedInvoice {
+  const NeedInvoice({
+    required this.amountShannons,
+    required this.fiatAmount,
+    required this.fiatCurrency,
+    this.sellerNostr,
+    this.buyerNostr,
+    this.submitBy,
+  });
+
+  final String amountShannons;
+  final String fiatAmount;
+  final String fiatCurrency;
+  final String? sellerNostr;
+  final String? buyerNostr;
+  final DateTime? submitBy;
+
+  static NeedInvoice? tryParse(Object? payload) {
+    final map = _map(payload);
+    if (map == null) return null;
+    final amount = _text(map, 'amount_shannons');
+    final fiatAmount = _text(map, 'fiat_amount');
+    final fiatCurrency = _text(map, 'fiat_currency');
+    if (amount == null || fiatAmount == null || fiatCurrency == null) {
+      return null;
+    }
+    final parties = _parties(map);
+    return NeedInvoice(
+      amountShannons: amount,
+      fiatAmount: fiatAmount,
+      fiatCurrency: fiatCurrency,
+      sellerNostr: parties?.$1,
+      buyerNostr: parties?.$2,
+      submitBy: unixSeconds(map['submit_by']),
     );
   }
 }

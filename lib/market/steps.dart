@@ -4,6 +4,15 @@ import 'role.dart';
 /// The title one person should see for this stage of a trade.
 String tradeTitle(TradePhase phase, TradeSide? side) {
   switch (phase) {
+    case TradePhase.waitingInvoice:
+      switch (side) {
+        case TradeSide.buyer:
+          return 'Create the payout invoice';
+        case TradeSide.seller:
+          return "Waiting for the buyer's invoice";
+        case null:
+          return 'Waiting for the invoice';
+      }
     case TradePhase.waitingHold:
       switch (side) {
         case TradeSide.seller:

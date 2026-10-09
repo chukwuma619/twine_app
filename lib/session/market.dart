@@ -98,9 +98,24 @@ class TwineMarket extends ChangeNotifier {
     return null;
   }
 
+  Future<String?> submitPayoutInvoice(String tradeId, String invoice) async {
+    final invalid = invoiceError(invoice);
+    if (invalid != null) return invalid;
+    final error = await _send(
+      payoutInvoiceRequest(tradeId: tradeId, invoice: invoice),
+    );
+    if (error != null) return error;
+    await _persist();
+    return null;
+  }
+
   Future<String?> fiatSent(String tradeId, String invoice) async {
     final current = book.trade(tradeId);
-    final invalid = invoiceError(invoice, holdInvoice: current?.holdInvoice);
+    final invalid = invoiceError(
+      invoice,
+      holdInvoice: current?.holdInvoice,
+      allowEmpty: current?.phase == TradePhase.waitingFiat,
+    );
     if (invalid != null) return invalid;
     final error = await _send(
       fiatSentRequest(tradeId: tradeId, invoice: invoice),
@@ -182,7 +197,7 @@ class TwineMarket extends ChangeNotifier {
   /// A receipt that is already on the thread is left there when the mark retries.
   Future<String?> markPaid(
     String tradeId, {
-    required String invoice,
+    String invoice = '',
     required String bankReference,
     String? image,
   }) async {

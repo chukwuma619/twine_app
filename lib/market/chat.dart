@@ -123,6 +123,7 @@ String? statusLine(TradePhase phase) {
       return 'The trade expired.';
     case TradePhase.refunding:
       return 'The CKB is being returned to the seller.';
+    case TradePhase.waitingInvoice:
     case TradePhase.waitingHold:
     case TradePhase.releasing:
     case TradePhase.awaitingInvoice:

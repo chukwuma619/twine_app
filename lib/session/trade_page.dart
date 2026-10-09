@@ -118,268 +118,291 @@ class _TradePageState extends State<TradePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                      if (outcome != null) ...[
-                        Text(outcome, style: theme.textTheme.titleSmall),
-                        const SizedBox(height: 16),
-                      ],
-                      if (order != null) ...[
-                        Text(
-                          '${order.side.label} · ${order.fiatCurrency}',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                      if (trade.amountShannons != null)
-                        Text('${shannonsToCkb(trade.amountShannons!)} CKB'),
-                      const SizedBox(height: 12),
-                      _Parties(
-                        me: widget.market.accountPubkey,
-                        seller: trade.sellerNostr,
-                        buyer: trade.buyerNostr,
-                        encode: _npub,
-                      ),
-                      ..._clocks(trade, side),
-                      const SizedBox(height: 8),
-                      Text('Reference', style: theme.textTheme.titleSmall),
-                      SelectableText(trade.reference ?? trade.id),
-                      if (trade.fiatAmount != null &&
-                          trade.phase != TradePhase.waitingHold) ...[
-                        const SizedBox(height: 16),
-                        Text(_paymentLine(side, trade)),
-                        if (side == TradeSide.buyer) ...[
-                          const SizedBox(height: 8),
-                          const Text('Put the reference on the payment.'),
+                        if (outcome != null) ...[
+                          Text(outcome, style: theme.textTheme.titleSmall),
+                          const SizedBox(height: 16),
                         ],
-                      ],
-                      if (details != null) ...[
-                        const SizedBox(height: 16),
-                        _AccountCard(details: details),
-                      ] else if (shareAccount && peer != null) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          trade.phase == TradePhase.waitingHold
-                              ? 'Share the account before you lock, so the buyer’s 15 minutes are only the transfer.'
-                              : 'The CKB is locked. Share the account the buyer should pay.',
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Account for ${trade.paymentLabel ?? 'this method'}',
-                          style: theme.textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _accountName,
-                          enabled: !widget.market.sending,
-                          decoration: const InputDecoration(
-                            labelText: 'Account name',
+                        if (order != null) ...[
+                          Text(
+                            '${order.side.label} · ${order.fiatCurrency}',
+                            style: theme.textTheme.titleMedium,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _accountNumber,
-                          enabled: !widget.market.sending,
-                          decoration: const InputDecoration(
-                            labelText: 'Account number',
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _accountNote,
-                          enabled: !widget.market.sending,
-                          decoration: const InputDecoration(labelText: 'Note'),
-                        ),
+                          const SizedBox(height: 8),
+                        ],
+                        if (trade.amountShannons != null)
+                          Text('${shannonsToCkb(trade.amountShannons!)} CKB'),
                         const SizedBox(height: 12),
-                        FilledButton(
-                          onPressed: widget.market.sending
-                              ? null
-                              : () => _share(trade),
-                          child: _actionChild('Share account'),
+                        _Parties(
+                          me: widget.market.accountPubkey,
+                          seller: trade.sellerNostr,
+                          buyer: trade.buyerNostr,
+                          encode: _npub,
                         ),
-                      ] else if (shareAccount) ...[
-                        const SizedBox(height: 16),
-                        const Text('Waiting to learn who the buyer is.'),
-                      ] else if (waitingFiat) ...[
-                        const SizedBox(height: 16),
-                        const Text(
-                          'The CKB is locked. Waiting for the seller to share the account you should pay.',
-                        ),
-                      ],
-                      if (proof != null) ...[
-                        const SizedBox(height: 16),
-                        _ReceiptCard(proof: proof),
-                      ],
-                      if (trade.payoutFailure != null) ...[
-                        const SizedBox(height: 16),
-                        Text(trade.payoutFailure!),
-                      ],
-                      if (actions.payHold) ...[
-                        const SizedBox(height: 16),
-                        const Text(
-                          'A buyer took this. Pay this in your Fiber wallet. You cannot cancel after it locks.',
-                        ),
-                        if (widget.fiberNode == null) ...[
+                        ..._clocks(trade, side),
+                        const SizedBox(height: 8),
+                        Text('Reference', style: theme.textTheme.titleSmall),
+                        SelectableText(trade.reference ?? trade.id),
+                        if (trade.fiatAmount != null &&
+                            trade.phase != TradePhase.waitingHold &&
+                            trade.phase != TradePhase.waitingInvoice) ...[
+                          const SizedBox(height: 16),
+                          Text(_paymentLine(side, trade)),
+                          if (side == TradeSide.buyer) ...[
+                            const SizedBox(height: 8),
+                            const Text('Put the reference on the payment.'),
+                          ],
+                        ],
+                        if (details != null) ...[
+                          const SizedBox(height: 16),
+                          _AccountCard(details: details),
+                        ] else if (shareAccount && peer != null) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            trade.phase == TradePhase.waitingHold
+                                ? 'Share the account before you lock, so the buyer’s 15 minutes are only the transfer.'
+                                : 'The CKB is locked. Share the account the buyer should pay.',
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Account for ${trade.paymentLabel ?? 'this method'}',
+                            style: theme.textTheme.titleSmall,
+                          ),
                           const SizedBox(height: 8),
-                          const Text('Waiting for the Fiber node.'),
-                        ] else ...[
+                          TextField(
+                            controller: _accountName,
+                            enabled: !widget.market.sending,
+                            decoration: const InputDecoration(
+                              labelText: 'Account name',
+                            ),
+                          ),
                           const SizedBox(height: 8),
+                          TextField(
+                            controller: _accountNumber,
+                            enabled: !widget.market.sending,
+                            decoration: const InputDecoration(
+                              labelText: 'Account number',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _accountNote,
+                            enabled: !widget.market.sending,
+                            decoration: const InputDecoration(
+                              labelText: 'Note',
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: widget.market.sending
+                                ? null
+                                : () => _share(trade),
+                            child: _actionChild('Share account'),
+                          ),
+                        ] else if (shareAccount) ...[
+                          const SizedBox(height: 16),
+                          const Text('Waiting to learn who the buyer is.'),
+                        ] else if (waitingFiat) ...[
+                          const SizedBox(height: 16),
                           const Text(
-                            'Open a channel to the operator Fiber node in your wallet.',
+                            'The CKB is locked. Waiting for the seller to share the account you should pay.',
                           ),
                         ],
-                        const SizedBox(height: 8),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: SelectableText(trade.holdInvoice!)),
-                            IconButton(
-                              tooltip: 'Copy invoice',
-                              onPressed: () async {
-                                await Clipboard.setData(
-                                  ClipboardData(text: trade.holdInvoice!),
-                                );
-                                if (!mounted) return;
-                                setState(() => _copiedHold = true);
-                              },
-                              icon: const Icon(Icons.copy),
+                        if (proof != null) ...[
+                          const SizedBox(height: 16),
+                          _ReceiptCard(proof: proof),
+                        ],
+                        if (trade.payoutFailure != null) ...[
+                          const SizedBox(height: 16),
+                          Text(trade.payoutFailure!),
+                        ],
+                        if (actions.payHold) ...[
+                          const SizedBox(height: 16),
+                          const Text(
+                            'A buyer took this. Pay this in your Fiber wallet. You cannot cancel after it locks.',
+                          ),
+                          if (widget.fiberNode == null) ...[
+                            const SizedBox(height: 8),
+                            const Text('Waiting for the Fiber node.'),
+                          ] else ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Open a channel to the operator Fiber node in your wallet.',
                             ),
                           ],
-                        ),
-                        if (_copiedHold) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: SelectableText(trade.holdInvoice!),
+                              ),
+                              IconButton(
+                                tooltip: 'Copy invoice',
+                                onPressed: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: trade.holdInvoice!),
+                                  );
+                                  if (!mounted) return;
+                                  setState(() => _copiedHold = true);
+                                },
+                                icon: const Icon(Icons.copy),
+                              ),
+                            ],
+                          ),
+                          if (_copiedHold) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Waiting for the operator node to report the lock.',
+                            ),
+                          ],
+                        ] else if (side == TradeSide.buyer &&
+                            trade.phase == TradePhase.waitingHold) ...[
+                          const SizedBox(height: 16),
+                          const Text(
+                            'You will have 15 minutes for a mobile transfer once the seller locks.',
+                          ),
+                        ] else if (side == null &&
+                            trade.phase == TradePhase.waitingHold) ...[
+                          const SizedBox(height: 16),
+                          const Text('Waiting to learn who locks the CKB.'),
+                        ],
+                        if (trade.phase == TradePhase.fiatSent &&
+                            side == TradeSide.seller) ...[
+                          const SizedBox(height: 16),
+                          const Text(
+                            'The buyer says they paid. Release the CKB after the money is in your account.',
+                          ),
+                        ] else if (trade.phase == TradePhase.fiatSent &&
+                            side == TradeSide.buyer) ...[
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Waiting for the seller to release the CKB.',
+                          ),
+                        ],
+                        if (trade.phase == TradePhase.releasing) ...[
+                          const SizedBox(height: 16),
+                          const Text('Sending the CKB to the buyer.'),
+                        ],
+                        if (trade.phase == TradePhase.disputed) ...[
+                          const SizedBox(height: 16),
+                          Text(_disputeLine(trade)),
+                        ],
+                        if (actions.submitInvoice) ...[
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _invoice,
+                            enabled: !widget.market.sending,
+                            minLines: 1,
+                            maxLines: 4,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            decoration: InputDecoration(
+                              labelText: 'Fiber invoice for the CKB',
+                              helperText: _invoiceHelp(trade),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: widget.market.sending
+                                ? null
+                                : () => _submitInvoice(trade),
+                            child: _actionChild('Submit payout invoice'),
+                          ),
+                        ],
+                        if (waitingFiat && details != null) ...[
+                          const SizedBox(height: 16),
+                          FilledButton(
+                            onPressed: widget.market.sending
+                                ? null
+                                : () => _paid(trade, proof != null),
+                            child: _actionChild("I've paid"),
+                          ),
+                        ] else if (actions.sendFiat &&
+                            trade.phase != TradePhase.waitingFiat) ...[
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _invoice,
+                            enabled: !widget.market.sending,
+                            minLines: 1,
+                            maxLines: 4,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            decoration: InputDecoration(
+                              labelText: 'Fiber invoice for the CKB',
+                              helperText: _invoiceHelp(trade),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: widget.market.sending
+                                ? null
+                                : () => _fiat(trade),
+                            child: _actionChild('Submit payout invoice'),
+                          ),
+                        ],
+                        if (actions.release) ...[
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: widget.market.sending
+                                ? null
+                                : () => _release(trade),
+                            child: _actionChild('Release the CKB'),
+                          ),
+                        ],
+                        if (actions.dispute) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            onPressed: widget.market.sending
+                                ? null
+                                : () => _dispute(trade),
+                            child: widget.market.sending
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Dispute'),
+                          ),
+                        ],
+                        if (actions.cancel) ...[
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: widget.market.sending
+                                ? null
+                                : () => _cancel(trade),
+                            child: const Text('Cancel trade'),
+                          ),
+                        ],
+                        if (peer != null) ...[
+                          const SizedBox(height: 24),
+                          Text('Chat', style: theme.textTheme.titleSmall),
                           const SizedBox(height: 8),
                           const Text(
-                            'Waiting for the operator node to report the lock.',
-                          ),
-                        ],
-                      ] else if (side == TradeSide.buyer &&
-                          trade.phase == TradePhase.waitingHold) ...[
-                        const SizedBox(height: 16),
-                        const Text(
-                          'You will have 15 minutes for a mobile transfer once the seller locks.',
-                        ),
-                      ] else if (side == null &&
-                          trade.phase == TradePhase.waitingHold) ...[
-                        const SizedBox(height: 16),
-                        const Text('Waiting to learn who locks the CKB.'),
-                      ],
-                      if (trade.phase == TradePhase.fiatSent &&
-                          side == TradeSide.seller) ...[
-                        const SizedBox(height: 16),
-                        const Text(
-                          'The buyer says they paid. Release the CKB after the money is in your account.',
-                        ),
-                      ] else if (trade.phase == TradePhase.fiatSent &&
-                          side == TradeSide.buyer) ...[
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Waiting for the seller to release the CKB.',
-                        ),
-                      ],
-                      if (trade.phase == TradePhase.releasing) ...[
-                        const SizedBox(height: 16),
-                        const Text('Sending the CKB to the buyer.'),
-                      ],
-                      if (trade.phase == TradePhase.disputed) ...[
-                        const SizedBox(height: 16),
-                        Text(_disputeLine(trade)),
-                      ],
-                      if (waitingFiat && details != null) ...[
-                        const SizedBox(height: 16),
-                        FilledButton(
-                          onPressed: widget.market.sending
-                              ? null
-                              : () => _paid(trade, proof != null),
-                          child: _actionChild(
-                            proof == null
-                                ? "I've paid"
-                                : 'Submit payout invoice',
-                          ),
-                        ),
-                      ] else if (actions.sendFiat &&
-                          trade.phase != TradePhase.waitingFiat) ...[
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _invoice,
-                          enabled: !widget.market.sending,
-                          minLines: 1,
-                          maxLines: 4,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          decoration: InputDecoration(
-                            labelText: 'Fiber invoice for the CKB',
-                            helperText: _invoiceHelp(trade),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        FilledButton(
-                          onPressed: widget.market.sending
-                              ? null
-                              : () => _fiat(trade),
-                          child: _actionChild('Submit payout invoice'),
-                        ),
-                      ],
-                      if (actions.release) ...[
-                        const SizedBox(height: 12),
-                        FilledButton(
-                          onPressed: widget.market.sending
-                              ? null
-                              : () => _release(trade),
-                          child: _actionChild('Release the CKB'),
-                        ),
-                      ],
-                      if (actions.dispute) ...[
-                        const SizedBox(height: 12),
-                        OutlinedButton(
-                          onPressed: widget.market.sending
-                              ? null
-                              : () => _dispute(trade),
-                          child: widget.market.sending
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('Dispute'),
-                        ),
-                      ],
-                      if (actions.cancel) ...[
-                        const SizedBox(height: 12),
-                        TextButton(
-                          onPressed: widget.market.sending
-                              ? null
-                              : () => _cancel(trade),
-                          child: const Text('Cancel trade'),
-                        ),
-                      ],
-                      if (peer != null) ...[
-                        const SizedBox(height: 24),
-                        Text('Chat', style: theme.textTheme.titleSmall),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'This thread is encrypted to the other trader. The relay can see that the two keys are talking.',
-                        ),
-                        const SizedBox(height: 8),
-                        for (final line in _lines(trade.id)) ...[
-                          _Line(
-                            line: line,
-                            mine:
-                                line.author?.toLowerCase() ==
-                                widget.market.accountPubkey.toLowerCase(),
+                            'This thread is encrypted to the other trader. The relay can see that the two keys are talking.',
                           ),
                           const SizedBox(height: 8),
+                          for (final line in _lines(trade.id)) ...[
+                            _Line(
+                              line: line,
+                              mine:
+                                  line.author?.toLowerCase() ==
+                                  widget.market.accountPubkey.toLowerCase(),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ],
+                        if (notice != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            notice,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.error,
+                            ),
+                          ),
                         ],
                       ],
-                      if (notice != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          notice,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.error,
-                          ),
-                        ),
-                      ],
-                    ],
                     ),
                   ),
                 ),
@@ -435,7 +458,21 @@ class _TradePageState extends State<TradePage> {
   List<Widget> _clocks(TwineTrade trade, TradeSide? side) {
     final now = DateTime.now().toUtc();
     final lines = <Widget>[];
-    if (trade.phase == TradePhase.waitingHold) {
+    if (trade.phase == TradePhase.waitingInvoice) {
+      final due = trade.invoiceBy;
+      if (due != null) {
+        final left = remainingLabel(due, now);
+        lines.add(
+          Text(
+            side == TradeSide.buyer
+                ? 'Send the payout invoice. $left'
+                : 'Waiting for the payout invoice. $left',
+          ),
+        );
+      } else {
+        lines.add(const Text('The payout invoice is due within an hour.'));
+      }
+    } else if (trade.phase == TradePhase.waitingHold) {
       if (side == TradeSide.seller) {
         if (trade.lockBy != null) {
           lines.add(Text(remainingLabel(trade.lockBy!, now)));
@@ -448,13 +485,13 @@ class _TradePageState extends State<TradePage> {
         if (trade.payBy != null) {
           lines.add(Text(remainingLabel(trade.payBy!, now)));
         } else {
-          lines.add(
-            const Text('You have 15 minutes for a mobile transfer.'),
-          );
+          lines.add(const Text('You have 15 minutes for a mobile transfer.'));
         }
       }
       if (trade.releaseBy != null) {
-        lines.add(Text('Release window: ${remainingLabel(trade.releaseBy!, now)}'));
+        lines.add(
+          Text('Release window: ${remainingLabel(trade.releaseBy!, now)}'),
+        );
       } else {
         lines.add(
           const Text('Release at least 30 minutes before the hold ends.'),
@@ -473,10 +510,7 @@ class _TradePageState extends State<TradePage> {
       }
     }
     if (lines.isEmpty) return const [];
-    return [
-      const SizedBox(height: 12),
-      ...lines,
-    ];
+    return [const SizedBox(height: 12), ...lines];
   }
 
   String _npub(String hex) {
@@ -490,10 +524,14 @@ class _TradePageState extends State<TradePage> {
   }
 
   String _invoiceHelp(TwineTrade trade) {
+    if (trade.phase == TradePhase.awaitingInvoice ||
+        trade.phase == TradePhase.disputed) {
+      return 'Use the same payment hash as the invoice already on this trade. A new hash cannot settle the hold.';
+    }
     final amount = trade.amountShannons == null
         ? 'the locked CKB'
         : '${shannonsToCkb(trade.amountShannons!)} CKB';
-    return 'Create this in your Fiber wallet. This invoice is where $amount goes.';
+    return 'Create this in your Fiber wallet. The hold uses this invoice\'s payment hash, and $amount is paid there.';
   }
 
   List<TradeNote> _lines(String tradeId) {
@@ -528,6 +566,7 @@ class _TradePageState extends State<TradePage> {
         accountNumber: details.accountNumber ?? '',
         needsReceipt: !hasProof,
         holdInvoice: trade.holdInvoice,
+        askInvoice: false,
         ckb: trade.amountShannons == null
             ? null
             : shannonsToCkb(trade.amountShannons!),
@@ -539,6 +578,15 @@ class _TradePageState extends State<TradePage> {
       invoice: paid.invoice,
       bankReference: paid.reference,
       image: paid.image,
+    );
+    if (!mounted) return;
+    setState(() => _error = error);
+  }
+
+  Future<void> _submitInvoice(TwineTrade trade) async {
+    final error = await widget.market.submitPayoutInvoice(
+      trade.id,
+      _invoice.text,
     );
     if (!mounted) return;
     setState(() => _error = error);
@@ -561,8 +609,7 @@ class _TradePageState extends State<TradePage> {
     final ckb = trade.amountShannons == null
         ? 'the locked CKB'
         : '${shannonsToCkb(trade.amountShannons!)} CKB';
-    final fiat =
-        '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}'.trim();
+    final fiat = '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}'.trim();
     final reference = trade.reference ?? trade.id;
     final confirmed = await _confirm(
       context,
@@ -652,10 +699,7 @@ class _Parties extends StatelessWidget {
     if (seller != null) add('Seller', seller!);
     if (buyer != null) add('Buyer', buyer!);
     if (rows.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: rows,
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows);
   }
 }
 
@@ -760,6 +804,7 @@ class _PaidSheet extends StatefulWidget {
     required this.needsReceipt,
     this.holdInvoice,
     this.ckb,
+    this.askInvoice = true,
   });
 
   final String amount;
@@ -768,6 +813,7 @@ class _PaidSheet extends StatefulWidget {
   final bool needsReceipt;
   final String? holdInvoice;
   final String? ckb;
+  final bool askInvoice;
 
   @override
   State<_PaidSheet> createState() => _PaidSheetState();
@@ -822,19 +868,21 @@ class _PaidSheetState extends State<_PaidSheet> {
             ),
             const SizedBox(height: 12),
           ],
-          TextField(
-            controller: _invoice,
-            minLines: 1,
-            maxLines: 4,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: InputDecoration(
-              labelText: 'Fiber invoice for the CKB',
-              helperText: widget.ckb == null
-                  ? 'Create this in your Fiber wallet. This invoice is where the coins go.'
-                  : 'Create this in your Fiber wallet. This invoice is where ${widget.ckb} CKB goes.',
+          if (widget.askInvoice) ...[
+            TextField(
+              controller: _invoice,
+              minLines: 1,
+              maxLines: 4,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: InputDecoration(
+                labelText: 'Fiber invoice for the CKB',
+                helperText: widget.ckb == null
+                    ? 'Create this in your Fiber wallet. The hold uses this invoice\'s payment hash.'
+                    : 'Create this in your Fiber wallet. The hold uses this invoice\'s payment hash, and ${widget.ckb} CKB is paid there.',
+              ),
             ),
-          ),
+          ],
           if (_error != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -877,10 +925,12 @@ class _PaidSheetState extends State<_PaidSheet> {
 
   void _submit() {
     final invoice = _invoice.text.trim();
-    final invalid = invoiceError(invoice, holdInvoice: widget.holdInvoice);
-    if (invalid != null) {
-      setState(() => _error = invalid);
-      return;
+    if (widget.askInvoice) {
+      final invalid = invoiceError(invoice, holdInvoice: widget.holdInvoice);
+      if (invalid != null) {
+        setState(() => _error = invalid);
+        return;
+      }
     }
     if (widget.needsReceipt) {
       if (_reference.text.trim().isEmpty) {

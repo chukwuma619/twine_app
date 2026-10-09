@@ -24,6 +24,7 @@ class TwineTrade {
     this.holdEndsAt,
     this.payBy,
     this.releaseBy,
+    this.invoiceBy,
     this.solver,
   });
 
@@ -52,6 +53,9 @@ class TwineTrade {
   final DateTime? holdEndsAt;
   final DateTime? payBy;
   final DateTime? releaseBy;
+
+  /// When the buyer must send the payout invoice, before a hold exists.
+  final DateTime? invoiceBy;
   final String? solver;
 
   TwineTrade copyWith({
@@ -78,6 +82,7 @@ class TwineTrade {
     DateTime? holdEndsAt,
     DateTime? payBy,
     DateTime? releaseBy,
+    DateTime? invoiceBy,
     String? solver,
     bool keepClocks = true,
   }) {
@@ -107,6 +112,7 @@ class TwineTrade {
       holdEndsAt: holdEndsAt ?? (keepClocks ? this.holdEndsAt : null),
       payBy: payBy ?? (keepClocks ? this.payBy : null),
       releaseBy: releaseBy ?? (keepClocks ? this.releaseBy : null),
+      invoiceBy: invoiceBy ?? (keepClocks ? this.invoiceBy : null),
       solver: solver ?? this.solver,
     );
   }
@@ -134,6 +140,7 @@ class TwineTrade {
       'hold_ends_at': unixJson(holdEndsAt),
       'pay_by': unixJson(payBy),
       'release_by': unixJson(releaseBy),
+      'invoice_by': unixJson(invoiceBy),
       'solver': solver,
     };
   }
@@ -168,6 +175,7 @@ class TwineTrade {
       holdEndsAt: unixSeconds(map['hold_ends_at']),
       payBy: unixSeconds(map['pay_by']),
       releaseBy: unixSeconds(map['release_by']),
+      invoiceBy: unixSeconds(map['invoice_by']),
       solver: _optional(map, 'solver'),
     );
   }

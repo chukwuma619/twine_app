@@ -42,6 +42,7 @@ TradeSide tradeSide(TwineOrder order, String pubkey) {
 class TradeActions {
   const TradeActions({
     required this.payHold,
+    required this.submitInvoice,
     required this.sendFiat,
     required this.release,
     required this.dispute,
@@ -49,6 +50,7 @@ class TradeActions {
   });
 
   final bool payHold;
+  final bool submitInvoice;
   final bool sendFiat;
   final bool release;
   final bool dispute;
@@ -65,6 +67,8 @@ class TradeActions {
           side == TradeSide.seller &&
           phase == TradePhase.waitingHold &&
           hasHoldInvoice,
+      submitInvoice:
+          side == TradeSide.buyer && phase == TradePhase.waitingInvoice,
       sendFiat:
           side == TradeSide.buyer &&
           (phase == TradePhase.waitingFiat ||
@@ -73,9 +77,11 @@ class TradeActions {
       release:
           side == TradeSide.seller &&
           (phase == TradePhase.fiatSent || phase == TradePhase.disputed),
-      dispute:
-          _canDispute(phase) && side != null && solverAvailable != false,
-      cancel: phase == TradePhase.waitingHold && side != null,
+      dispute: _canDispute(phase) && side != null && solverAvailable != false,
+      cancel:
+          (phase == TradePhase.waitingInvoice ||
+              phase == TradePhase.waitingHold) &&
+          side != null,
     );
   }
 }
@@ -86,6 +92,7 @@ bool _canDispute(TradePhase phase) {
     case TradePhase.fiatSent:
     case TradePhase.awaitingInvoice:
       return true;
+    case TradePhase.waitingInvoice:
     case TradePhase.waitingHold:
     case TradePhase.releasing:
     case TradePhase.disputed:
