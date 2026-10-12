@@ -10,13 +10,11 @@ class PostPage extends StatefulWidget {
     required this.onSubmit,
     this.fiberPubkey,
     this.catalog = const [],
-    this.initialSide = OrderSide.sell,
     this.fiberNode,
   });
 
   final String? fiberPubkey;
   final List<CatalogMethod> catalog;
-  final OrderSide initialSide;
   final String? fiberNode;
   final Future<String?> Function(NewOrderDraft draft) onSubmit;
 
@@ -32,14 +30,12 @@ class _PostPageState extends State<PostPage> {
   late final TextEditingController _max;
   late String _currency;
   late Set<String> _methodIds;
-  late OrderSide _side;
   bool _busy = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _side = widget.initialSide;
     _fiber = TextEditingController(text: widget.fiberPubkey ?? '');
     _available = TextEditingController();
     _price = TextEditingController();
@@ -95,28 +91,8 @@ class _PostPageState extends State<PostPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final side in OrderSide.values)
-                        ChoiceChip(
-                          label: Text(
-                            side == OrderSide.sell ? 'Sell CKB' : 'Buy CKB',
-                          ),
-                          selected: _side == side,
-                          onSelected: _busy
-                              ? null
-                              : (selected) {
-                                  if (selected) setState(() => _side = side);
-                                },
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
                   Text(
-                    _side == OrderSide.sell
-                        ? 'You lock CKB in your Fiber wallet when someone takes this.'
-                        : 'You pay by mobile transfer after the seller locks.',
+                    'You lock CKB in your Fiber wallet when someone takes this.',
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 16),
@@ -125,15 +101,13 @@ class _PostPageState extends State<PostPage> {
                     'Your Fiber pubkey',
                     helper: 'This is your Fiber node pubkey, not an npub.',
                   ),
-                  if (_side == OrderSide.sell) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Open a channel to the operator Fiber node in your wallet before you post.',
+                  ),
+                  if (widget.fiberNode == null) ...[
                     const SizedBox(height: 8),
-                    const Text(
-                      'Open a channel to the operator Fiber node in your wallet before you post.',
-                    ),
-                    if (widget.fiberNode == null) ...[
-                      const SizedBox(height: 8),
-                      const Text('Waiting for the Fiber node.'),
-                    ],
+                    const Text('Waiting for the Fiber node.'),
                   ],
                   const SizedBox(height: 12),
                   _field(_available, 'CKB available', number: true),
@@ -267,7 +241,7 @@ class _PostPageState extends State<PostPage> {
 
   Future<void> _submit() async {
     final draft = NewOrderDraft(
-      side: _side,
+      side: OrderSide.sell,
       fiberPubkey: _fiber.text,
       availableCkb: _available.text,
       fiatCurrency: _currency,
@@ -285,11 +259,9 @@ class _PostPageState extends State<PostPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(_side == OrderSide.sell ? 'Sell CKB?' : 'Buy CKB?'),
-          content: Text(
-            _side == OrderSide.sell
-                ? 'You lock CKB in your Fiber wallet when someone takes this.'
-                : 'You pay by mobile transfer after the seller locks.',
+          title: const Text('Sell CKB?'),
+          content: const Text(
+            'You lock CKB in your Fiber wallet when someone takes this.',
           ),
           actions: [
             TextButton(
@@ -312,7 +284,7 @@ class _PostPageState extends State<PostPage> {
     final error = await widget.onSubmit(draft);
     if (!mounted) return;
     if (error == null) {
-      Navigator.of(context).pop(_side);
+      Navigator.of(context).pop(OrderSide.sell);
       return;
     }
     setState(() {

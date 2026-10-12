@@ -59,17 +59,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Take'), findsOneWidget);
-    expect(find.text('Yours'), findsNothing);
-
-    await tester.tap(find.text('Sell'));
-    await tester.pumpAndSettle();
-
     expect(find.text('Yours'), findsOneWidget);
     expect(find.text('Cancel post'), findsOneWidget);
-    expect(find.text('Take'), findsNothing);
+    expect(find.text('Buy'), findsNothing);
+    expect(find.text('Sell'), findsNothing);
 
-    await tester.tap(find.text('Buy'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Take'));
     await tester.pumpAndSettle();
     expect(find.text('Buy CKB'), findsWidgets);
@@ -81,7 +75,7 @@ void main() {
     expect(find.text('GTBank · bank'), findsOneWidget);
   });
 
-  testWidgets('a sell just posted shows under sell', (tester) async {
+  testWidgets('a post just published shows in the list', (tester) async {
     final market = _market(pubkey: 'taker');
     market.pending.add(_order(id: 'local-1', maker: 'taker'));
 
@@ -91,18 +85,12 @@ void main() {
       ),
     );
 
-    expect(find.text('10 CKB'), findsNothing);
-    await tester.tap(find.text('Sell'));
-    await tester.pumpAndSettle();
-
     expect(find.text('10 CKB'), findsOneWidget);
     expect(find.text('Publishing'), findsOneWidget);
     expect(find.text('Cancel post'), findsNothing);
   });
 
-  testWidgets('a sell is offered under buy and a buy under sell', (
-    tester,
-  ) async {
+  testWidgets('a buy post is hidden from the list', (tester) async {
     final market = _market(
       pubkey: 'taker',
       orders: [
@@ -119,12 +107,8 @@ void main() {
 
     expect(find.text('10 CKB'), findsOneWidget);
     expect(find.text('20 CKB'), findsNothing);
-
-    await tester.tap(find.text('Sell'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('20 CKB'), findsOneWidget);
-    expect(find.text('10 CKB'), findsNothing);
+    expect(find.text('Buy'), findsNothing);
+    expect(find.text('Sell'), findsNothing);
 
     await tester.tap(find.text('Trade'));
     await tester.pumpAndSettle();
@@ -156,14 +140,9 @@ void main() {
     await tester.tap(find.text('Show canceled'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Canceled'), findsOneWidget);
-    expect(find.text('Take'), findsNothing);
-
-    await tester.tap(find.text('Sell'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Canceled'), findsOneWidget);
-    expect(find.text('Cancel post'), findsNothing);
+    expect(find.text('Canceled', skipOffstage: false), findsNWidgets(2));
+    expect(find.text('Take', skipOffstage: false), findsNothing);
+    expect(find.text('Cancel post', skipOffstage: false), findsNothing);
   });
 
   testWidgets('a seller waiting on the hold sees the invoice to pay', (
@@ -413,13 +392,17 @@ void main() {
           paymentLabel: 'GTBank',
           sellerNostr: 'seller',
           buyerNostr: 'buyer',
-          payBy: DateTime.now().toUtc().add(const Duration(hours: 2, minutes: 3)),
+          payBy: DateTime.now().toUtc().add(
+            const Duration(hours: 2, minutes: 3),
+          ),
         ),
       ],
     );
 
     await tester.pumpWidget(
-      MaterialApp(home: TradePage(market: market, tradeId: 'trade-1')),
+      MaterialApp(
+        home: TradePage(market: market, tradeId: 'trade-1'),
+      ),
     );
 
     expect(find.textContaining('2h'), findsOneWidget);
@@ -441,7 +424,9 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(home: TradePage(market: market, tradeId: 'trade-1')),
+      MaterialApp(
+        home: TradePage(market: market, tradeId: 'trade-1'),
+      ),
     );
 
     expect(
@@ -508,11 +493,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: TakePage(
-          market: market,
-          orderId: 'buy-1',
-          fiberNode: '02abc',
-        ),
+        home: TakePage(market: market, orderId: 'buy-1', fiberNode: '02abc'),
       ),
     );
 

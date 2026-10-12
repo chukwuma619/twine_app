@@ -66,9 +66,10 @@ void main() {
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Post'), findsOneWidget);
+    expect(find.text('Posts'), findsNWidgets(2));
     expect(find.text('Trade'), findsOneWidget);
-    expect(find.text('Buy'), findsOneWidget);
+    expect(find.text('Buy'), findsNothing);
+    expect(find.text('Sell'), findsNothing);
     expect(daemons.daemon?.npub, officialDaemonNpub);
     expect(daemons.daemon?.relays, officialDaemonRelays);
     expect(nostr.daemon?.publicKey, daemons.daemon?.publicKey);
@@ -163,10 +164,10 @@ void main() {
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Post'), findsOneWidget);
+    expect(find.text('Posts'), findsNWidgets(2));
     expect(find.text('Trade'), findsOneWidget);
-    expect(find.text('Buy'), findsOneWidget);
-    expect(find.text('No one selling CKB here yet.'), findsOneWidget);
+    expect(find.text('Buy'), findsNothing);
+    expect(find.text('No posts yet.'), findsOneWidget);
     await tester.tap(find.text('Account'));
     await tester.pumpAndSettle();
 
@@ -237,7 +238,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Your Nostr key is your account. CKB stays in your Fiber wallet.'),
+      find.text(
+        'Your Nostr key is your account. CKB stays in your Fiber wallet.',
+      ),
       findsOneWidget,
     );
     expect(nostr.account, isNull);

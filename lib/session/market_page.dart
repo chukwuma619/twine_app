@@ -10,13 +10,6 @@ import 'trade_page.dart';
 
 enum _Section { post, trade, account }
 
-/// Which side of the book is open.
-///
-/// Buy lists what this key can buy: other people selling, and this key's own
-/// buy posts. Sell lists what this key can sell into: other people buying,
-/// and this key's own sell posts.
-enum _Book { buy, sell }
-
 class MarketPage extends StatefulWidget {
   const MarketPage({
     super.key,
@@ -47,7 +40,6 @@ class MarketPage extends StatefulWidget {
 
 class _MarketPageState extends State<MarketPage> {
   _Section _section = _Section.post;
-  _Book _book = _Book.buy;
   bool _showCanceled = false;
 
   @override
@@ -63,7 +55,7 @@ class _MarketPageState extends State<MarketPage> {
             !market.sending &&
             market.book.catalog.isNotEmpty;
         final title = switch (_section) {
-          _Section.post => 'Book',
+          _Section.post => 'Posts',
           _Section.trade => 'Trades',
           _Section.account => 'Account',
         };
@@ -95,7 +87,7 @@ class _MarketPageState extends State<MarketPage> {
               NavigationDestination(
                 icon: Icon(Icons.list_alt_outlined),
                 selectedIcon: Icon(Icons.list_alt),
-                label: 'Post',
+                label: 'Posts',
               ),
               NavigationDestination(
                 icon: Icon(Icons.swap_horiz_outlined),
@@ -130,38 +122,6 @@ class _MarketPageState extends State<MarketPage> {
               : Column(
                   children: [
                     if (posting)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                        child: SegmentedButton<_Book>(
-                          expandedInsets: EdgeInsets.zero,
-                          segments: const [
-                            ButtonSegment(
-                              value: _Book.buy,
-                              label: Text('Buy'),
-                            ),
-                            ButtonSegment(
-                              value: _Book.sell,
-                              label: Text('Sell'),
-                            ),
-                          ],
-                          selected: {_book},
-                          showSelectedIcon: false,
-                          onSelectionChanged: (next) {
-                            setState(() => _book = next.first);
-                          },
-                        ),
-                      ),
-                    if (posting)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: Text(
-                          _book == _Book.buy
-                              ? 'Offers to sell CKB'
-                              : 'Bids you can fill',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    if (posting)
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
@@ -189,7 +149,6 @@ class _MarketPageState extends State<MarketPage> {
                       child: posting
                           ? _Posts(
                               market: market,
-                              book: _book,
                               showCanceled: _showCanceled,
                               solverAvailable: widget.solverAvailable,
                               fiberNode: widget.fiberNode,
@@ -207,52 +166,27 @@ class _MarketPageState extends State<MarketPage> {
     );
   }
 
-  Future<void> _openPost(BuildContext context) async {
-    final side = _book == _Book.buy ? OrderSide.buy : OrderSide.sell;
-    final posted = await Navigator.of(context).push<OrderSide>(
-      MaterialPageRoute<OrderSide>(
-        builder: (context) => _LivePost(
-          market: widget.market,
-          side: side,
-          fiberNode: widget.fiberNode,
-        ),
+  Future<void> _openPost(BuildContext context) {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) =>
+            _LivePost(market: widget.market, fiberNode: widget.fiberNode),
       ),
     );
-    if (!mounted || posted == null) return;
-    setState(() {
-      _book = posted == OrderSide.buy ? _Book.buy : _Book.sell;
-    });
   }
 }
 
-List<TwineOrder> _ordersFor(
-  _Book book,
-  List<TwineOrder> orders,
-  String pubkey,
-) {
+List<TwineOrder> _listedPosts(List<TwineOrder> orders) {
   return [
     for (final order in orders)
-      if (_onBook(book, order, pubkey)) order,
+      if (order.side == OrderSide.sell) order,
   ];
 }
 
-/// A sell is an offer to buy from. Your own post stays on the side you posted.
-bool _onBook(_Book book, TwineOrder order, String pubkey) {
-  final mine = isMaker(order, pubkey);
-  final offeredToBuy = order.side == OrderSide.sell;
-  final forBuyers = mine ? !offeredToBuy : offeredToBuy;
-  return book == _Book.buy ? forBuyers : !forBuyers;
-}
-
 class _LivePost extends StatelessWidget {
-  const _LivePost({
-    required this.market,
-    required this.side,
-    this.fiberNode,
-  });
+  const _LivePost({required this.market, this.fiberNode});
 
   final TwineMarket market;
-  final OrderSide side;
   final String? fiberNode;
 
   @override
@@ -263,7 +197,6 @@ class _LivePost extends StatelessWidget {
         return PostPage(
           fiberPubkey: market.fiberPubkey,
           catalog: market.book.catalog,
-          initialSide: side,
           fiberNode: fiberNode,
           onSubmit: market.post,
         );
@@ -298,14 +231,18 @@ class _Status extends StatelessWidget {
     }
     if (market.awaitingPost) {
       lines.add(
-        const Text('Publishing. You cannot cancel until the daemon lists this post.'),
+        const Text(
+          'Publishing. You cannot cancel until the daemon lists this post.',
+        ),
       );
     }
     if (market.awaitingTake) {
       lines.add(const Text('Opening the trade…'));
     }
     if (partialRelays) {
-      lines.add(const Text('Some of the relays you entered are not connected.'));
+      lines.add(
+        const Text('Some of the relays you entered are not connected.'),
+      );
     }
     final status = market.status;
     if (status != null) lines.add(Text(status));
@@ -347,14 +284,12 @@ class _Status extends StatelessWidget {
 class _Posts extends StatelessWidget {
   const _Posts({
     required this.market,
-    required this.book,
     required this.showCanceled,
     this.solverAvailable,
     this.fiberNode,
   });
 
   final TwineMarket market;
-  final _Book book;
   final bool showCanceled;
   final bool? solverAvailable;
   final String? fiberNode;
@@ -362,17 +297,15 @@ class _Posts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final orders = [
-      for (final order in _ordersFor(book, [
+      for (final order in _listedPosts([
         ...market.pending,
         ...market.book.orders,
-      ], market.accountPubkey))
+      ]))
         if (showCanceled || order.status != PostStatus.canceled) order,
     ];
     if (orders.isEmpty) {
-      return _Empty(
-        message: book == _Book.buy
-            ? 'No one selling CKB here yet.'
-            : 'No buy bids yet.',
+      return const _Empty(
+        message: 'No posts yet.',
         icon: Icons.list_alt_outlined,
       );
     }
@@ -453,21 +386,10 @@ class _PostCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        order.side == OrderSide.sell
-                            ? 'Offers ${order.availableCkb} CKB'
-                            : 'Wants to buy up to ${order.availableCkb} CKB',
+                        'Offers ${order.availableCkb} CKB',
                         style: theme.textTheme.titleSmall,
                       ),
-                      Text(
-                        order.side == OrderSide.sell
-                            ? (mine
-                                  ? 'You are offering these coins'
-                                  : 'This trader is offering CKB')
-                            : (mine
-                                  ? 'You want these coins'
-                                  : 'This trader wants CKB'),
-                        style: muted,
-                      ),
+                      Text(mine ? 'Your post' : 'Available', style: muted),
                       Text(
                         '${order.pricePerCkb} ${order.fiatCurrency}',
                         style: theme.textTheme.headlineSmall?.copyWith(
@@ -602,11 +524,7 @@ String _holdLabel(int hours) {
 }
 
 class _Trades extends StatelessWidget {
-  const _Trades({
-    required this.market,
-    this.solverAvailable,
-    this.fiberNode,
-  });
+  const _Trades({required this.market, this.solverAvailable, this.fiberNode});
 
   final TwineMarket market;
   final bool? solverAvailable;
@@ -629,9 +547,7 @@ class _Trades extends StatelessWidget {
         final trade = trades[index];
         final order = market.book.order(trade.orderId);
         final side = sideOn(trade, market.accountPubkey, order);
-        final title = order == null
-            ? tradeTitle(trade.phase, side)
-            : '${order.side.label} · ${tradeTitle(trade.phase, side)}';
+        final title = tradeTitle(trade.phase, side);
         final detail = trade.fiatAmount == null
             ? trade.id
             : '${trade.fiatAmount} ${trade.fiatCurrency ?? order?.fiatCurrency ?? ''}';

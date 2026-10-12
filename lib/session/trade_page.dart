@@ -124,7 +124,7 @@ class _TradePageState extends State<TradePage> {
                         ],
                         if (order != null) ...[
                           Text(
-                            '${order.side.label} · ${order.fiatCurrency}',
+                            order.fiatCurrency,
                             style: theme.textTheme.titleMedium,
                           ),
                           const SizedBox(height: 8),

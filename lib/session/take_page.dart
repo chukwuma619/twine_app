@@ -92,7 +92,7 @@ class _TakePageState extends State<TakePage> {
                         style: theme.textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
-                      Text('${order.side.label} · ${order.availableCkb} CKB'),
+                      Text('${order.availableCkb} CKB'),
                       const SizedBox(height: 8),
                       Text(
                         '${order.min}–${order.max} ${order.fiatCurrency} at ${order.pricePerCkb} ${order.fiatCurrency} per CKB',
