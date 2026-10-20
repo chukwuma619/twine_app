@@ -9,7 +9,7 @@ The app does not charge a fee, keep ratings, or take a bond. Two traders chat he
 ## What you need
 
 - A Twine daemon, and the relays it uses. A new install offers one daemon. Replace it before connecting if you run your own. The daemon logs the `npub` people paste here.
-- A Fiber wallet on your own node. The app shows the operator's Fiber pubkey so you can open a channel to that hub. Sellers fund for outbound liquidity; buyers need inbound (funds on the operator's side). Hold invoices are paid in that wallet.
+- A Fiber wallet on your own node. The app shows the operator's Fiber pubkey and listen address so you can connect to that hub. A laptop node does not need a public IP: connect outbound to the hub. Sellers then fund a channel for outbound liquidity. Buyers stay online with auto-accept on: Twine opens inbound to them at payout if they cannot receive yet. Hold invoices are paid in that wallet.
 - Flutter, with the Dart SDK named in `pubspec.yaml`.
 
 ## Run
@@ -73,7 +73,7 @@ A card shows the price per CKB, the CKB still available, the fiat limits, the pa
 
 The post shows on the book immediately, marked as yours, until the daemon's public order comes back. You cannot cancel that local copy. Once the public order is on the book, **Cancel post** removes it. You cannot take your own post.
 
-**Take** asks for a fiat amount, your Fiber pubkey, and one payment method from the post. Post and Take show a channel checklist and require a confirm (sellers: outbound; buyers: inbound). The app then waits for the hold invoice and tells you to look in Trades.
+**Take** asks for a fiat amount, your Fiber pubkey, and one payment method from the post. Buyers also paste a payout invoice and can add a **public** Fiber listen multiaddr. A local `127.0.0.1` address is refused; connect that node outbound to the hub instead. Post and Take show a channel checklist (sellers confirm outbound; buyers are told to connect to the hub so Twine can open inbound at payout). The app then waits for the hold invoice and tells you to look in Trades.
 
 ## A trade
 
@@ -136,7 +136,7 @@ The app only accepts a thread message signed by the counterparty on that trade a
 
 ## Account
 
-Account shows your `npub`, the daemon `npub`, the relay list, and the operator's Fiber pubkey once the announcement arrives. Open a channel to that hub before you trade: fund to sell; get inbound from the operator to buy.
+Account shows your `npub`, the daemon `npub`, the relay list, and the operator's Fiber pubkey and listen address once the announcement arrives. Connect your node to that hub, then open and fund a channel before you sell. To buy, keep that outbound connection up with auto-accept on and about 99 CKB on-chain so Twine can open inbound at payout.
 
 **Change daemon** replaces the public key and relays. The book is kept per account and per daemon, so the other daemon has its own book.
 

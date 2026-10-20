@@ -16,6 +16,7 @@ class SignedInPage extends StatelessWidget {
     this.connecting = false,
     this.connectedRelays = const [],
     this.fiberNode,
+    this.fiberAddresses = const [],
     this.relayError,
     this.error,
   });
@@ -29,6 +30,7 @@ class SignedInPage extends StatelessWidget {
   final bool connecting;
   final List<String> connectedRelays;
   final String? fiberNode;
+  final List<String> fiberAddresses;
   final String? relayError;
   final String? error;
 
@@ -90,6 +92,8 @@ class SignedInPage extends StatelessWidget {
             Text('Fiber node', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             SelectableText(fiberNode!),
+            const SizedBox(height: 8),
+            SelectableText(channelConnectCommand(fiberNode!, fiberAddresses)),
             const SizedBox(height: 8),
             Text(channelHubSummary()),
           ] else if (!connecting &&

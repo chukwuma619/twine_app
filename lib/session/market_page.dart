@@ -16,6 +16,7 @@ class MarketPage extends StatefulWidget {
     required this.market,
     required this.account,
     this.fiberNode,
+    this.fiberAddresses = const [],
     this.solverAvailable,
     this.connecting = false,
     this.linked = false,
@@ -27,6 +28,7 @@ class MarketPage extends StatefulWidget {
   final TwineMarket market;
   final Widget account;
   final String? fiberNode;
+  final List<String> fiberAddresses;
   final bool? solverAvailable;
   final bool connecting;
   final bool linked;
@@ -152,11 +154,13 @@ class _MarketPageState extends State<MarketPage> {
                               showCanceled: _showCanceled,
                               solverAvailable: widget.solverAvailable,
                               fiberNode: widget.fiberNode,
+                              fiberAddresses: widget.fiberAddresses,
                             )
                           : _Trades(
                               market: market,
                               solverAvailable: widget.solverAvailable,
                               fiberNode: widget.fiberNode,
+                              fiberAddresses: widget.fiberAddresses,
                             ),
                     ),
                   ],
@@ -170,7 +174,11 @@ class _MarketPageState extends State<MarketPage> {
     return Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (context) =>
-            _LivePost(market: widget.market, fiberNode: widget.fiberNode),
+            _LivePost(
+              market: widget.market,
+              fiberNode: widget.fiberNode,
+              fiberAddresses: widget.fiberAddresses,
+            ),
       ),
     );
   }
@@ -184,10 +192,15 @@ List<TwineOrder> _listedPosts(List<TwineOrder> orders) {
 }
 
 class _LivePost extends StatelessWidget {
-  const _LivePost({required this.market, this.fiberNode});
+  const _LivePost({
+    required this.market,
+    this.fiberNode,
+    this.fiberAddresses = const [],
+  });
 
   final TwineMarket market;
   final String? fiberNode;
+  final List<String> fiberAddresses;
 
   @override
   Widget build(BuildContext context) {
@@ -198,6 +211,7 @@ class _LivePost extends StatelessWidget {
           fiberPubkey: market.fiberPubkey,
           catalog: market.book.catalog,
           fiberNode: fiberNode,
+          fiberAddresses: fiberAddresses,
           onSubmit: market.post,
         );
       },
@@ -287,12 +301,14 @@ class _Posts extends StatelessWidget {
     required this.showCanceled,
     this.solverAvailable,
     this.fiberNode,
+    this.fiberAddresses = const [],
   });
 
   final TwineMarket market;
   final bool showCanceled;
   final bool? solverAvailable;
   final String? fiberNode;
+  final List<String> fiberAddresses;
 
   @override
   Widget build(BuildContext context) {
@@ -319,6 +335,7 @@ class _Posts extends StatelessWidget {
           order: orders[index],
           solverAvailable: solverAvailable,
           fiberNode: fiberNode,
+          fiberAddresses: fiberAddresses,
         );
       },
     );
@@ -331,12 +348,14 @@ class _PostCard extends StatelessWidget {
     required this.order,
     this.solverAvailable,
     this.fiberNode,
+    this.fiberAddresses = const [],
   });
 
   final TwineMarket market;
   final TwineOrder order;
   final bool? solverAvailable;
   final String? fiberNode;
+  final List<String> fiberAddresses;
 
   @override
   Widget build(BuildContext context) {
@@ -461,6 +480,7 @@ class _PostCard extends StatelessWidget {
           tradeId: tradeId,
           solverAvailable: solverAvailable,
           fiberNode: fiberNode,
+          fiberAddresses: fiberAddresses,
         ),
       ),
     );
@@ -473,6 +493,7 @@ class _PostCard extends StatelessWidget {
           market: market,
           orderId: order.orderId,
           fiberNode: fiberNode,
+          fiberAddresses: fiberAddresses,
         ),
       ),
     );
@@ -524,11 +545,17 @@ String _holdLabel(int hours) {
 }
 
 class _Trades extends StatelessWidget {
-  const _Trades({required this.market, this.solverAvailable, this.fiberNode});
+  const _Trades({
+    required this.market,
+    this.solverAvailable,
+    this.fiberNode,
+    this.fiberAddresses = const [],
+  });
 
   final TwineMarket market;
   final bool? solverAvailable;
   final String? fiberNode;
+  final List<String> fiberAddresses;
 
   @override
   Widget build(BuildContext context) {
@@ -565,6 +592,7 @@ class _Trades extends StatelessWidget {
                     tradeId: trade.id,
                     solverAvailable: solverAvailable,
                     fiberNode: fiberNode,
+                    fiberAddresses: fiberAddresses,
                   ),
                 ),
               );

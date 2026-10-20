@@ -293,6 +293,7 @@ void main() {
                   MaterialPageRoute<void>(
                     builder: (context) => PostPage(
                       catalog: _catalog,
+                      fiberNode: '02abc',
                       onSubmit: (draft) async {
                         sent = draft;
                         return draft.validate(_catalog);
@@ -310,6 +311,13 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(
+      find.text('My channel is open and I have outbound liquidity for the hold.'),
+    );
+    await tester.tap(
+      find.text('My channel is open and I have outbound liquidity for the hold.'),
+    );
+    await tester.pump();
     await tester.ensureVisible(find.text('Post'));
     await tester.tap(find.text('Post'));
     await tester.pump();
@@ -503,6 +511,13 @@ void main() {
     await tester.enterText(_field('Fiat amount'), '1500');
     await tester.pump();
     expect(find.text('About 1.00 CKB'), findsOneWidget);
+    await tester.ensureVisible(
+      find.text('My channel is open and I have outbound liquidity for the hold.'),
+    );
+    await tester.tap(
+      find.text('My channel is open and I have outbound liquidity for the hold.'),
+    );
+    await tester.pump();
     await tester.ensureVisible(find.text('Take'));
     await tester.tap(find.text('Take'));
     await tester.pumpAndSettle();

@@ -68,6 +68,20 @@ void main() {
       'fiber_pubkey': '02taker',
       'payment_method_id': 'gtbank',
     });
+    const withAddr = TakeDraft(
+      orderId: 'order-1',
+      fiatAmount: '2500',
+      fiberPubkey: '02taker',
+      paymentMethodId: 'gtbank',
+      fiberAddr: '/ip4/1.2.3.4/tcp/8228',
+    );
+    expect(
+      withAddr.envelope().payload,
+      containsPair('fiber_addr', '/ip4/1.2.3.4/tcp/8228'),
+    );
+    expect(fiberAddrError('1.2.3.4:8228'), contains('multiaddr'));
+    expect(fiberAddrError('/ip4/1.2.3.4/tcp/8228'), isNull);
+    expect(fiberAddrError('/ip4/127.0.0.1/tcp/8228'), contains('reachable'));
     expect(
       fiatSentRequest(tradeId: 'trade-1', invoice: 'inv').tradeId,
       'trade-1',

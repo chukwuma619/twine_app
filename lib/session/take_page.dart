@@ -14,11 +14,13 @@ class TakePage extends StatefulWidget {
     required this.market,
     required this.orderId,
     this.fiberNode,
+    this.fiberAddresses = const [],
   });
 
   final TwineMarket market;
   final String orderId;
   final String? fiberNode;
+  final List<String> fiberAddresses;
 
   @override
   State<TakePage> createState() => _TakePageState();
@@ -28,6 +30,7 @@ class _TakePageState extends State<TakePage> {
   late final TextEditingController _fiber;
   late final TextEditingController _amount;
   late final TextEditingController _invoice;
+  late final TextEditingController _fiberAddr;
   String? _methodId;
   bool _channelReady = false;
   bool _busy = false;
@@ -39,6 +42,7 @@ class _TakePageState extends State<TakePage> {
     _fiber = TextEditingController(text: widget.market.fiberPubkey ?? '');
     _amount = TextEditingController();
     _invoice = TextEditingController();
+    _fiberAddr = TextEditingController(text: widget.market.fiberAddr ?? '');
     _amount.addListener(() {
       if (mounted) setState(() {});
     });
@@ -52,6 +56,7 @@ class _TakePageState extends State<TakePage> {
     _fiber.dispose();
     _amount.dispose();
     _invoice.dispose();
+    _fiberAddr.dispose();
     super.dispose();
   }
 
@@ -149,14 +154,30 @@ class _TakePageState extends State<TakePage> {
                           ),
                         ),
                         const SizedBox(height: 12),
+                        TextField(
+                          controller: _fiberAddr,
+                          enabled: !_busy,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          decoration: const InputDecoration(
+                            labelText: 'Fiber listen address (optional)',
+                            helperText:
+                                'Only if this node is publicly reachable. 127.0.0.1 will not work — connect to the hub instead.',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                       ],
                       ChannelReady(
                         role: channelRoleFor(role),
                         fiberNode: widget.fiberNode,
-                        ready: _channelReady,
-                        onReadyChanged: (ready) {
-                          setState(() => _channelReady = ready);
-                        },
+                        fiberAddresses: widget.fiberAddresses,
+                        ready: role == TradeSide.seller ? _channelReady : null,
+                        onReadyChanged: role == TradeSide.seller
+                            ? (ready) {
+                                setState(() => _channelReady = ready);
+                              }
+                            : null,
                         enabled: !_busy,
                       ),
                       const SizedBox(height: 12),
@@ -188,7 +209,10 @@ class _TakePageState extends State<TakePage> {
                       ],
                       const SizedBox(height: 12),
                       FilledButton(
-                        onPressed: _busy || waitingNode || !_channelReady
+                        onPressed:
+                            _busy ||
+                                waitingNode ||
+                                (role == TradeSide.seller && !_channelReady)
                             ? null
                             : () => _submit(order, role),
                         child: _busy
@@ -224,6 +248,7 @@ class _TakePageState extends State<TakePage> {
       fiberPubkey: _fiber.text,
       paymentMethodId: methodId,
       invoice: role == TradeSide.buyer ? _invoice.text : null,
+      fiberAddr: role == TradeSide.buyer ? _fiberAddr.text : null,
       requireInvoice: role == TradeSide.buyer,
     );
     final invalid = draft.validate();

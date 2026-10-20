@@ -14,6 +14,7 @@ class TwineBook {
     List<CatalogMethod>? catalog,
     this.catalogUpdatedAt,
     this.fiberPubkey,
+    this.fiberAddr,
     this.notice,
   }) : orders = [...?orders],
        trades = [...?trades],
@@ -26,6 +27,7 @@ class TwineBook {
   List<CatalogMethod> catalog;
   DateTime? catalogUpdatedAt;
   String? fiberPubkey;
+  String? fiberAddr;
   String? notice;
 
   TwineOrder? order(String id) {
@@ -385,6 +387,7 @@ class TwineBook {
   Map<String, Object?> toJson() {
     return {
       'fiber_pubkey': fiberPubkey,
+      'fiber_addr': fiberAddr,
       'notice': notice,
       'catalog': [for (final method in catalog) method.toJson()],
       'catalog_updated_at': catalogUpdatedAt?.toIso8601String(),
@@ -436,6 +439,10 @@ class TwineBook {
       catalogUpdatedAt: catalogAt,
       fiberPubkey: fiber is String && fiber.trim().isNotEmpty
           ? fiber.trim()
+          : null,
+      fiberAddr: map['fiber_addr'] is String &&
+              (map['fiber_addr'] as String).trim().isNotEmpty
+          ? (map['fiber_addr'] as String).trim()
           : null,
       notice: notice is String && notice.trim().isNotEmpty
           ? notice.trim()

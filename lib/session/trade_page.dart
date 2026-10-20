@@ -25,12 +25,14 @@ class TradePage extends StatefulWidget {
     required this.tradeId,
     this.solverAvailable,
     this.fiberNode,
+    this.fiberAddresses = const [],
   });
 
   final TwineMarket market;
   final String tradeId;
   final bool? solverAvailable;
   final String? fiberNode;
+  final List<String> fiberAddresses;
 
   @override
   State<TradePage> createState() => _TradePageState();
@@ -38,6 +40,7 @@ class TradePage extends StatefulWidget {
 
 class _TradePageState extends State<TradePage> {
   final _invoice = TextEditingController();
+  late final TextEditingController _fiberAddr;
   final _accountName = TextEditingController();
   final _accountNumber = TextEditingController();
   final _accountNote = TextEditingController();
@@ -49,6 +52,7 @@ class _TradePageState extends State<TradePage> {
   @override
   void initState() {
     super.initState();
+    _fiberAddr = TextEditingController(text: widget.market.fiberAddr ?? '');
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -58,6 +62,7 @@ class _TradePageState extends State<TradePage> {
   void dispose() {
     _tick?.cancel();
     _invoice.dispose();
+    _fiberAddr.dispose();
     _accountName.dispose();
     _accountNumber.dispose();
     _accountNote.dispose();
@@ -221,6 +226,7 @@ class _TradePageState extends State<TradePage> {
                             ChannelReady(
                               role: ChannelRole.buyer,
                               fiberNode: widget.fiberNode,
+                              fiberAddresses: widget.fiberAddresses,
                             ),
                           ],
                         ],
@@ -233,6 +239,7 @@ class _TradePageState extends State<TradePage> {
                           ChannelReady(
                             role: ChannelRole.seller,
                             fiberNode: widget.fiberNode,
+                            fiberAddresses: widget.fiberAddresses,
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -286,7 +293,9 @@ class _TradePageState extends State<TradePage> {
                         ],
                         if (trade.phase == TradePhase.releasing) ...[
                           const SizedBox(height: 16),
-                          const Text('Sending the CKB to the buyer.'),
+                          const Text(
+                            'Sending the CKB to the buyer. Twine opens inbound to them first if they cannot receive yet. Keep the buyer Fiber node online.',
+                          ),
                         ],
                         if (trade.phase == TradePhase.disputed) ...[
                           const SizedBox(height: 16),
@@ -306,6 +315,8 @@ class _TradePageState extends State<TradePage> {
                               helperText: _invoiceHelp(trade),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          _fiberAddrField(),
                           const SizedBox(height: 12),
                           FilledButton(
                             onPressed: widget.market.sending
@@ -337,6 +348,8 @@ class _TradePageState extends State<TradePage> {
                               helperText: _invoiceHelp(trade),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          _fiberAddrField(),
                           const SizedBox(height: 12),
                           FilledButton(
                             onPressed: widget.market.sending
@@ -528,6 +541,20 @@ class _TradePageState extends State<TradePage> {
     }
   }
 
+  Widget _fiberAddrField() {
+    return TextField(
+      controller: _fiberAddr,
+      enabled: !widget.market.sending,
+      autocorrect: false,
+      enableSuggestions: false,
+      decoration: const InputDecoration(
+        labelText: 'Fiber listen address (optional)',
+        helperText:
+            'Only if this node is publicly reachable. 127.0.0.1 will not work — connect to the hub instead.',
+      ),
+    );
+  }
+
   String _invoiceHelp(TwineTrade trade) {
     if (trade.phase == TradePhase.awaitingInvoice ||
         trade.phase == TradePhase.disputed) {
@@ -592,6 +619,7 @@ class _TradePageState extends State<TradePage> {
     final error = await widget.market.submitPayoutInvoice(
       trade.id,
       _invoice.text,
+      fiberAddr: _fiberAddr.text,
     );
     if (!mounted) return;
     setState(() => _error = error);
@@ -605,7 +633,11 @@ class _TradePageState extends State<TradePage> {
   }
 
   Future<void> _fiat(TwineTrade trade) async {
-    final error = await widget.market.fiatSent(trade.id, _invoice.text);
+    final error = await widget.market.fiatSent(
+      trade.id,
+      _invoice.text,
+      fiberAddr: _fiberAddr.text,
+    );
     if (!mounted) return;
     setState(() => _error = error);
   }

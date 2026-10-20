@@ -10,11 +10,13 @@ class FiberAnnouncement {
     required this.pubkey,
     required this.hasSolverField,
     this.solver,
+    this.addresses = const [],
   });
 
   final String pubkey;
   final bool hasSolverField;
   final String? solver;
+  final List<String> addresses;
 
   bool get solverConfigured => solver != null && solver!.isNotEmpty;
 }
@@ -47,10 +49,17 @@ FiberAnnouncement? openFiberAnnouncement({
   } else {
     solver = null;
   }
+  final rawAddresses = map['addresses'];
+  final addresses = [
+    if (rawAddresses is List)
+      for (final item in rawAddresses)
+        if (item is String && item.trim().isNotEmpty) item.trim(),
+  ];
   return FiberAnnouncement(
     pubkey: pubkey.trim(),
     hasSolverField: hasSolverField,
     solver: solver,
+    addresses: addresses,
   );
 }
 

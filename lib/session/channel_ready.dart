@@ -7,6 +7,7 @@ class ChannelReady extends StatelessWidget {
     super.key,
     required this.role,
     this.fiberNode,
+    this.fiberAddresses = const [],
     this.ready,
     this.onReadyChanged,
     this.enabled = true,
@@ -14,6 +15,7 @@ class ChannelReady extends StatelessWidget {
 
   final ChannelRole role;
   final String? fiberNode;
+  final List<String> fiberAddresses;
   final bool? ready;
   final ValueChanged<bool>? onReadyChanged;
   final bool enabled;
@@ -32,6 +34,8 @@ class ChannelReady extends StatelessWidget {
           const Text('Waiting for the Fiber node.')
         else ...[
           SelectableText(fiberNode!),
+          const SizedBox(height: 8),
+          SelectableText(channelConnectCommand(fiberNode!, fiberAddresses)),
           const SizedBox(height: 8),
           for (final step in channelChecklist(role)) ...[
             Text('• $step'),

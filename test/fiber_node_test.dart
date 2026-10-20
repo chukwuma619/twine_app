@@ -94,4 +94,23 @@ void main() {
     expect(solver?.solver, 'npub1solver');
     expect(solver?.solverConfigured, isTrue);
   });
+
+  test('a fiber node announcement can name public listen addresses', () {
+    final daemon = TwineAccount.generate(nostr);
+    final event = NostrEvent.fromPartialData(
+      kind: kindFiberNode,
+      content:
+          '{"pubkey":"02abc","solver":null,"addresses":["/ip4/1.2.3.4/tcp/8228"]}',
+      keyPairs: NostrKeyPairs(private: daemon.privateKey),
+      tags: const [
+        ['d', fiberNodeTag],
+      ],
+      createdAt: DateTime.utc(2026, 10, 5),
+    );
+    final announcement = openFiberAnnouncement(
+      daemonPublicKey: daemon.publicKey,
+      event: event,
+    );
+    expect(announcement?.addresses, ['/ip4/1.2.3.4/tcp/8228']);
+  });
 }

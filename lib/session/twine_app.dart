@@ -120,6 +120,7 @@ class _TwineAppState extends State<TwineApp> {
     return MarketPage(
       market: market,
       fiberNode: session.fiberNode,
+      fiberAddresses: session.fiberAddresses,
       solverAvailable: session.solverAvailable,
       connecting: session.connecting,
       linked: session.relays.isNotEmpty,
@@ -133,6 +134,7 @@ class _TwineAppState extends State<TwineApp> {
         connecting: session.connecting,
         connectedRelays: session.relays,
         fiberNode: session.fiberNode,
+        fiberAddresses: session.fiberAddresses,
         relayError: session.relayError,
         onChangeDaemon: session.editDaemon,
         onLogOut: session.logOut,

@@ -13,11 +13,13 @@ class PostPage extends StatefulWidget {
     this.fiberPubkey,
     this.catalog = const [],
     this.fiberNode,
+    this.fiberAddresses = const [],
   });
 
   final String? fiberPubkey;
   final List<CatalogMethod> catalog;
   final String? fiberNode;
+  final List<String> fiberAddresses;
   final Future<String?> Function(NewOrderDraft draft) onSubmit;
 
   @override
@@ -108,6 +110,7 @@ class _PostPageState extends State<PostPage> {
                   ChannelReady(
                     role: ChannelRole.seller,
                     fiberNode: widget.fiberNode,
+                    fiberAddresses: widget.fiberAddresses,
                     ready: _channelReady,
                     onReadyChanged: (ready) {
                       setState(() => _channelReady = ready);

@@ -78,6 +78,7 @@ class TwineSession extends ChangeNotifier {
   String? daemonError;
   List<String> relays = const [];
   String? fiberNode;
+  List<String> fiberAddresses = const [];
   bool? solverAvailable;
   String? relayError;
   bool connecting = false;
@@ -92,6 +93,7 @@ class TwineSession extends ChangeNotifier {
   Future<void> connect(List<String> relays) async {
     await _fiberSub?.cancel();
     fiberNode = null;
+    fiberAddresses = const [];
     solverAvailable = null;
     _notify();
     try {
@@ -104,6 +106,7 @@ class TwineSession extends ChangeNotifier {
       _fiberSub = nostr.fiberNodes.listen((announcement) {
         if (_disposed) return;
         fiberNode = announcement.pubkey;
+        fiberAddresses = announcement.addresses;
         solverAvailable = announcement.hasSolverField
             ? announcement.solverConfigured
             : null;
@@ -230,6 +233,7 @@ class TwineSession extends ChangeNotifier {
     busy = false;
     this.relays = const [];
     fiberNode = null;
+    fiberAddresses = const [];
     solverAvailable = null;
     relayError = null;
     _bindMarket();
@@ -293,6 +297,7 @@ class TwineSession extends ChangeNotifier {
     account = null;
     viewingAccount = false;
     fiberNode = null;
+    fiberAddresses = const [];
     solverAvailable = null;
     showBackup = false;
     editingDaemon = false;

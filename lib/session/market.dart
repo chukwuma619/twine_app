@@ -54,6 +54,7 @@ class TwineMarket extends ChangeNotifier {
   bool _stopped = false;
 
   String? get fiberPubkey => book.fiberPubkey;
+  String? get fiberAddr => book.fiberAddr;
 
   Future<void> open() {
     final pending = _opening;
@@ -91,6 +92,8 @@ class TwineMarket extends ChangeNotifier {
     final error = await _send(draft.envelope());
     if (error != null) return error;
     book.fiberPubkey = draft.fiberPubkey.trim();
+    final addr = draft.fiberAddr?.trim();
+    if (addr != null && addr.isNotEmpty) book.fiberAddr = addr;
     _tradesBeforeTake = before;
     awaitingTake = !book.trades.any((trade) => !before.contains(trade.id));
     notifyListeners();
@@ -98,27 +101,51 @@ class TwineMarket extends ChangeNotifier {
     return null;
   }
 
-  Future<String?> submitPayoutInvoice(String tradeId, String invoice) async {
-    final invalid = invoiceError(invoice);
+  Future<String?> submitPayoutInvoice(
+    String tradeId,
+    String invoice, {
+    String? fiberAddr,
+  }) async {
+    final invalid = invoiceError(invoice) ?? fiberAddrError(fiberAddr);
     if (invalid != null) return invalid;
+    if (fiberAddr != null && fiberAddr.trim().isNotEmpty) {
+      book.fiberAddr = fiberAddr.trim();
+    }
     final error = await _send(
-      payoutInvoiceRequest(tradeId: tradeId, invoice: invoice),
+      payoutInvoiceRequest(
+        tradeId: tradeId,
+        invoice: invoice,
+        fiberAddr: fiberAddr ?? book.fiberAddr,
+      ),
     );
     if (error != null) return error;
     await _persist();
     return null;
   }
 
-  Future<String?> fiatSent(String tradeId, String invoice) async {
+  Future<String?> fiatSent(
+    String tradeId,
+    String invoice, {
+    String? fiberAddr,
+  }) async {
     final current = book.trade(tradeId);
-    final invalid = invoiceError(
-      invoice,
-      holdInvoice: current?.holdInvoice,
-      allowEmpty: current?.phase == TradePhase.waitingFiat,
-    );
+    final invalid =
+        invoiceError(
+          invoice,
+          holdInvoice: current?.holdInvoice,
+          allowEmpty: current?.phase == TradePhase.waitingFiat,
+        ) ??
+        fiberAddrError(fiberAddr);
     if (invalid != null) return invalid;
+    if (fiberAddr != null && fiberAddr.trim().isNotEmpty) {
+      book.fiberAddr = fiberAddr.trim();
+    }
     final error = await _send(
-      fiatSentRequest(tradeId: tradeId, invoice: invoice),
+      fiatSentRequest(
+        tradeId: tradeId,
+        invoice: invoice,
+        fiberAddr: fiberAddr ?? book.fiberAddr,
+      ),
     );
     if (error != null) return error;
     await _persist();
