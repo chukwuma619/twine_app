@@ -1,15 +1,33 @@
 # Twine
 
-Twine is the client for a peer-to-peer CKB market settled on [Fiber](https://github.com/nervosnetwork/fiber). Fiat moves outside the app. The seller's coins sit in a Fiber hold invoice until the seller releases them, or until that hold expires and Fiber refunds the seller.
+Twine is an app for buying and selling CKB person to person. Fiat moves outside the app. CKB stays in your Fiber wallet.
 
-This repository is the Flutter app. It talks to one [Twine daemon](https://github.com/chukwuma619/twine) over Nostr. It never holds a Fiber key, never pays an invoice, and never settles a hold. Each trader pays and receives on their own Fiber node. The daemon coordinates the trade and publishes the book.
+This repository is the Flutter client. It talks to one [Twine daemon](https://github.com/chukwuma619/twine) over Nostr. It never holds a Fiber key, never pays an invoice, and never settles a hold. You pay and receive on your own Fiber node. The daemon coordinates the trade and publishes the book.
 
-The app does not charge a fee, keep ratings, or take a bond. Two traders chat here. The daemon does not read that thread.
+There is no fee, no rating, and no bond. Two traders chat here. The daemon does not read that thread.
+
+## How a trade works
+
+A post offers CKB. The poster is the seller. The taker is the buyer. There is no buy post, and there is no automatic matching: you pick a post.
+
+To buy CKB:
+
+1. Create a Nostr key. That key is your account. There is no username.
+2. Connect to a daemon. Connect your Fiber node outbound to that operator's hub.
+3. Browse posts. Each one is someone selling CKB at a price, with fiat limits and payment methods.
+4. Take a post. Enter the fiat amount, your Fiber pubkey, a payment method, and a Fiber invoice that should receive the CKB.
+5. Wait for the seller to lock. They pay a hold invoice in their own Fiber wallet. The app does not pay it.
+6. The seller shares their account in chat. You send fiat outside Twine, then mark it sent.
+7. The seller checks the credit and releases. The daemon pays your invoice. The trade is done.
+
+To sell, post instead of taking, then lock the hold, wait for fiat, and release.
+
+If the buyer does not pay in time, or the hold runs out, Fiber refunds the seller. Fiat never enters this app.
 
 ## What you need
 
 - A Twine daemon, and the relays it uses. A new install offers one daemon. Replace it before connecting if you run your own. The daemon logs the `npub` people paste here.
-- A Fiber wallet on your own node. The app shows the operator's Fiber pubkey and listen address so you can connect to that hub. A laptop node does not need a public IP: connect outbound to the hub. Sellers then fund a channel for outbound liquidity. Buyers stay online with auto-accept on: Twine opens inbound to them at payout if they cannot receive yet. Hold invoices are paid in that wallet.
+- A Fiber wallet on your own node. Account shows the operator's Fiber pubkey and listen address so you can connect to that hub. A laptop node does not need a public IP: connect outbound. Sellers then fund a channel for outbound liquidity. Buyers stay online with auto-accept on; Twine opens inbound to them at payout if they cannot receive yet.
 - Flutter, with the Dart SDK named in `pubspec.yaml`.
 
 ## Run
@@ -27,7 +45,7 @@ flutter test
 
 ## First launch
 
-1. **Create a key**, or **import** an `nsec`. A 64-character hex secret is also accepted. An `npub` is rejected. The Nostr pubkey is the account. There is no username.
+1. **Create a key**, or **import** an `nsec`. A 64-character hex secret is also accepted. An `npub` is rejected. The Nostr pubkey is the account.
 
 2. **Save the secret.** A new key is shown once as an `nsec` before anything else. Twine does not keep another copy. The same secret can be shown again later from Account.
 
@@ -40,56 +58,37 @@ The official daemon offered by a new install:
 | Public key | `npub18wyh0ympmw9gfu7dfu6eqyqef449smmg74k5p5m79zunx8wusttqzpnmc8` |
 | Relays | `wss://relay.damus.io`, `wss://nos.lol` |
 
-After that the app opens those relays, subscribes to this daemon's replies, orders, Fiber node announcement, and payment catalog, and loads the book saved for this account and this daemon.
+After that the app opens those relays and loads the book for this account and this daemon.
 
 The status line says when relays are still connecting, when none connected, or when the Fiber node announcement has not arrived yet. Account lists the relays that actually connected when that set differs from the ones you entered.
 
-## The book
+## Posts
 
-The bottom bar is **Post**, **Trade**, and **Account**.
+The bottom bar is **Posts**, **Trade**, and **Account**.
 
-**Post** has two sides:
+Posts is one list: other people selling CKB, and your own posts. **Take** buys from someone else's post. **Cancel post** takes yours down. You cannot take your own post. A post with no CKB left cannot be taken.
 
-| Side | What it lists |
-| --- | --- |
-| Buy | Other people selling CKB, and your own buy posts. |
-| Sell | Other people buying CKB, and your own sell posts. |
+A card shows the price per CKB, the CKB still available, the fiat limits, the payment methods, and the hold length. **Yours** marks your post. **Canceled** marks a post the poster took down. **Fully taken** means no CKB is left.
 
-Your own post stays on the side you posted. Someone else's sell is an offer you can buy. Someone else's buy is a bid you can sell into.
+**New post** asks for your Fiber pubkey, how much CKB is for sale, a currency from the daemon's catalog, a price per CKB, fiat min and max, and one or more payment methods. The post button stays off until that catalog arrives and until you confirm the Fiber channel is ready. The Fiber pubkey is remembered after the first post or take.
 
-A card shows the price per CKB, the CKB still available, the fiat limits, the payment methods, and the hold length. **Yours** marks your post. **Canceled** marks a post the poster took down. A post with no CKB left cannot be taken.
+The post shows on the book immediately, marked as yours, until the daemon's public order comes back. You cannot cancel that local copy. Once the public order is on the book, **Cancel post** removes it.
 
-**New post** asks for:
-
-| Field | Meaning |
-| --- | --- |
-| Sell CKB or Buy CKB | Who is offering the coins. |
-| Your Fiber pubkey | Your node's pubkey. Remembered after the first post or take and filled in next time. |
-| CKB available | Size of the post. |
-| Currency | From the daemon's payment catalog. The post button stays off until that catalog arrives. |
-| Price per CKB | Fiat price. |
-| Minimum and maximum | Fiat limits for one take. The minimum cannot be above the maximum. |
-| Payment methods | One or more methods in the chosen currency. |
-
-The post shows on the book immediately, marked as yours, until the daemon's public order comes back. You cannot cancel that local copy. Once the public order is on the book, **Cancel post** removes it. You cannot take your own post.
-
-**Take** asks for a fiat amount, your Fiber pubkey, and one payment method from the post. Buyers also paste a payout invoice and can add a **public** Fiber listen multiaddr. A local `127.0.0.1` address is refused; connect that node outbound to the hub instead. Post and Take show a channel checklist (sellers confirm outbound; buyers are told to connect to the hub so Twine can open inbound at payout). The app then waits for the hold invoice and tells you to look in Trades.
+**Take** asks for a fiat amount, your Fiber pubkey, one payment method from the post, and a Fiber invoice that should receive the CKB. You can add a **public** Fiber listen multiaddr. A local `127.0.0.1` address is refused; connect that node outbound to the hub instead. The app then waits for the hold invoice and tells you to look in Trades.
 
 ## A trade
 
-The daemon decides whether an action is allowed and what state comes next. The app sends the action, then folds the reply into the trade it has already heard. An older reply cannot walk a finished trade backwards.
+Open a trade from the post's **Trade** button, or from the **Trade** tab. The screen follows the phase. The daemon decides whether an action is allowed. The app sends it, then folds the reply into the trade it has already heard.
 
-Open a trade from the post's **Trade** button, or from the **Trade** tab. The screen follows the phase:
-
-| What you see | Who | What you do |
+| Screen | Who | What you do |
 | --- | --- | --- |
-| Waiting for the hold | Seller | Pay the hold invoice in your Fiber wallet (outbound to the operator). The invoice is on the trade. The app does not pay it. |
-| Waiting for fiat | Seller | Share the account name, account number, and an optional note for the method the daemon named. |
-| Waiting for fiat | Buyer | Wait for that account, then mark the fiat as sent. |
-| Fiat sent | Seller | Release after the credit is in your account. Release asks you to confirm. The receipt is the buyer's claim. |
-| Needs a new invoice | Buyer | The payout failed. Submit another Fiber invoice. |
+| Lock the CKB | Seller | Pay the hold invoice in your Fiber wallet. The invoice is on the trade. The app does not pay it. |
+| Share your account | Seller | Send the account name, account number, and an optional note for the method the daemon named. |
+| Pay the seller | Buyer | Wait for that account, send fiat outside Twine, then mark it sent. |
+| Check the payment | Seller | Release after the credit is in your account. Release asks you to confirm. The receipt is the buyer's claim. |
+| Send a new invoice | Buyer | The payout failed. Submit another Fiber invoice. |
 | Disputed | Either party | The hold stays locked until the solver decides. The seller can still release when a payout invoice is already stored. |
-| Releasing | Both | The daemon is paying the buyer, then settling the hold. |
+| Sending the CKB | Both | The daemon is paying the buyer, then settling the hold. |
 | Settled, canceled, or expired | Both | The trade is finished. The composer closes. |
 
 **Cancel trade** is only offered while the hold is still unpaid. Either party can send it. After the hold locks, cancel is gone and the coins wait for release or for Fiber's timelock.
@@ -110,27 +109,9 @@ Amounts the daemon sends as shannons are shown in CKB. `1` CKB is `100000000` sh
 
 The thread is on the trade, encrypted to the other trader, once the daemon has named both Nostr keys. Until then the app says it is still waiting to learn who the other person is.
 
-| Kind | What it is |
-| --- | --- |
-| Text | A message, up to 1000 characters. |
-| Payment details | The seller's account name, number, and optional note. |
-| Payment proof | The buyer's amount, bank reference, and receipt image. |
-| Status | A line the app adds when the daemon moves the trade, such as the hold locking or the trade settling. |
+You can send a text (up to 1000 characters), payment details (the seller's account), or a payment proof (the buyer's amount, bank reference, and receipt). The app also adds a local status line when the daemon moves the trade. That line is not published.
 
 A receipt is chosen from the photo library, scaled down, and has to fit in one relay event. The limit is 48000 bytes after that. A picture that is still too large asks you to crop it.
-
-Chat events are kind `4243`. The `p` tag is the other trader. The `t` tag is the trade id. The content is NIP-44 version 2, the same construction the daemon uses for actions. The plaintext is JSON:
-
-```json
-{
-  "v": 1,
-  "trade_id": "<trade id>",
-  "type": "text",
-  "text": "hello"
-}
-```
-
-`type` is `text`, `payment-details`, or `payment-proof`. Unused fields are null. A status line is local. It is not published.
 
 The app only accepts a thread message signed by the counterparty on that trade and tagged with that trade id.
 
@@ -148,15 +129,7 @@ Account shows your `npub`, the daemon `npub`, the relay list, and the operator's
 
 The secret, the daemon, and the book are kept in the platform keystore: Keychain on Apple platforms, Keystore-backed storage on Android. On macOS the app uses the file-based keychain rather than the data-protection keychain, so a debug build can save without that entitlement.
 
-| Stored value | Key |
-| --- | --- |
-| Nostr secret, hex | `twine_nostr_secret` |
-| Daemon public key and relays | `twine_daemon` |
-| Book for one account and one daemon | `twine_book_<account pubkey>_<daemon pubkey>` |
-
-The book is the orders, trades, thread, payment catalog, your last Fiber pubkey, and the last notice from the daemon. A value that does not parse is deleted. A secret that is not a key is deleted. If the keystore cannot be read at startup, the app stops on "Could not read the saved account."
-
-Nothing in this store is the Fiber seed. The Fiber pubkey you type is only the public key of your node.
+Nothing in this store is the Fiber seed. The Fiber pubkey you type is only the public key of your node. If the keystore cannot be read at startup, the app stops on "Could not read the saved account."
 
 ## Nostr
 
@@ -170,9 +143,7 @@ Actions are encrypted to the daemon and signed with your key. Replies are encryp
 | `31422` | Reads the payment catalog. The `d` tag is `payment-methods`. |
 | `4243` | Sends and reads the trade thread. The daemon does not subscribe to this kind. |
 
-One connected relay is enough to publish. The app keeps the order subscription open and asks the relays again after you send an action, and again when a relay socket is replaced. A reconnect does not replay the previous subscription on its own, so an order published into that gap would otherwise never reach the book.
-
-The envelope inside kind `4242` is `{ "action", "trade_id"?, "payload"? }`. The actions this app sends are `new-order`, `take`, `fiat-sent`, `release`, `cancel`, and `dispute`. The replies it applies are `pay-invoice`, `waiting-fiat`, `fiat-sent-ok`, `new-invoice`, `disputed`, `refunding`, `settled`, `canceled`, `expired`, and `cant-do`. Field names, who may send each action, and the clock (hold length, payment window, refund) are defined by the daemon.
+The actions this app sends are `new-order`, `take`, `fiat-sent`, `release`, `cancel`, and `dispute`. Field names, who may send each action, and the clock (hold length, payment window, refund) are defined by the daemon.
 
 ## Layout
 
