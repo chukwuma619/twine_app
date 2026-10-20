@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../market/amount.dart';
+import '../market/channel.dart';
 import '../market/role.dart';
 import '../nostr/order.dart';
 import '../nostr/request.dart';
+import 'channel_ready.dart';
 import 'market.dart';
 
 class TakePage extends StatefulWidget {
@@ -27,6 +29,7 @@ class _TakePageState extends State<TakePage> {
   late final TextEditingController _amount;
   late final TextEditingController _invoice;
   String? _methodId;
+  bool _channelReady = false;
   bool _busy = false;
   String? _error;
 
@@ -147,13 +150,15 @@ class _TakePageState extends State<TakePage> {
                         ),
                         const SizedBox(height: 12),
                       ],
-                      const Text(
-                        'Open a channel to the operator Fiber node in your wallet before you take.',
+                      ChannelReady(
+                        role: channelRoleFor(role),
+                        fiberNode: widget.fiberNode,
+                        ready: _channelReady,
+                        onReadyChanged: (ready) {
+                          setState(() => _channelReady = ready);
+                        },
+                        enabled: !_busy,
                       ),
-                      if (waitingNode) ...[
-                        const SizedBox(height: 8),
-                        const Text('Waiting for the Fiber node.'),
-                      ],
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
@@ -183,7 +188,7 @@ class _TakePageState extends State<TakePage> {
                       ],
                       const SizedBox(height: 12),
                       FilledButton(
-                        onPressed: _busy || waitingNode
+                        onPressed: _busy || waitingNode || !_channelReady
                             ? null
                             : () => _submit(order, role),
                         child: _busy
@@ -227,19 +232,19 @@ class _TakePageState extends State<TakePage> {
       return;
     }
     final estimate = aboutCkb(_amount.text, order.pricePerCkb);
+    final channelRole = channelRoleFor(role);
     final roleLine = role == TradeSide.seller
         ? 'You lock CKB in your Fiber wallet.'
         : 'You pay by mobile transfer after the seller locks.';
+    final confirmBody = estimate == null
+        ? '$roleLine ${channelConfirmLine(channelRole)}'
+        : '$roleLine About $estimate CKB at this price. ${channelConfirmLine(channelRole)}';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text(role == TradeSide.seller ? 'Sell CKB?' : 'Buy CKB?'),
-          content: Text(
-            estimate == null
-                ? roleLine
-                : '$roleLine About $estimate CKB at this price.',
-          ),
+          content: Text(confirmBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),

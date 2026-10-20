@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:twine_app/market/channel.dart' show channelHubSummary;
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
@@ -291,9 +292,6 @@ void main() {
 
     expect(find.text('Fiber node'), findsOneWidget);
     expect(find.text('02abc'), findsOneWidget);
-    expect(
-      find.text('Open a channel to this node in your Fiber wallet.'),
-      findsOneWidget,
-    );
+    expect(find.text(channelHubSummary()), findsOneWidget);
   });
 }

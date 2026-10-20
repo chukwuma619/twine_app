@@ -9,7 +9,7 @@ The app does not charge a fee, keep ratings, or take a bond. Two traders chat he
 ## What you need
 
 - A Twine daemon, and the relays it uses. A new install offers one daemon. Replace it before connecting if you run your own. The daemon logs the `npub` people paste here.
-- A Fiber wallet on your own node. The app shows the operator's Fiber pubkey so you can open a channel to it, and it shows hold invoices for you to pay in that wallet.
+- A Fiber wallet on your own node. The app shows the operator's Fiber pubkey so you can open a channel to that hub. Sellers fund for outbound liquidity; buyers need inbound (funds on the operator's side). Hold invoices are paid in that wallet.
 - Flutter, with the Dart SDK named in `pubspec.yaml`.
 
 ## Run
@@ -73,7 +73,7 @@ A card shows the price per CKB, the CKB still available, the fiat limits, the pa
 
 The post shows on the book immediately, marked as yours, until the daemon's public order comes back. You cannot cancel that local copy. Once the public order is on the book, **Cancel post** removes it. You cannot take your own post.
 
-**Take** asks for a fiat amount, your Fiber pubkey, and one payment method from the post. The app then waits for the hold invoice and tells you to look in Trades.
+**Take** asks for a fiat amount, your Fiber pubkey, and one payment method from the post. Post and Take show a channel checklist and require a confirm (sellers: outbound; buyers: inbound). The app then waits for the hold invoice and tells you to look in Trades.
 
 ## A trade
 
@@ -83,7 +83,7 @@ Open a trade from the post's **Trade** button, or from the **Trade** tab. The sc
 
 | What you see | Who | What you do |
 | --- | --- | --- |
-| Waiting for the hold | Seller | Pay the hold invoice in your Fiber wallet. The invoice is on the trade. The app does not pay it. |
+| Waiting for the hold | Seller | Pay the hold invoice in your Fiber wallet (outbound to the operator). The invoice is on the trade. The app does not pay it. |
 | Waiting for fiat | Seller | Share the account name, account number, and an optional note for the method the daemon named. |
 | Waiting for fiat | Buyer | Wait for that account, then mark the fiat as sent. |
 | Fiat sent | Seller | Release after the credit is in your account. Release asks you to confirm. The receipt is the buyer's claim. |
@@ -136,7 +136,7 @@ The app only accepts a thread message signed by the counterparty on that trade a
 
 ## Account
 
-Account shows your `npub`, the daemon `npub`, the relay list, and the operator's Fiber pubkey once the announcement arrives. Open a channel to that pubkey in your Fiber wallet before you need to pay a hold.
+Account shows your `npub`, the daemon `npub`, the relay list, and the operator's Fiber pubkey once the announcement arrives. Open a channel to that hub before you trade: fund to sell; get inbound from the operator to buy.
 
 **Change daemon** replaces the public key and relays. The book is kept per account and per daemon, so the other daemon has its own book.
 

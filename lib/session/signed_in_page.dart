@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:twine_app/market/channel.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
 
@@ -90,7 +91,7 @@ class SignedInPage extends StatelessWidget {
             const SizedBox(height: 8),
             SelectableText(fiberNode!),
             const SizedBox(height: 8),
-            const Text('Open a channel to this node in your Fiber wallet.'),
+            Text(channelHubSummary()),
           ] else if (!connecting &&
               relayError == null &&
               connectedRelays.isNotEmpty) ...[

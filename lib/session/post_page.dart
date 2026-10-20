@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../market/channel.dart';
 import '../nostr/catalog.dart';
 import '../nostr/order.dart';
 import '../nostr/request.dart';
+import 'channel_ready.dart';
 
 class PostPage extends StatefulWidget {
   const PostPage({
@@ -30,6 +32,7 @@ class _PostPageState extends State<PostPage> {
   late final TextEditingController _max;
   late String _currency;
   late Set<String> _methodIds;
+  bool _channelReady = false;
   bool _busy = false;
   String? _error;
 
@@ -102,13 +105,15 @@ class _PostPageState extends State<PostPage> {
                     helper: 'This is your Fiber node pubkey, not an npub.',
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Open a channel to the operator Fiber node in your wallet before you post.',
+                  ChannelReady(
+                    role: ChannelRole.seller,
+                    fiberNode: widget.fiberNode,
+                    ready: _channelReady,
+                    onReadyChanged: (ready) {
+                      setState(() => _channelReady = ready);
+                    },
+                    enabled: !_busy,
                   ),
-                  if (widget.fiberNode == null) ...[
-                    const SizedBox(height: 8),
-                    const Text('Waiting for the Fiber node.'),
-                  ],
                   const SizedBox(height: 12),
                   _field(_available, 'CKB available', number: true),
                   const SizedBox(height: 12),
@@ -173,7 +178,12 @@ class _PostPageState extends State<PostPage> {
                   ],
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: _busy || currencies.isEmpty ? null : _submit,
+                    onPressed: _busy ||
+                            currencies.isEmpty ||
+                            widget.fiberNode == null ||
+                            !_channelReady
+                        ? null
+                        : _submit,
                     child: _busy
                         ? const SizedBox(
                             height: 18,
@@ -260,8 +270,9 @@ class _PostPageState extends State<PostPage> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Sell CKB?'),
-          content: const Text(
-            'You lock CKB in your Fiber wallet when someone takes this.',
+          content: Text(
+            'You lock CKB in your Fiber wallet when someone takes this. '
+            '${channelConfirmLine(ChannelRole.seller)}',
           ),
           actions: [
             TextButton(

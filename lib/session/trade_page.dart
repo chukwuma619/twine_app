@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../market/amount.dart';
+import '../market/channel.dart';
 import '../market/chat.dart';
 import '../market/clocks.dart';
 import '../market/outcome.dart';
@@ -14,6 +15,7 @@ import '../market/role.dart';
 import '../market/steps.dart';
 import '../market/trade.dart';
 import '../nostr/request.dart';
+import 'channel_ready.dart';
 import 'market.dart';
 
 class TradePage extends StatefulWidget {
@@ -214,21 +216,24 @@ class _TradePageState extends State<TradePage> {
                         if (trade.payoutFailure != null) ...[
                           const SizedBox(height: 16),
                           Text(trade.payoutFailure!),
+                          if (side == TradeSide.buyer) ...[
+                            const SizedBox(height: 8),
+                            ChannelReady(
+                              role: ChannelRole.buyer,
+                              fiberNode: widget.fiberNode,
+                            ),
+                          ],
                         ],
                         if (actions.payHold) ...[
                           const SizedBox(height: 16),
                           const Text(
                             'A buyer took this. Pay this in your Fiber wallet. You cannot cancel after it locks.',
                           ),
-                          if (widget.fiberNode == null) ...[
-                            const SizedBox(height: 8),
-                            const Text('Waiting for the Fiber node.'),
-                          ] else ...[
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Open a channel to the operator Fiber node in your wallet.',
-                            ),
-                          ],
+                          const SizedBox(height: 8),
+                          ChannelReady(
+                            role: ChannelRole.seller,
+                            fiberNode: widget.fiberNode,
+                          ),
                           const SizedBox(height: 8),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
