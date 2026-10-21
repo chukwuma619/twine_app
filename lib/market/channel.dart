@@ -12,29 +12,29 @@ ChannelRole channelRoleFor(TradeSide side) {
 }
 
 String channelHubSummary() {
-  return 'In Fiber Studio, add this hub as a saved peer with the pubkey and multiaddr below. '
-      'Sellers open a channel and fund outbound liquidity for the hold. '
-      'Buyers: a laptop node does not need a public IP. Stay online with auto-accept on. Twine opens inbound at payout.';
+  return 'In Fiber Studio, open Network, then Add saved peer. Paste the pubkey and multiaddr and click Add & connect. '
+      'Sellers then open Channels, then Open channel, and set at least 1,000 CKB so outbound liquidity covers the hold. '
+      'Buyers stay online with 99 CKB on-chain. A laptop node does not need a public IP. Twine opens inbound at payout.';
 }
 
 List<String> channelChecklist(ChannelRole role) {
   switch (role) {
     case ChannelRole.seller:
       return const [
-        'In Fiber Studio, add this hub as a saved peer, then open a channel to it.',
-        'Fund it so your outbound liquidity covers the hold.',
+        'In Fiber Studio, open Network, then Add saved peer. Paste the pubkey and multiaddr and click Add & connect.',
+        'Open Channels, then Open channel. Choose this hub and set at least 1,000 CKB so outbound liquidity covers the hold. Wait until the channel is Ready.',
       ];
     case ChannelRole.buyer:
       return const [
-        'In Fiber Studio, add this hub as a saved peer with its pubkey and multiaddr. A laptop or home node does not need a public IP.',
-        'Leave auto-accept on (Fiber default) and keep about 99 CKB on-chain.',
-        'Keep the node online until payout. Twine then opens inbound to you.',
+        'In Fiber Studio, open Network, then Add saved peer. Paste the pubkey and multiaddr and click Add & connect. A laptop or home node does not need a public IP.',
+        'Stay online with 99 CKB on-chain until payout.',
+        'Twine opens inbound to you at payout.',
       ];
     case ChannelRole.both:
       return const [
-        'In Fiber Studio, add this hub as a saved peer with its pubkey and multiaddr.',
-        'To sell: open and fund a channel for outbound liquidity.',
-        'To buy: stay online so Twine can open inbound at payout.',
+        'In Fiber Studio, open Network, then Add saved peer. Paste the pubkey and multiaddr and click Add & connect.',
+        'To sell: open Channels, then Open channel, with at least 1,000 CKB so outbound liquidity covers the hold.',
+        'To buy: stay online with 99 CKB on-chain. Twine opens inbound at payout.',
       ];
   }
 }
@@ -71,15 +71,15 @@ List<String> fiberConnectSteps({
         'This daemon has not announced its Fiber node yet. The pubkey and multiaddr appear here when it does.';
   } else if (!hasMultiaddr) {
     connect =
-        'This daemon has not announced a public multiaddr yet. Fiber Studio needs that address to connect.';
+        'This daemon has not announced a public multiaddr yet. Paste it into the multiaddr field when it appears. Fiber Studio marks that field optional; this hub needs it.';
   } else {
     connect =
-        'In Fiber Studio, open Network, then Add saved peer. Paste the pubkey and multiaddr below, then connect.';
+        'In Fiber Studio, open Network, then Add saved peer. Paste the pubkey and multiaddr below into those fields. The public node buttons fill in a different peer. Click Add & connect.';
   }
   return [
     'Install Fiber Studio and start your node. CKB stays in that wallet.',
     connect,
-    'To sell, open a channel to that hub in Fiber Studio and fund it so your outbound liquidity covers the hold.',
-    'To buy, leave auto-accept on, keep about 99 CKB on-chain, and stay online. A laptop node does not need a public IP. Twine opens inbound at payout.',
+    'To sell, open Channels, then Open channel. This hub has to show Connected. Choose CKB and set capacity to at least 1,000 CKB so outbound liquidity covers the hold. The wallet needs another 109 CKB for the reserve and fees. Wait until the channel is Ready.',
+    'To buy, stay online with this hub connected and keep 99 CKB on-chain. Leave the inbound channel to Twine. A laptop node does not need a public IP. Twine opens it at payout.',
   ];
 }

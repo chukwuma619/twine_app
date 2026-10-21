@@ -24,7 +24,7 @@ void main() {
   test('buyer checklist is JIT inbound at payout', () {
     final steps = channelChecklist(ChannelRole.buyer);
     expect(steps[0], contains('does not need a public IP'));
-    expect(steps[1], contains('auto-accept'));
+    expect(steps[1], contains('99 CKB'));
     expect(channelReadyLabel(ChannelRole.buyer), contains('open inbound'));
     expect(channelConfirmLine(ChannelRole.buyer), contains('opens inbound'));
     expect(steps[0], contains('Fiber Studio'));
@@ -49,5 +49,8 @@ void main() {
 
     final ready = fiberConnectSteps(announced: true, hasMultiaddr: true);
     expect(ready[1], contains('Add saved peer'));
+    expect(ready[1], contains('Add & connect'));
+    expect(ready[2], contains('1,000 CKB'));
+    expect(ready[3], contains('99 CKB'));
   });
 }
