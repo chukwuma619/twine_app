@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../market/role.dart';
 import '../market/steps.dart';
 import '../nostr/order.dart';
+import 'fiber_guide.dart';
 import 'market.dart';
 import 'post_page.dart';
 import 'take_page.dart';
@@ -23,6 +24,8 @@ class MarketPage extends StatefulWidget {
     this.relayError,
     this.connectedRelays = const [],
     this.relayCount = 0,
+    this.showFiberGuide = false,
+    this.onFiberGuideDismissed,
   });
 
   final TwineMarket market;
@@ -35,6 +38,8 @@ class MarketPage extends StatefulWidget {
   final String? relayError;
   final List<String> connectedRelays;
   final int relayCount;
+  final bool showFiberGuide;
+  final Future<void> Function()? onFiberGuideDismissed;
 
   @override
   State<MarketPage> createState() => _MarketPageState();
@@ -43,6 +48,63 @@ class MarketPage extends StatefulWidget {
 class _MarketPageState extends State<MarketPage> {
   _Section _section = _Section.post;
   bool _showCanceled = false;
+  bool _fiberGuideHandled = false;
+  StateSetter? _dialogSetState;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleFiberGuide();
+  }
+
+  @override
+  void didUpdateWidget(MarketPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _scheduleFiberGuide();
+    final update = _dialogSetState;
+    if (update == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _dialogSetState != update) return;
+      update(() {});
+    });
+  }
+
+  void _scheduleFiberGuide() {
+    if (_fiberGuideHandled || !widget.showFiberGuide) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _fiberGuideHandled || !widget.showFiberGuide) return;
+      _fiberGuideHandled = true;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              _dialogSetState = setDialogState;
+              return AlertDialog(
+                content: SingleChildScrollView(
+                  child: FiberConnectGuide(
+                    fiberNode: widget.fiberNode,
+                    fiberAddresses: widget.fiberAddresses,
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Got it'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ).then((_) {
+        _dialogSetState = null;
+        if (!mounted) return;
+        widget.onFiberGuideDismissed?.call();
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,12 +235,11 @@ class _MarketPageState extends State<MarketPage> {
   Future<void> _openPost(BuildContext context) {
     return Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (context) =>
-            _LivePost(
-              market: widget.market,
-              fiberNode: widget.fiberNode,
-              fiberAddresses: widget.fiberAddresses,
-            ),
+        builder: (context) => _LivePost(
+          market: widget.market,
+          fiberNode: widget.fiberNode,
+          fiberAddresses: widget.fiberAddresses,
+        ),
       ),
     );
   }

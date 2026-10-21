@@ -14,12 +14,18 @@ abstract class AccountStore {
   Future<bool> backupConfirmed();
 
   Future<void> setBackupConfirmed(bool confirmed);
+
+  Future<bool> fiberGuideSeen();
+
+  Future<void> setFiberGuideSeen(bool seen);
 }
 
 /// Keeps the secret in memory. Used by tests and anywhere a keychain is absent.
 class MemoryAccountStore implements AccountStore {
   TwineAccount? account;
   bool confirmedBackup = true;
+
+  bool sawFiberGuide = true;
 
   @override
   Future<TwineAccount?> read() async => account;
@@ -42,6 +48,14 @@ class MemoryAccountStore implements AccountStore {
   Future<void> setBackupConfirmed(bool confirmed) async {
     confirmedBackup = confirmed;
   }
+
+  @override
+  Future<bool> fiberGuideSeen() async => sawFiberGuide;
+
+  @override
+  Future<void> setFiberGuideSeen(bool seen) async {
+    sawFiberGuide = seen;
+  }
 }
 
 class SecureAccountStore implements AccountStore {
@@ -50,6 +64,7 @@ class SecureAccountStore implements AccountStore {
 
   static const _secretKey = 'twine_nostr_secret';
   static const _backupKey = 'twine_backup_ack';
+  static const _fiberGuideKey = 'twine_fiber_guide';
 
   final Nostr _nostr;
   final FlutterSecureStorage _storage;
@@ -86,5 +101,16 @@ class SecureAccountStore implements AccountStore {
   @override
   Future<void> setBackupConfirmed(bool confirmed) {
     return _storage.write(key: _backupKey, value: confirmed ? '1' : '0');
+  }
+
+  @override
+  Future<bool> fiberGuideSeen() async {
+    final saved = await _storage.read(key: _fiberGuideKey);
+    return saved == '1';
+  }
+
+  @override
+  Future<void> setFiberGuideSeen(bool seen) {
+    return _storage.write(key: _fiberGuideKey, value: seen ? '1' : '0');
   }
 }

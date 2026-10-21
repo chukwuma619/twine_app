@@ -294,4 +294,54 @@ void main() {
     expect(find.text('02abc'), findsOneWidget);
     expect(find.text(channelHubSummary()), findsOneWidget);
   });
+
+  testWidgets('fiber steps show once in a dismissable dialog', (tester) async {
+    final nostr = TwineNostr();
+    final account = TwineAccount.generate(nostr.nostr);
+    final daemonKey = TwineAccount.generate(nostr.nostr);
+    final daemon = TwineDaemon.tryParse(
+      nostr.nostr,
+      pubkey: daemonKey.npub,
+      relays: 'wss://relay.example.com',
+    )!;
+    final store = MemoryAccountStore()
+      ..account = account
+      ..sawFiberGuide = false;
+
+    await tester.pumpWidget(
+      app(
+        nostr: nostr,
+        store: store,
+        daemonStore: MemoryDaemonStore()..daemon = daemon,
+        initialAccount: account,
+        initialDaemon: daemon,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Connect your Fiber node'), findsOneWidget);
+    expect(find.textContaining('Fiber Studio'), findsWidgets);
+    expect(find.text('Got it'), findsOneWidget);
+
+    await tester.tap(find.text('Got it'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Connect your Fiber node'), findsNothing);
+    expect(find.text('No posts yet.'), findsOneWidget);
+    expect(await store.fiberGuideSeen(), isTrue);
+
+    await tester.pumpWidget(
+      app(
+        nostr: nostr,
+        store: store,
+        daemonStore: MemoryDaemonStore()..daemon = daemon,
+        initialAccount: account,
+        initialDaemon: daemon,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Connect your Fiber node'), findsNothing);
+    expect(find.text('No posts yet.'), findsOneWidget);
+  });
 }

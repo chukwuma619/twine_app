@@ -119,6 +119,8 @@ class _TwineAppState extends State<TwineApp> {
     }
     return MarketPage(
       market: market,
+      showFiberGuide: session.showFiberGuide,
+      onFiberGuideDismissed: session.dismissFiberGuide,
       fiberNode: session.fiberNode,
       fiberAddresses: session.fiberAddresses,
       solverAvailable: session.solverAvailable,

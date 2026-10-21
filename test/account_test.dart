@@ -78,6 +78,31 @@ void main() {
     expect(await again.backupConfirmed(), isTrue);
   });
 
+  test(
+    'a missing fiber guide flag means the steps have not been seen',
+    () async {
+      final data = <String, String>{};
+      FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(
+        data,
+      );
+      final store = SecureAccountStore(
+        nostr,
+        storage: const FlutterSecureStorage(),
+      );
+      expect(await store.fiberGuideSeen(), isFalse);
+
+      await store.setFiberGuideSeen(true);
+      final again = SecureAccountStore(
+        nostr,
+        storage: const FlutterSecureStorage(),
+      );
+      expect(await again.fiberGuideSeen(), isTrue);
+
+      await again.clear();
+      expect(await again.fiberGuideSeen(), isTrue);
+    },
+  );
+
   test('accepts an uppercase nsec', () {
     final created = TwineAccount.generate(nostr);
     final imported = TwineAccount.tryParse(nostr, created.nsec.toUpperCase());

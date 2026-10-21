@@ -120,10 +120,7 @@ TwineEnvelope payoutInvoiceRequest({
   return TwineEnvelope(
     action: actionPayoutInvoice,
     tradeId: tradeId,
-    payload: {
-      'invoice': invoice.trim(),
-      ..._fiberAddr(fiberAddr),
-    },
+    payload: {'invoice': invoice.trim(), ..._fiberAddr(fiberAddr)},
   );
 }
 
@@ -135,10 +132,7 @@ TwineEnvelope fiatSentRequest({
   return TwineEnvelope(
     action: actionFiatSent,
     tradeId: tradeId,
-    payload: {
-      'invoice': invoice.trim(),
-      ..._fiberAddr(fiberAddr),
-    },
+    payload: {'invoice': invoice.trim(), ..._fiberAddr(fiberAddr)},
   );
 }
 
@@ -163,7 +157,7 @@ String? fiberAddrError(String? addr) {
       lower.contains('/dns4/localhost') ||
       lower.contains('/dns/localhost') ||
       RegExp(r'/ip4/172\.(1[6-9]|2[0-9]|3[0-1])\.').hasMatch(lower)) {
-    return 'That address is not reachable from Twine. Connect your Fiber node to the hub instead.';
+    return 'That address is not reachable from Twine. Connect to this hub in Fiber Studio instead.';
   }
   return null;
 }

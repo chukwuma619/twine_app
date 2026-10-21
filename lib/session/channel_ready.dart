@@ -34,8 +34,16 @@ class ChannelReady extends StatelessWidget {
           const Text('Waiting for the Fiber node.')
         else ...[
           SelectableText(fiberNode!),
-          const SizedBox(height: 8),
-          SelectableText(channelConnectCommand(fiberNode!, fiberAddresses)),
+          if (fiberAddresses.isEmpty) ...[
+            const SizedBox(height: 8),
+            const Text('This daemon has not announced a public multiaddr yet.'),
+          ] else
+            for (final address in fiberAddresses) ...[
+              const SizedBox(height: 8),
+              Text('Multiaddr', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 4),
+              SelectableText(address),
+            ],
           const SizedBox(height: 8),
           for (final step in channelChecklist(role)) ...[
             Text('• $step'),

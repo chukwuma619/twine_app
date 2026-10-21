@@ -15,7 +15,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.twine_app"
+    namespace = "com.example.twine"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -30,7 +30,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.twine_app"
+        applicationId = "com.example.twine"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -41,14 +41,9 @@ android {
 
     signingConfigs {
         create("release") {
-            if (!keystorePropertiesFile.exists()) {
-                throw GradleException(
-                    "android/key.properties is missing. A release APK needs a private signing key.",
-                )
-            }
             keyAlias = keystoreProperties.getProperty("keyAlias")
             keyPassword = keystoreProperties.getProperty("keyPassword")
-            storeFile = file(keystoreProperties.getProperty("storeFile"))
+            storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
             storePassword = keystoreProperties.getProperty("storePassword")
         }
     }

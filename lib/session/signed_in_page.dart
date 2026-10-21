@@ -43,90 +43,100 @@ class SignedInPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-          Text('Signed in', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          const Text(
-            'This phone stores your Nostr secret. CKB stays in your Fiber wallet.',
-          ),
-          const SizedBox(height: 8),
-          SelectableText(account.npub),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () => _copy(context, account.npub),
-              child: const Text('Copy'),
+            Text('Signed in', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Text(
+              'This phone stores your Nostr secret. CKB stays in your Fiber wallet.',
             ),
-          ),
-          const SizedBox(height: 24),
-          Text('Daemon', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          SelectableText(daemon.npub),
-          const SizedBox(height: 16),
-          Text('Relays', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          for (final relay in daemon.relays) Text(relay),
-          if (!connecting &&
-              relayError == null &&
-              connectedRelays.isNotEmpty &&
-              connectedRelays.length != daemon.relays.length) ...[
             const SizedBox(height: 8),
-            Text('Connected', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            for (final relay in connectedRelays) Text(relay),
-          ],
-          if (connecting) ...[
-            const SizedBox(height: 8),
-            const Text('Connecting to relays…'),
-          ],
-          if (relayError != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              relayError!,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.error,
+            SelectableText(account.npub),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => _copy(context, account.npub),
+                child: const Text('Copy'),
               ),
             ),
-          ],
-          if (fiberNode != null) ...[
             const SizedBox(height: 24),
-            Text('Fiber node', style: theme.textTheme.titleMedium),
+            Text('Daemon', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
-            SelectableText(fiberNode!),
+            SelectableText(daemon.npub),
+            const SizedBox(height: 16),
+            Text('Relays', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
-            SelectableText(channelConnectCommand(fiberNode!, fiberAddresses)),
-            const SizedBox(height: 8),
-            Text(channelHubSummary()),
-          ] else if (!connecting &&
-              relayError == null &&
-              connectedRelays.isNotEmpty) ...[
+            for (final relay in daemon.relays) Text(relay),
+            if (!connecting &&
+                relayError == null &&
+                connectedRelays.isNotEmpty &&
+                connectedRelays.length != daemon.relays.length) ...[
+              const SizedBox(height: 8),
+              Text('Connected', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              for (final relay in connectedRelays) Text(relay),
+            ],
+            if (connecting) ...[
+              const SizedBox(height: 8),
+              const Text('Connecting to relays…'),
+            ],
+            if (relayError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                relayError!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+            if (fiberNode != null) ...[
+              const SizedBox(height: 24),
+              Text('Fiber node', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              SelectableText(fiberNode!),
+              if (fiberAddresses.isEmpty) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'This daemon has not announced a public multiaddr yet.',
+                ),
+              ] else
+                for (final address in fiberAddresses) ...[
+                  const SizedBox(height: 8),
+                  Text('Multiaddr', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 4),
+                  SelectableText(address),
+                ],
+              const SizedBox(height: 8),
+              Text(channelHubSummary()),
+            ] else if (!connecting &&
+                relayError == null &&
+                connectedRelays.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              const Text('Waiting for the Fiber node…'),
+            ],
             const SizedBox(height: 24),
-            const Text('Waiting for the Fiber node…'),
-          ],
-          const SizedBox(height: 24),
-          OutlinedButton(
-            onPressed: onChangeDaemon,
-            child: const Text('Change daemon'),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton(
-            onPressed: () => _showSecret(context),
-            child: const Text('Show secret'),
-          ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: () => _confirmLogOut(context),
-            child: const Text('Log out'),
-          ),
-          if (error != null) ...[
+            OutlinedButton(
+              onPressed: onChangeDaemon,
+              child: const Text('Change daemon'),
+            ),
             const SizedBox(height: 12),
-            Text(
-              error!,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.error,
-              ),
+            OutlinedButton(
+              onPressed: () => _showSecret(context),
+              child: const Text('Show secret'),
             ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => _confirmLogOut(context),
+              child: const Text('Log out'),
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                error!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
           ],
-        ],
         ),
       ),
     );
@@ -150,9 +160,7 @@ class SignedInPage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Anyone with this key controls the account.',
-              ),
+              const Text('Anyone with this key controls the account.'),
               const SizedBox(height: 12),
               SelectableText(account.nsec),
             ],

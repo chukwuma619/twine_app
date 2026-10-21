@@ -24,13 +24,12 @@ class TwineSession extends ChangeNotifier {
     nostr.account = account;
     nostr.daemon = daemon;
     _bindMarket();
-    if (account != null) {
-      unawaited(_boot());
-    }
+    unawaited(_boot());
   }
 
   Future<void> _boot() async {
     await _restoreBackupFlag();
+    await _restoreFiberGuide();
     if (_disposed) return;
     final current = daemon;
     if (connectRelays && account != null && current != null && !showBackup) {
@@ -48,6 +47,24 @@ class TwineSession extends ChangeNotifier {
     }
     if (_disposed) return;
     _notify();
+  }
+
+  Future<void> _restoreFiberGuide() async {
+    try {
+      showFiberGuide = !await store.fiberGuideSeen();
+    } catch (_) {
+      showFiberGuide = false;
+    }
+    if (_disposed) return;
+    _notify();
+  }
+
+  Future<void> dismissFiberGuide() async {
+    showFiberGuide = false;
+    _notify();
+    try {
+      await store.setFiberGuideSeen(true);
+    } catch (_) {}
   }
 
   static const _invalidKey = 'Enter an nsec or a 64-character hex key.';
@@ -70,6 +87,7 @@ class TwineSession extends ChangeNotifier {
   TwineDaemon? daemon;
   TwineMarket? market;
   bool showBackup = false;
+  bool showFiberGuide = false;
   bool editingDaemon = false;
   bool viewingAccount = false;
   bool busy = false;
