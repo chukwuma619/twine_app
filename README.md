@@ -43,6 +43,31 @@ flutter run
 flutter test
 ```
 
+## Tester builds
+
+macOS, Windows, Linux, and Android builds are published as a GitHub Release.
+
+From a clean checkout of the commit testers should get, publish the next version with:
+
+```bash
+tool/release.sh 1.0.2
+```
+
+That sets `version:` in `pubspec.yaml`, commits it, tags `v1.0.2`, and pushes. GitHub Actions builds four files and attaches them to that release, with first-launch notes on the release page:
+
+| File | Testers |
+| --- | --- |
+| `Twine-1.0.2-macos.dmg` | macOS 12 or newer |
+| `Twine-1.0.2-windows-x64.zip` | Windows 10 or 11, 64-bit |
+| `Twine-1.0.2-linux-x64.tar.gz` | Linux desktop, 64-bit |
+| `Twine-1.0.2-android.apk` | Android |
+
+To sign the APK with the same key as a local release, add repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, and `ANDROID_KEY_ALIAS`. The keystore secret is the base64 of the `.jks` file. Without those secrets, the APK is signed with the debug key, and it will not install over a release-signed copy.
+
+The workflow is pinned to Flutter 3.41.6, the same revision as this project. Bump that pin in `.github/workflows/release.yml` when Flutter is upgraded here.
+
+To try the workflow before a real version, run **Release** from the Actions tab. That publishes a prerelease from the selected branch.
+
 ## First launch
 
 1. **Create a key**, or **import** an `nsec`. A 64-character hex secret is also accepted. An `npub` is rejected. The Nostr pubkey is the account.

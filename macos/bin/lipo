@@ -1,0 +1,21 @@
+#!/bin/sh
+# macOS 27 lipo rejects `lipo <file> -verify_arch arm64 x86_64`: it treats the
+# second architecture as another input file. Flutter's macOS release build
+# checks every architecture in one call. Verify each architecture on its own.
+set -eu
+
+real=/usr/bin/lipo
+
+if [ $# -ge 4 ] && [ "$2" = "-verify_arch" ]; then
+  file=$1
+  shift 2
+  status=0
+  for arch in "$@"; do
+    if ! "$real" "$file" -verify_arch "$arch"; then
+      status=1
+    fi
+  done
+  exit "$status"
+fi
+
+exec "$real" "$@"

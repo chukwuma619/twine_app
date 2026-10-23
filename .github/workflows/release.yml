@@ -1,0 +1,359 @@
+# Tester builds. A tag v1.2.3 (see tool/release.sh) publishes a GitHub Release.
+# Running this workflow by hand publishes a prerelease from the selected branch.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.v.outputs.name }}
+      number: ${{ steps.v.outputs.number }}
+      tag: ${{ steps.v.outputs.tag }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+      skip: ${{ steps.v.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw=$(awk '/^version: / { print $2; exit }' pubspec.yaml)
+          name=${raw%%+*}
+          number=${raw#*+}
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=$name" >> "$GITHUB_OUTPUT"
+            echo "number=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+            echo "tag=preview-$name-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tag="${{ github.ref_name }}"
+          case "$tag" in
+            preview-*)
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "name=$name" >> "$GITHUB_OUTPUT"
+              echo "number=$number" >> "$GITHUB_OUTPUT"
+              echo "tag=$tag" >> "$GITHUB_OUTPUT"
+              echo "prerelease=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          if [ "$tag" != "v$name" ]; then
+            echo "Tag $tag does not match pubspec version $name (expected v$name)." >&2
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=false" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: version
+    if: needs.version.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+      - run: flutter test
+
+  macos:
+    needs: [version, test]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+      - name: Build macOS
+        env:
+          # No Apple certificate on the runner. Sign ad hoc after the build
+          # so the sandbox entitlements are on the app testers open.
+          FLUTTER_XCODE_CODE_SIGN_STYLE: Manual
+          FLUTTER_XCODE_CODE_SIGN_IDENTITY: "-"
+          FLUTTER_XCODE_CODE_SIGNING_REQUIRED: "NO"
+          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: "NO"
+          FLUTTER_XCODE_DEVELOPMENT_TEAM: ""
+        run: |
+          set -euo pipefail
+          flutter config --enable-macos-desktop
+          flutter build macos --release \
+            --build-name "${{ needs.version.outputs.name }}" \
+            --build-number "${{ needs.version.outputs.number }}"
+      - name: Package DMG
+        run: |
+          set -euo pipefail
+          app="build/macos/Build/Products/Release/twine_app.app"
+          if [ ! -d "$app" ]; then
+            echo "Expected $app" >&2
+            exit 1
+          fi
+          # An ad-hoc signature cannot enforce App Sandbox. Turn the sandbox
+          # off for this tester build so macOS will launch it. A Developer ID
+          # build can keep the sandbox in Release.entitlements.
+          ents=$(mktemp)
+          python3 - "$ents" << 'PY'
+          import plistlib, sys
+          with open("macos/Runner/Release.entitlements", "rb") as handle:
+              data = plistlib.load(handle)
+          data["com.apple.security.app-sandbox"] = False
+          with open(sys.argv[1], "wb") as handle:
+              plistlib.dump(data, handle)
+          PY
+          codesign --force --deep --sign - --entitlements "$ents" "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          stage=$(mktemp -d)
+          cp -R "$app" "$stage/"
+          printf '%s\n' \
+            'This build is not signed by Apple.' \
+            '' \
+            '1. Drag twine_app into Applications.' \
+            '2. Right-click twine_app and choose Open.' \
+            '3. If macOS still blocks it, open System Settings, Privacy & Security, and choose Open Anyway.' \
+            > "$stage/How to open.txt"
+          hdiutil create \
+            -volname "Twine" \
+            -srcfolder "$stage" \
+            -ov \
+            -format UDZO \
+            "Twine-${{ needs.version.outputs.name }}-macos.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: Twine-${{ needs.version.outputs.name }}-macos.dmg
+          if-no-files-found: error
+
+  windows:
+    needs: [version, test]
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+      - name: Build Windows
+        run: |
+          set -euo pipefail
+          flutter config --enable-windows-desktop
+          flutter build windows --release \
+            --build-name "${{ needs.version.outputs.name }}" \
+            --build-number "${{ needs.version.outputs.number }}"
+      - name: Package zip
+        run: |
+          set -euo pipefail
+          release="build/windows/x64/runner/Release"
+          if [ ! -f "$release/twine_app.exe" ]; then
+            echo "Expected $release/twine_app.exe" >&2
+            exit 1
+          fi
+          printf '%s\n' \
+            'Unzip this whole folder and run twine_app.exe from inside it.' \
+            'Moving only the exe will not start the app.' \
+            '' \
+            'If Windows shows "Windows protected your PC", choose More info, then Run anyway.' \
+            > "$release/How to open.txt"
+          tar -a -c -f "Twine-${{ needs.version.outputs.name }}-windows-x64.zip" -C "$release" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: Twine-${{ needs.version.outputs.name }}-windows-x64.zip
+          if-no-files-found: error
+
+  linux:
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          packages="clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsecret-1-dev"
+          if apt-cache show libstdc++-12-dev >/dev/null 2>&1; then
+            packages="$packages libstdc++-12-dev"
+          else
+            packages="$packages libstdc++-dev"
+          fi
+          sudo apt-get install -y $packages
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+      - name: Build Linux
+        run: |
+          set -euo pipefail
+          flutter config --enable-linux-desktop
+          flutter build linux --release \
+            --build-name "${{ needs.version.outputs.name }}" \
+            --build-number "${{ needs.version.outputs.number }}"
+      - name: Package tarball
+        run: |
+          set -euo pipefail
+          bundle="build/linux/x64/release/bundle"
+          if [ ! -x "$bundle/twine_app" ]; then
+            echo "Expected $bundle/twine_app" >&2
+            exit 1
+          fi
+          rm -rf Twine
+          cp -a "$bundle" Twine
+          printf '%s\n' \
+            'Unpack this archive and run ./Twine/twine_app' \
+            '' \
+            'A desktop install needs GTK 3 and a keyring. On Ubuntu:' \
+            'sudo apt install libgtk-3-0 libsecret-1-0 gnome-keyring' \
+            > "Twine/How to open.txt"
+          tar -czf "Twine-${{ needs.version.outputs.name }}-linux-x64.tar.gz" Twine
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: Twine-${{ needs.version.outputs.name }}-linux-x64.tar.gz
+          if-no-files-found: error
+
+  android:
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    outputs:
+      signing: ${{ steps.sign.outputs.signing }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+      - name: Configure release signing
+        id: sign
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64}" ]; then
+            echo "signing=debug" >> "$GITHUB_OUTPUT"
+            echo "No release keystore secret. The tester APK will use the debug key."
+            exit 0
+          fi
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/app/upload-keystore.jks
+          {
+            printf 'storePassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD"
+            printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
+            printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+            printf 'storeFile=%s\n' "upload-keystore.jks"
+          } > android/key.properties
+          echo "signing=release" >> "$GITHUB_OUTPUT"
+      - name: Build Android
+        run: |
+          set -euo pipefail
+          flutter build apk --release \
+            --build-name "${{ needs.version.outputs.name }}" \
+            --build-number "${{ needs.version.outputs.number }}"
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "Twine-${{ needs.version.outputs.name }}-android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: Twine-${{ needs.version.outputs.name }}-android.apk
+          if-no-files-found: error
+
+  publish:
+    needs: [version, macos, windows, linux, android]
+    if: needs.version.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          merge-multiple: true
+          path: dist
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          NAME: ${{ needs.version.outputs.name }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/*)
+          if [ ${#files[@]} -ne 4 ]; then
+            echo "Expected 4 release files, found ${#files[@]}" >&2
+            ls -la dist >&2
+            exit 1
+          fi
+          if [ "${{ needs.android.outputs.signing }}" = "release" ]; then
+            android_note="This APK is signed with the release key. It installs over the previous tester build."
+          else
+            android_note="This APK is signed with the debug key. Uninstall a release-signed copy of Twine before installing this one."
+          fi
+          cat > notes.md << EOF
+          Twine ${NAME} for testers.
+
+          The macOS and Windows builds are not signed, so those systems ask before the first launch. Each of those downloads also contains a short \`How to open.txt\`.
+
+          ## macOS
+          Download \`Twine-${NAME}-macos.dmg\`. Open it and drag \`twine_app\` into Applications. Right-click \`twine_app\` and choose Open. If macOS still blocks it, go to System Settings, Privacy & Security, and choose Open Anyway. Needs macOS 12 or newer.
+
+          ## Windows
+          Download \`Twine-${NAME}-windows-x64.zip\`. Unzip the whole folder and run \`twine_app.exe\` from inside it. If SmartScreen appears, choose More info, then Run anyway.
+
+          ## Linux
+          Download \`Twine-${NAME}-linux-x64.tar.gz\`.
+
+          \`\`\`
+          tar -xzf Twine-${NAME}-linux-x64.tar.gz
+          ./Twine/twine_app
+          \`\`\`
+
+          A desktop install needs GTK 3 and a keyring. On Ubuntu: \`sudo apt install libgtk-3-0 libsecret-1-0 gnome-keyring\`.
+
+          ## Android
+          Download \`Twine-${NAME}-android.apk\` and open it on the phone. If Android asks, allow install from this source. ${android_note}
+
+          Installing a newer release replaces the app. The Nostr account stays in the system key store.
+          EOF
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then
+            flags+=(--prerelease --title "Twine ${NAME} preview")
+          else
+            flags+=(--title "Twine ${NAME}")
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+            gh release edit "$TAG" --notes-file notes.md "${flags[@]}"
+          else
+            gh release create "$TAG" "${files[@]}" \
+              --target "${{ github.sha }}" \
+              --notes-file notes.md \
+              "${flags[@]}"
+          fi
