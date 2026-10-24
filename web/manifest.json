@@ -1,6 +1,6 @@
 {
-    "name": "twine_app",
-    "short_name": "twine_app",
+    "name": "Twine",
+    "short_name": "Twine",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
