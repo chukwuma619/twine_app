@@ -17,6 +17,7 @@ import '../market/trade.dart';
 import '../nostr/request.dart';
 import 'channel_ready.dart';
 import 'market.dart';
+import 'notice_bar.dart';
 
 class TradePage extends StatefulWidget {
   const TradePage({
@@ -47,6 +48,8 @@ class _TradePageState extends State<TradePage> {
   final _chat = TextEditingController();
   Timer? _tick;
   String? _error;
+  String? _banner;
+  bool _lifting = false;
   bool _copiedHold = false;
 
   @override
@@ -101,7 +104,9 @@ class _TradePageState extends State<TradePage> {
         final proof = widget.market.book.paymentProof(trade.id);
         final peer = counterparty(trade, widget.market.accountPubkey);
         final theme = Theme.of(context);
-        final notice = trade.notice ?? widget.market.book.notice ?? _error;
+        final stored = trade.notice ?? widget.market.book.notice;
+        _liftNotice(stored);
+        final notice = _banner ?? stored ?? _error;
         final waitingFiat =
             side == TradeSide.buyer && trade.phase == TradePhase.waitingFiat;
         final shareAccount =
@@ -413,11 +418,9 @@ class _TradePageState extends State<TradePage> {
                         ],
                         if (notice != null) ...[
                           const SizedBox(height: 12),
-                          Text(
-                            notice,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.error,
-                            ),
+                          DismissibleNotice(
+                            message: notice,
+                            onDismiss: _dismissNotice,
                           ),
                         ],
                       ],
@@ -584,6 +587,28 @@ class _TradePageState extends State<TradePage> {
     );
     if (!mounted) return;
     setState(() => _error = error);
+  }
+
+  void _liftNotice(String? stored) {
+    if (stored == null || _lifting || stored == _banner) return;
+    _lifting = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _lifting = false;
+      if (!mounted) return;
+      final trade = widget.market.book.trade(widget.tradeId);
+      final current = trade?.notice ?? widget.market.book.notice;
+      if (current == null) return;
+      widget.market.dismissTradeNotice(widget.tradeId);
+      setState(() => _banner = current);
+    });
+  }
+
+  void _dismissNotice() {
+    if (!mounted) return;
+    setState(() {
+      _banner = null;
+      _error = null;
+    });
   }
 
   Future<void> _paid(TwineTrade trade, bool hasProof) async {

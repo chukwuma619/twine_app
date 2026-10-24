@@ -270,6 +270,14 @@ class TwineBook {
     notice = null;
   }
 
+  /// Drops a refusal after the screen has shown it, so it does not stay in the chat.
+  void clearRefusal(String tradeId) {
+    notice = null;
+    final current = trade(tradeId);
+    if (current == null || current.notice == null) return;
+    _putTrade(current.copyWith(notice: null, keepNotice: false));
+  }
+
   void _cantDo(TwineEnvelope envelope) {
     final reason =
         ReasonPayload.tryParse(envelope.payload)?.reason ??

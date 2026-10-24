@@ -595,6 +595,39 @@ void main() {
     await tester.pump(const Duration(milliseconds: 750));
     expect(find.text('this payout hash was already used'), findsNothing);
   });
+
+  testWidgets('a refusal on a trade leaves the chat', (tester) async {
+    final market = _market(
+      pubkey: 'buyer',
+      trades: [
+        TwineTrade(
+          id: 'trade-1',
+          orderId: 'order-1',
+          phase: TradePhase.awaitingInvoice,
+          updatedAt: DateTime.utc(2026, 10, 6),
+          fiatAmount: '120',
+          fiatCurrency: 'USD',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+          notice: 'this payout hash was already used',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TradePage(market: market, tradeId: 'trade-1'),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('this payout hash was already used'), findsOneWidget);
+    expect(market.book.trade('trade-1')?.notice, isNull);
+
+    await tester.pump(const Duration(seconds: 4));
+    expect(find.text('this payout hash was already used'), findsNothing);
+  });
 }
 
 TwineMarket _market({

@@ -539,6 +539,16 @@ class TwineMarket extends ChangeNotifier {
     unawaited(_persist());
   }
 
+  /// Drops the refusal stored on one trade, and the copy on the book.
+  void dismissTradeNotice(String tradeId) {
+    final hadTrade = book.trade(tradeId)?.notice != null;
+    final hadBook = book.notice != null;
+    if (!hadTrade && !hadBook) return;
+    book.clearRefusal(tradeId);
+    if (!_stopped) notifyListeners();
+    unawaited(_persist());
+  }
+
   Future<String?> _send(TwineEnvelope envelope) async {
     if (!ready) return 'The book is still opening.';
     if (sending) return 'Wait for the current request to finish.';
