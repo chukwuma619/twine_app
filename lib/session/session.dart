@@ -103,12 +103,60 @@ class TwineSession extends ChangeNotifier {
 
   StreamSubscription<FiberAnnouncement>? _fiberSub;
   bool _disposed = false;
+  bool _relayWork = false;
+  Timer? _catchUpTimer;
+
+  /// How often a quiet phone reloads what the relays already stored.
+  /// The live subscription still delivers an update the moment it arrives.
+  static const _catchUpEvery = Duration(seconds: 30);
 
   void _notify() {
     if (!_disposed) notifyListeners();
   }
 
   Future<void> connect(List<String> relays) async {
+    if (_relayWork) return;
+    _relayWork = true;
+    try {
+      await _openRelays(relays);
+    } finally {
+      _relayWork = false;
+      if (!_disposed) _armCatchUp();
+    }
+  }
+
+  /// Reloads the book without closing the live subscriptions. Coming back to
+  /// the app reconnects first, because a phone often wakes with a socket that
+  /// still looks open and delivers nothing. A reload that no relay answers
+  /// does the same.
+  Future<void> catchUp({bool force = false}) async {
+    if (_relayWork || _disposed) return;
+    final current = daemon;
+    final book = market;
+    if (!connectRelays || account == null || current == null || book == null) {
+      return;
+    }
+    if (showBackup || editingDaemon || !book.ready || book.sending) return;
+
+    _relayWork = true;
+    try {
+      var online = !force && nostr.relaysOpen;
+      if (online) {
+        try {
+          online = await nostr.reconcile();
+        } catch (_) {
+          online = false;
+        }
+      }
+      if (!online) await _openRelays(current.relays);
+      if (_disposed) return;
+      await book.refreshTrades();
+    } finally {
+      _relayWork = false;
+    }
+  }
+
+  Future<void> _openRelays(List<String> relays) async {
     await _fiberSub?.cancel();
     fiberNode = null;
     fiberAddresses = const [];
@@ -142,6 +190,17 @@ class TwineSession extends ChangeNotifier {
       connecting = false;
       _notify();
     }
+  }
+
+  void _armCatchUp() {
+    _catchUpTimer ??= Timer.periodic(_catchUpEvery, (_) {
+      unawaited(catchUp());
+    });
+  }
+
+  void _stopCatchUp() {
+    _catchUpTimer?.cancel();
+    _catchUpTimer = null;
   }
 
   Future<void> create() async {
@@ -310,6 +369,7 @@ class TwineSession extends ChangeNotifier {
     if (_disposed) return;
     nostr.account = null;
     nostr.stopWatching();
+    _stopCatchUp();
     await _fiberSub?.cancel();
     _fiberSub = null;
     account = null;
@@ -359,6 +419,7 @@ class TwineSession extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _stopCatchUp();
     market?.stop();
     _fiberSub?.cancel();
     super.dispose();

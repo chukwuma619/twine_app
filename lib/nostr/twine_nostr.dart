@@ -48,7 +48,6 @@ class TwineNostr {
   final _orders = StreamController<TwineOrder>.broadcast();
   StreamSubscription<NostrEvent>? _orderSub;
   NostrEventsStream? _orderStream;
-  NostrEventsStream? _orderReplay;
   final _fiberNodes = StreamController<FiberAnnouncement>.broadcast();
   void Function()? onSocketsReplaced;
   StreamSubscription<NostrEvent>? _fiberSub;
@@ -65,6 +64,9 @@ class TwineNostr {
   Timer? _relayWatch;
   String _openSockets = '';
 
+  /// How long a one-shot reload waits for a relay to finish.
+  static const _fetchTimeout = Duration(seconds: 8);
+
   Stream<DaemonReplyEvent> get replies => _replies.stream;
 
   Stream<TwineOrder> get orders => _orders.stream;
@@ -74,6 +76,21 @@ class TwineNostr {
   Stream<OpenedCatalog> get catalogs => _catalogs.stream;
 
   Stream<NostrEvent> get chats => _chats.stream;
+
+  /// True when every connected relay socket is still open.
+  /// A phone often keeps the same socket object after the connection has died.
+  bool get relaysOpen {
+    try {
+      final registry = nostr.relays.relaysWebSocketsRegistry;
+      if (registry.isEmpty) return false;
+      for (final socket in registry.values) {
+        if (socket.closeCode != null) return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   NostrEvent seal(TwineEnvelope envelope) {
     final signer = account;
@@ -181,25 +198,79 @@ class TwineNostr {
     }, onError: (_) {});
   }
 
-  /// Asks the relays for the orders they already have, and leaves the open
-  /// subscription in place so a public order published a moment later still
-  /// arrives on it.
-  void replayOrders() {
-    if (_orderSub == null) {
-      watchOrders();
-      return;
-    }
+  /// Reloads stored orders and replies on their own subscriptions.
+  ///
+  /// The live subscriptions stay open. Reusing their ids would CLOSE them,
+  /// and a phone that does that while a relay is quiet loses every later
+  /// update until the app is opened again. Returns whether a relay answered.
+  Future<bool> reconcile() async {
+    final signer = account;
     final target = daemon;
-    if (target == null) {
-      throw StateError('choose a daemon first');
-    }
-    final result = nostr.subscribe(
-      NostrFilter(kinds: const [kindOrder], authors: [target.publicKey]),
+    if (signer == null || target == null || !relaysOpen) return false;
+    final results = await Future.wait<bool>([
+      _fetchInto(
+        NostrFilter(kinds: const [kindOrder], authors: [target.publicKey]),
+        (event) {
+          final order = TwineOrder.open(
+            daemonPublicKey: target.publicKey,
+            event: event,
+          );
+          if (order != null && !_orders.isClosed) _orders.add(order);
+        },
+      ),
+      _fetchInto(
+        NostrFilter(
+          kinds: const [kindAction],
+          authors: [target.publicKey],
+          p: [signer.publicKey],
+        ),
+        (event) {
+          final envelope = openReply(
+            recipient: signer,
+            senderPublicKey: target.publicKey,
+            event: event,
+          );
+          final createdAt = event.createdAt;
+          if (envelope != null && createdAt != null && !_replies.isClosed) {
+            _replies.add(
+              DaemonReplyEvent(envelope: envelope, createdAt: createdAt),
+            );
+          }
+        },
+      ),
+    ]);
+    return results.any((answered) => answered);
+  }
+
+  /// A short-lived REQ with its own id. Closing it does not touch the live
+  /// subscription. Completes true when a relay sends EOSE.
+  Future<bool> _fetchInto(
+    NostrFilter filter,
+    void Function(NostrEvent event) onEvent,
+  ) async {
+    final relayCount = nostr.relays.relaysWebSocketsRegistry.length;
+    if (relayCount == 0) return false;
+    final done = Completer<void>();
+    var eoseCount = 0;
+    final events = nostr.relays.startEventsSubscription(
+      request: NostrRequest(filters: [filter]),
+      onEose: (_, _) {
+        eoseCount++;
+        if (eoseCount >= 1 && !done.isCompleted) done.complete();
+      },
     );
-    if (result.isFailure) {
-      throw TwineRelayException(result.failureOrNull!.message);
+    final sub = events.stream.listen(onEvent, onError: (_) {});
+    var answered = false;
+    try {
+      await done.future.timeout(_fetchTimeout);
+      answered = true;
+    } on TimeoutException {
+      answered = false;
+    } finally {
+      await sub.cancel();
+      events.close();
     }
-    _orderReplay = result.valueOrNull;
+    return answered;
   }
 
   void watchFiberNode() {
@@ -279,8 +350,6 @@ class TwineNostr {
   void _stopOrders() {
     _orderSub?.cancel();
     _orderSub = null;
-    _orderReplay?.close();
-    _orderReplay = null;
     _orderStream?.close();
     _orderStream = null;
   }

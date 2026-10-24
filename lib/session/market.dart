@@ -36,6 +36,7 @@ class TwineMarket extends ChangeNotifier {
 
   bool ready = false;
   bool sending = false;
+  DateTime? lastRelayAt;
   bool awaitingPost = false;
   bool awaitingTake = false;
   String? status;
@@ -333,14 +334,20 @@ class TwineMarket extends ChangeNotifier {
     if (!_stopped) notifyListeners();
   }
 
-  Future<void> refreshTrades() async {
-    if (!ready || sending || _stopped) return;
+  /// Asks the daemon for this account's trades. Returns false when the ask
+  /// was not sent.
+  Future<bool> refreshTrades() async {
+    if (!ready || sending || _stopped) return false;
     try {
       await nostr.send(myTradesRequest());
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _onReply(DaemonReplyEvent event) {
+    lastRelayAt = DateTime.now();
     book.applyReply(event.envelope, event.createdAt);
     if (event.envelope.action == replyCantDo) {
       if (awaitingPost) pending.clear();
@@ -521,9 +528,7 @@ class TwineMarket extends ChangeNotifier {
   }
 
   void _refreshOrders() {
-    try {
-      nostr.replayOrders();
-    } catch (_) {}
+    unawaited(nostr.reconcile());
   }
 
   Future<String?> _send(TwineEnvelope envelope) async {

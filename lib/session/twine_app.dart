@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
@@ -37,13 +39,15 @@ class TwineApp extends StatefulWidget {
   State<TwineApp> createState() => _TwineAppState();
 }
 
-class _TwineAppState extends State<TwineApp> {
+class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
   late final TwineSession _session;
   late final BookStore _books;
+  AppLifecycleState? _lifecycle;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _books = widget.bookStore ?? MemoryBookStore();
     _session = TwineSession(
       nostr: widget.nostr,
@@ -58,8 +62,21 @@ class _TwineAppState extends State<TwineApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _session.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final previous = _lifecycle;
+    _lifecycle = state;
+    final cameBack =
+        state == AppLifecycleState.resumed &&
+        (previous == AppLifecycleState.paused ||
+            previous == AppLifecycleState.hidden ||
+            previous == AppLifecycleState.detached);
+    if (cameBack) unawaited(_session.catchUp(force: true));
   }
 
   @override

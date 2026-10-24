@@ -312,10 +312,14 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.ensureVisible(
-      find.text('My channel is open and I have outbound liquidity for the hold.'),
+      find.text(
+        'My channel is open and I have outbound liquidity for the hold.',
+      ),
     );
     await tester.tap(
-      find.text('My channel is open and I have outbound liquidity for the hold.'),
+      find.text(
+        'My channel is open and I have outbound liquidity for the hold.',
+      ),
     );
     await tester.pump();
     await tester.ensureVisible(find.text('Post'));
@@ -491,6 +495,32 @@ void main() {
     );
     expect(market.pending, isEmpty);
     expect(market.book.notice, 'that post is too small');
+    expect(market.lastRelayAt, isNotNull);
+  });
+
+  test('a hold invoice shows the trade on the seller phone', () {
+    final market = _market(
+      pubkey: 'seller',
+      orders: [_order(maker: 'seller')],
+    );
+    market.applyDaemonReply(
+      const TwineEnvelope(
+        action: 'pay-invoice',
+        tradeId: 'trade-1',
+        payload: {
+          'invoice': 'hold-invoice',
+          'amount_shannons': '100000000',
+          'order_id': 'order-1',
+          'seller_nostr': 'seller',
+          'buyer_nostr': 'buyer',
+        },
+      ),
+      DateTime.utc(2026, 10, 6),
+    );
+    final trade = market.book.trade('trade-1');
+    expect(trade?.phase, TradePhase.waitingHold);
+    expect(trade?.buyerNostr, 'buyer');
+    expect(market.lastRelayAt, isNotNull);
   });
 
   testWidgets('taking a buy post confirms the seller role', (tester) async {
@@ -512,10 +542,14 @@ void main() {
     await tester.pump();
     expect(find.text('About 1.00 CKB'), findsOneWidget);
     await tester.ensureVisible(
-      find.text('My channel is open and I have outbound liquidity for the hold.'),
+      find.text(
+        'My channel is open and I have outbound liquidity for the hold.',
+      ),
     );
     await tester.tap(
-      find.text('My channel is open and I have outbound liquidity for the hold.'),
+      find.text(
+        'My channel is open and I have outbound liquidity for the hold.',
+      ),
     );
     await tester.pump();
     await tester.ensureVisible(find.text('Take'));
