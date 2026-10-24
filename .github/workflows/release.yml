@@ -102,7 +102,7 @@ jobs:
       - name: Package DMG
         run: |
           set -euo pipefail
-          app="build/macos/Build/Products/Release/twine_app.app"
+          app="build/macos/Build/Products/Release/Twine.app"
           if [ ! -d "$app" ]; then
             echo "Expected $app" >&2
             exit 1
@@ -126,8 +126,8 @@ jobs:
           printf '%s\n' \
             'This build is not signed by Apple.' \
             '' \
-            '1. Drag twine_app into Applications.' \
-            '2. Right-click twine_app and choose Open.' \
+            '1. Drag Twine into Applications.' \
+            '2. Right-click Twine and choose Open.' \
             '3. If macOS still blocks it, open System Settings, Privacy & Security, and choose Open Anyway.' \
             > "$stage/How to open.txt"
           hdiutil create \
@@ -323,7 +323,7 @@ jobs:
           The macOS and Windows builds are not signed, so those systems ask before the first launch. Each of those downloads also contains a short \`How to open.txt\`.
 
           ## macOS
-          Download \`Twine-${NAME}-macos.dmg\`. Open it and drag \`twine_app\` into Applications. Right-click \`twine_app\` and choose Open. If macOS still blocks it, go to System Settings, Privacy & Security, and choose Open Anyway. Needs macOS 12 or newer.
+          Download \`Twine-${NAME}-macos.dmg\`. Open it and drag \`Twine\` into Applications. Right-click \`Twine\` and choose Open. If macOS still blocks it, go to System Settings, Privacy & Security, and choose Open Anyway. Needs macOS 12 or newer.
 
           ## Windows
           Download \`Twine-${NAME}-windows-x64.zip\`. Unzip the whole folder and run \`twine_app.exe\` from inside it. If SmartScreen appears, choose More info, then Run anyway.
