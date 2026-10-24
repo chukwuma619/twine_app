@@ -118,7 +118,12 @@ class _PostPageState extends State<PostPage> {
                     enabled: !_busy,
                   ),
                   const SizedBox(height: 12),
-                  _field(_available, 'CKB available', number: true),
+                  _field(
+                    _available,
+                    'CKB available',
+                    number: true,
+                    helper: 'At least $minPostCkb CKB.',
+                  ),
                   const SizedBox(height: 12),
                   if (currencies.isEmpty)
                     const Text('Waiting for payment methods.')
@@ -151,6 +156,7 @@ class _PostPageState extends State<PostPage> {
                     'Minimum',
                     number: true,
                     suffix: _currency.isEmpty ? null : _currency,
+                    helper: 'At least $minPostCkb CKB at this price.',
                   ),
                   const SizedBox(height: 12),
                   _field(

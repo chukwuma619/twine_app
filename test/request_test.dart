@@ -14,11 +14,11 @@ void main() {
     const draft = NewOrderDraft(
       side: OrderSide.sell,
       fiberPubkey: ' 02abc ',
-      availableCkb: '10',
+      availableCkb: '100',
       fiatCurrency: 'NGN',
       pricePerCkb: '1500',
-      min: '1000',
-      max: '5000',
+      min: '150000',
+      max: '300000',
       methodIds: ['gtbank'],
     );
 
@@ -28,15 +28,29 @@ void main() {
     expect(envelope.payload, {
       'side': 'sell',
       'fiber_pubkey': '02abc',
-      'available_ckb': '10',
+      'available_ckb': '100',
       'fiat_currency': 'NGN',
       'price_per_ckb': '1500',
-      'min': '1000',
-      'max': '5000',
+      'min': '150000',
+      'max': '300000',
       'payment_methods': [
         {'method_id': 'gtbank'},
       ],
     });
+  });
+
+  test('a post whose smallest trade is under 100 CKB is refused', () {
+    const draft = NewOrderDraft(
+      side: OrderSide.sell,
+      fiberPubkey: '02abc',
+      availableCkb: '120',
+      fiatCurrency: 'NGN',
+      pricePerCkb: '1500',
+      min: '3000',
+      max: '180000',
+      methodIds: ['gtbank'],
+    );
+    expect(draft.validate(_catalog), 'The minimum trade is 100 CKB.');
   });
 
   test('a post with the minimum above the maximum is refused', () {

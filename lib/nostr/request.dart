@@ -3,6 +3,9 @@ import 'catalog.dart';
 import 'envelope.dart';
 import 'order.dart';
 
+/// Smallest trade a sell post can allow, in CKB.
+const minPostCkb = 100;
+
 class NewOrderDraft {
   const NewOrderDraft({
     required this.side,
@@ -37,6 +40,16 @@ class NewOrderDraft {
     final low = double.parse(min.trim());
     final high = double.parse(max.trim());
     if (low > high) return 'The minimum is above the maximum.';
+    final offered = double.parse(availableCkb.trim());
+    final pricePerCkbValue = double.parse(pricePerCkb.trim());
+    if (offered < minPostCkb) return 'Offer at least $minPostCkb CKB.';
+    final minimumCkb = low / pricePerCkbValue;
+    if (minimumCkb < minPostCkb) {
+      return 'The minimum trade is $minPostCkb CKB.';
+    }
+    if (offered < minimumCkb) {
+      return 'Offer enough CKB to cover the minimum trade.';
+    }
     final known = methodsForCurrency(catalog, fiatCurrency.trim());
     if (known.isEmpty) return 'Pick a currency this daemon accepts.';
     if (methodIds.isEmpty ||

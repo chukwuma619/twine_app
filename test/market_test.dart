@@ -329,10 +329,10 @@ void main() {
     expect(sent, isNull);
 
     await tester.enterText(_field('Your Fiber pubkey'), '02abc');
-    await tester.enterText(_field('CKB available'), '10');
+    await tester.enterText(_field('CKB available'), '100');
     await tester.enterText(_field('Price per CKB'), '1500');
-    await tester.enterText(_field('Minimum'), '1000');
-    await tester.enterText(_field('Maximum'), '5000');
+    await tester.enterText(_field('Minimum'), '150000');
+    await tester.enterText(_field('Maximum'), '300000');
     await tester.ensureVisible(find.text('Post'));
     await tester.tap(find.text('Post'));
     await tester.pumpAndSettle();
@@ -572,6 +572,28 @@ void main() {
       find.widgetWithText(FilledButton, 'Post'),
     );
     expect(button.onPressed, isNull);
+  });
+
+  testWidgets('a daemon refusal shows once and then leaves the list', (
+    tester,
+  ) async {
+    final market = _market(pubkey: 'taker');
+    market.book.notice = 'this payout hash was already used';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MarketPage(market: market, account: const SizedBox.shrink()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('this payout hash was already used'), findsOneWidget);
+    expect(market.book.notice, isNull);
+
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 750));
+    expect(find.text('this payout hash was already used'), findsNothing);
   });
 }
 

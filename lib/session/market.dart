@@ -531,6 +531,14 @@ class TwineMarket extends ChangeNotifier {
     unawaited(nostr.reconcile());
   }
 
+  /// Drops a one-shot daemon refusal after the screen has shown it.
+  void dismissNotice() {
+    if (book.notice == null) return;
+    book.notice = null;
+    if (!_stopped) notifyListeners();
+    unawaited(_persist());
+  }
+
   Future<String?> _send(TwineEnvelope envelope) async {
     if (!ready) return 'The book is still opening.';
     if (sending) return 'Wait for the current request to finish.';

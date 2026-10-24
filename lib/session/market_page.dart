@@ -5,6 +5,7 @@ import '../market/steps.dart';
 import '../nostr/order.dart';
 import 'fiber_guide.dart';
 import 'market.dart';
+import 'notice_bar.dart';
 import 'post_page.dart';
 import 'take_page.dart';
 import 'trade_page.dart';
@@ -54,7 +55,40 @@ class _MarketPageState extends State<MarketPage> {
   @override
   void initState() {
     super.initState();
+    widget.market.addListener(_presentNotice);
     _scheduleFiberGuide();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _presentNotice());
+  }
+
+  @override
+  void dispose() {
+    widget.market.removeListener(_presentNotice);
+    super.dispose();
+  }
+
+  String? _notice;
+
+  void _presentNotice() {
+    final notice = widget.market.book.notice;
+    if (notice == null || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final current = widget.market.book.notice;
+      if (current == null) return;
+      widget.market.dismissNotice();
+      setState(() => _notice = current);
+    });
+  }
+
+  void _dismissShownNotice() {
+    if (_notice == null) return;
+    setState(() => _notice = null);
+  }
+
+  Widget _noticeBanner() {
+    final notice = _notice;
+    if (notice == null) return const SizedBox.shrink();
+    return DismissibleNotice(message: notice, onDismiss: _dismissShownNotice);
   }
 
   @override
@@ -168,6 +202,7 @@ class _MarketPageState extends State<MarketPage> {
           body: _section == _Section.account
               ? Column(
                   children: [
+                    _noticeBanner(),
                     _Status(
                       market: market,
                       fiberNode: widget.fiberNode,
@@ -185,6 +220,7 @@ class _MarketPageState extends State<MarketPage> {
                 )
               : Column(
                   children: [
+                    _noticeBanner(),
                     if (posting)
                       Align(
                         alignment: Alignment.centerRight,
@@ -321,13 +357,8 @@ class _Status extends StatelessWidget {
     }
     final status = market.status;
     if (status != null) lines.add(Text(status));
-    final notice = market.book.notice;
-    final failed = notice != null || relayError != null;
-    if (notice != null) {
-      lines.add(_errorLine(theme, notice, onContainer: failed));
-    }
     if (relayError != null) {
-      lines.add(_errorLine(theme, relayError!, onContainer: failed));
+      lines.add(_errorLine(theme, relayError!, onContainer: true));
     } else if (connecting) {
       lines.add(const Text('Connecting to relays…'));
     } else if (fiberNode == null && linked) {
@@ -337,7 +368,7 @@ class _Status extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Card(
-        color: failed ? theme.colorScheme.errorContainer : null,
+        color: relayError != null ? theme.colorScheme.errorContainer : null,
         margin: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.all(12),
