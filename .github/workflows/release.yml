@@ -166,12 +166,12 @@ jobs:
         run: |
           set -euo pipefail
           release="build/windows/x64/runner/Release"
-          if [ ! -f "$release/twine_app.exe" ]; then
-            echo "Expected $release/twine_app.exe" >&2
+          if [ ! -f "$release/twine.exe" ]; then
+            echo "Expected $release/twine.exe" >&2
             exit 1
           fi
           printf '%s\n' \
-            'Unzip this whole folder and run twine_app.exe from inside it.' \
+            'Unzip this whole folder and run twine.exe from inside it.' \
             'Moving only the exe will not start the app.' \
             '' \
             'If Windows shows "Windows protected your PC", choose More info, then Run anyway.' \
@@ -215,14 +215,14 @@ jobs:
         run: |
           set -euo pipefail
           bundle="build/linux/x64/release/bundle"
-          if [ ! -x "$bundle/twine_app" ]; then
-            echo "Expected $bundle/twine_app" >&2
+          if [ ! -x "$bundle/twine" ]; then
+            echo "Expected $bundle/twine" >&2
             exit 1
           fi
           rm -rf Twine
           cp -a "$bundle" Twine
           printf '%s\n' \
-            'Unpack this archive and run ./Twine/twine_app' \
+            'Unpack this archive and run ./Twine/twine' \
             '' \
             'A desktop install needs GTK 3 and a keyring. On Ubuntu:' \
             'sudo apt install libgtk-3-0 libsecret-1-0 gnome-keyring' \
@@ -326,14 +326,14 @@ jobs:
           Download \`Twine-${NAME}-macos.dmg\`. Open it and drag \`Twine\` into Applications. Right-click \`Twine\` and choose Open. If macOS still blocks it, go to System Settings, Privacy & Security, and choose Open Anyway. Needs macOS 12 or newer.
 
           ## Windows
-          Download \`Twine-${NAME}-windows-x64.zip\`. Unzip the whole folder and run \`twine_app.exe\` from inside it. If SmartScreen appears, choose More info, then Run anyway.
+          Download \`Twine-${NAME}-windows-x64.zip\`. Unzip the whole folder and run \`twine.exe\` from inside it. If SmartScreen appears, choose More info, then Run anyway.
 
           ## Linux
           Download \`Twine-${NAME}-linux-x64.tar.gz\`.
 
           \`\`\`
           tar -xzf Twine-${NAME}-linux-x64.tar.gz
-          ./Twine/twine_app
+          ./Twine/twine
           \`\`\`
 
           A desktop install needs GTK 3 and a keyring. On Ubuntu: \`sudo apt install libgtk-3-0 libsecret-1-0 gnome-keyring\`.
