@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500" role="img" aria-label="Twine">
+  <rect width="1500" height="500" fill="#F3EFE6"/>
+  <g transform="translate(432 156)">
+    <svg x="0" y="0" width="188" height="188" viewBox="10 0 225 225" fill="#3C245C" aria-hidden="true">
+      <path d="M116 151.5 L100.5 167 L32 98.5 A55 55 0 0 1 110 20.5 A55 55 0 0 1 113.8 26.1 L98.3 41.6 A33 33 0 0 0 94.3 36.2 A33 33 0 0 0 47.5 83 Z"/>
+      <path d="M83.5 106 L68 90.5 L136.5 22 A55 55 0 0 1 214.5 100 A55 55 0 0 1 208.9 103.8 L193.4 88.3 A33 33 0 0 0 198.8 84.3 A33 33 0 0 0 152 37.5 Z"/>
+      <path d="M129 73.5 L144.5 58 L213 126.5 A55 55 0 0 1 135 204.5 A55 55 0 0 1 131.2 198.9 L146.7 183.4 A33 33 0 0 0 150.7 188.8 A33 33 0 0 0 197.5 142 Z"/>
+      <path d="M161.5 119 L177 134.5 L108.5 203 A55 55 0 0 1 30.5 125 A55 55 0 0 1 36.1 121.2 L51.6 136.7 A33 33 0 0 0 46.2 140.7 A33 33 0 0 0 93 187.5 Z"/>
+    </svg>
+    <text x="228" y="86" fill="#1A1423" font-family="Helvetica Neue" font-size="78" font-weight="500" letter-spacing="-1.6">Twine</text>
+    <text x="230" y="132" fill="#5C5468" font-family="Helvetica Neue" font-size="26" font-weight="400">Non-custodial P2P for Nervos CKB</text>
+  </g>
+</svg>
