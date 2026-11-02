@@ -168,7 +168,7 @@ Actions are encrypted to the daemon and signed with your key. Replies are encryp
 | `31422` | Reads the payment catalog. The `d` tag is `payment-methods`. |
 | `4243` | Sends and reads the trade thread. The daemon does not subscribe to this kind. |
 
-The actions this app sends are `new-order`, `take`, `fiat-sent`, `release`, `cancel`, and `dispute`. Field names, who may send each action, and the clock (hold length, payment window, refund) are defined by the daemon.
+The actions this app sends are `new-order`, `take`, `fiat-sent`, `release`, `cancel`, and `dispute`. Field names, who may send each action, and the clock (hold length, release deadline, refund) are defined by the daemon.
 
 ## Layout
 

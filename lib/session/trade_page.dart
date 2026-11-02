@@ -163,7 +163,7 @@ class _TradePageState extends State<TradePage> {
                           const SizedBox(height: 16),
                           Text(
                             trade.phase == TradePhase.waitingHold
-                                ? 'Share the account before you lock, so the buyer’s 15 minutes are only the transfer.'
+                                ? 'Share the account before you lock, so the buyer can pay as soon as the CKB is locked.'
                                 : 'The CKB is locked. Share the account the buyer should pay.',
                           ),
                           const SizedBox(height: 16),
@@ -268,7 +268,7 @@ class _TradePageState extends State<TradePage> {
                             trade.phase == TradePhase.waitingHold) ...[
                           const SizedBox(height: 16),
                           const Text(
-                            'You will have 15 minutes for a mobile transfer once the seller locks.',
+                            'Once the seller locks, pay any time before the hold’s release deadline.',
                           ),
                         ] else if (side == null &&
                             trade.phase == TradePhase.waitingHold) ...[
@@ -492,7 +492,7 @@ class _TradePageState extends State<TradePage> {
         if (trade.payBy != null) {
           lines.add(Text(remainingLabel(trade.payBy!, now)));
         } else {
-          lines.add(const Text('You have 15 minutes for a mobile transfer.'));
+          lines.add(const Text('Pay before the hold’s release deadline.'));
         }
       }
       if (trade.releaseBy != null) {

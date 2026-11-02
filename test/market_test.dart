@@ -213,7 +213,7 @@ void main() {
     expect(find.text('Waiting for the seller'), findsOneWidget);
     expect(
       find.text(
-        'You will have 15 minutes for a mobile transfer once the seller locks.',
+        'Once the seller locks, pay any time before the hold’s release deadline.',
       ),
       findsOneWidget,
     );
