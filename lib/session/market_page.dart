@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:twine_app/twine_logo.dart';
 
 import '../market/role.dart';
 import '../market/steps.dart';
@@ -158,7 +159,7 @@ class _MarketPageState extends State<MarketPage> {
           _Section.account => 'Account',
         };
         return Scaffold(
-          appBar: AppBar(title: Text(title)),
+          appBar: AppBar(title: TwineTitle(title)),
           floatingActionButton: canPost
               ? FloatingActionButton(
                   onPressed: () => _openPost(context),

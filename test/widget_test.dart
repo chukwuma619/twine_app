@@ -44,7 +44,7 @@ void main() {
 
     expect(find.text('Connect to a daemon'), findsOneWidget);
     expect(find.text(officialDaemonNpub), findsOneWidget);
-    expect(find.text('wss://relay.damus.io, wss://nos.lol'), findsOneWidget);
+    expect(find.text('wss://relay.backr.site'), findsOneWidget);
     expect(find.text('Signed in'), findsNothing);
     expect(nostr.account?.publicKey, store.account!.publicKey);
   });

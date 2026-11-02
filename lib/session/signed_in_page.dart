@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:twine_app/market/channel.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
+import 'package:twine_app/twine_logo.dart';
 
 class SignedInPage extends StatelessWidget {
   const SignedInPage({
@@ -138,7 +139,7 @@ class SignedInPage extends StatelessWidget {
     if (inShell) return body;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Twine'),
+        title: const TwineTitle('Twine'),
         leading: onClose == null ? null : BackButton(onPressed: onClose),
       ),
       body: body,

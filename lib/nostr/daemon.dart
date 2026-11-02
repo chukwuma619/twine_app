@@ -4,7 +4,7 @@ import 'package:dart_nostr/dart_nostr.dart';
 const officialDaemonNpub =
     'npub1ut3m5psw93jleu6pjlpm0klkcynngzm4cnva9hzhvpps3699p7msgk9zss';
 
-const officialDaemonRelays = ['wss://relay.damus.io', 'wss://nos.lol'];
+const officialDaemonRelays = ['wss://relay.backr.site'];
 
 /// The app only stores this daemon's public key and relays.
 class TwineDaemon {

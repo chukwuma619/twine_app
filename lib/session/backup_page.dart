@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:twine_app/twine_logo.dart';
 
 class BackupPage extends StatefulWidget {
   const BackupPage({
@@ -35,6 +36,11 @@ class _BackupPageState extends State<BackupPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: TwineLogo(size: 40),
+                  ),
+                  const SizedBox(height: 12),
                   Text('Save this key', style: theme.textTheme.headlineSmall),
                   const SizedBox(height: 8),
                   const Text(
@@ -68,7 +74,9 @@ class _BackupPageState extends State<BackupPage> {
                   ),
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: widget.busy || !_saved ? null : widget.onContinue,
+                    onPressed: widget.busy || !_saved
+                        ? null
+                        : widget.onContinue,
                     child: widget.busy
                         ? const SizedBox(
                             height: 18,

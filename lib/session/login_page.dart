@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:twine_app/twine_logo.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({
@@ -40,6 +41,11 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: TwineLogo(size: 40),
+                  ),
+                  const SizedBox(height: 12),
                   Text('Twine', style: theme.textTheme.headlineMedium),
                   const SizedBox(height: 8),
                   const Text(

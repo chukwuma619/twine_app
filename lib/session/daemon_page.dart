@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/daemon.dart';
+import 'package:twine_app/twine_logo.dart';
 
 class DaemonPage extends StatefulWidget {
   const DaemonPage({
@@ -51,7 +52,7 @@ class _DaemonPageState extends State<DaemonPage> {
     final theme = Theme.of(context);
     final editing = widget.current != null;
     return Scaffold(
-      appBar: AppBar(title: const Text('Twine')),
+      appBar: AppBar(title: const TwineTitle('Twine')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
