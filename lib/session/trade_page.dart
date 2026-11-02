@@ -4,9 +4,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../market/amount.dart';
-import '../market/channel.dart';
 import '../market/chat.dart';
 import '../market/clocks.dart';
 import '../market/outcome.dart';
@@ -15,7 +15,6 @@ import '../market/role.dart';
 import '../market/steps.dart';
 import '../market/trade.dart';
 import '../nostr/request.dart';
-import 'channel_ready.dart';
 import 'market.dart';
 import 'notice_bar.dart';
 
@@ -25,15 +24,11 @@ class TradePage extends StatefulWidget {
     required this.market,
     required this.tradeId,
     this.solverAvailable,
-    this.fiberNode,
-    this.fiberAddresses = const [],
   });
 
   final TwineMarket market;
   final String tradeId;
   final bool? solverAvailable;
-  final String? fiberNode;
-  final List<String> fiberAddresses;
 
   @override
   State<TradePage> createState() => _TradePageState();
@@ -41,7 +36,6 @@ class TradePage extends StatefulWidget {
 
 class _TradePageState extends State<TradePage> {
   final _invoice = TextEditingController();
-  late final TextEditingController _fiberAddr;
   final _accountName = TextEditingController();
   final _accountNumber = TextEditingController();
   final _accountNote = TextEditingController();
@@ -55,7 +49,6 @@ class _TradePageState extends State<TradePage> {
   @override
   void initState() {
     super.initState();
-    _fiberAddr = TextEditingController(text: widget.market.fiberAddr ?? '');
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -65,7 +58,6 @@ class _TradePageState extends State<TradePage> {
   void dispose() {
     _tick?.cancel();
     _invoice.dispose();
-    _fiberAddr.dispose();
     _accountName.dispose();
     _accountNumber.dispose();
     _accountNote.dispose();
@@ -228,23 +220,23 @@ class _TradePageState extends State<TradePage> {
                           Text(trade.payoutFailure!),
                           if (side == TradeSide.buyer) ...[
                             const SizedBox(height: 8),
-                            ChannelReady(
-                              role: ChannelRole.buyer,
-                              fiberNode: widget.fiberNode,
-                              fiberAddresses: widget.fiberAddresses,
+                            const Text(
+                              'Paste another invoice for the same payment.',
                             ),
                           ],
                         ],
                         if (actions.payHold) ...[
                           const SizedBox(height: 16),
                           const Text(
-                            'A buyer took this. Pay this in your Fiber wallet. You cannot cancel after it locks.',
+                            'A buyer took this. Pay this invoice in your Fiber wallet. You cannot cancel after it locks.',
                           ),
                           const SizedBox(height: 8),
-                          ChannelReady(
-                            role: ChannelRole.seller,
-                            fiberNode: widget.fiberNode,
-                            fiberAddresses: widget.fiberAddresses,
+                          Center(
+                            child: QrImageView(
+                              data: trade.holdInvoice!,
+                              size: 200,
+                              backgroundColor: Colors.white,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -298,9 +290,7 @@ class _TradePageState extends State<TradePage> {
                         ],
                         if (trade.phase == TradePhase.releasing) ...[
                           const SizedBox(height: 16),
-                          const Text(
-                            'Sending the CKB to the buyer. Twine opens inbound to them first if they cannot receive yet. Keep the buyer Fiber node online.',
-                          ),
+                          const Text('Sending the CKB to the invoice on file.'),
                         ],
                         if (trade.phase == TradePhase.disputed) ...[
                           const SizedBox(height: 16),
@@ -320,8 +310,6 @@ class _TradePageState extends State<TradePage> {
                               helperText: _invoiceHelp(trade),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          _fiberAddrField(),
                           const SizedBox(height: 12),
                           FilledButton(
                             onPressed: widget.market.sending
@@ -353,8 +341,6 @@ class _TradePageState extends State<TradePage> {
                               helperText: _invoiceHelp(trade),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          _fiberAddrField(),
                           const SizedBox(height: 12),
                           FilledButton(
                             onPressed: widget.market.sending
@@ -544,20 +530,6 @@ class _TradePageState extends State<TradePage> {
     }
   }
 
-  Widget _fiberAddrField() {
-    return TextField(
-      controller: _fiberAddr,
-      enabled: !widget.market.sending,
-      autocorrect: false,
-      enableSuggestions: false,
-      decoration: const InputDecoration(
-        labelText: 'Fiber listen address (optional)',
-        helperText:
-            'Only if this node is publicly reachable. 127.0.0.1 will not work — connect to the hub instead.',
-      ),
-    );
-  }
-
   String _invoiceHelp(TwineTrade trade) {
     if (trade.phase == TradePhase.awaitingInvoice ||
         trade.phase == TradePhase.disputed) {
@@ -566,7 +538,7 @@ class _TradePageState extends State<TradePage> {
     final amount = trade.amountShannons == null
         ? 'the locked CKB'
         : '${shannonsToCkb(trade.amountShannons!)} CKB';
-    return 'Create this in your Fiber wallet. The hold uses this invoice\'s payment hash, and $amount is paid there.';
+    return 'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash, and $amount is paid there.';
   }
 
   List<TradeNote> _lines(String tradeId) {
@@ -644,7 +616,6 @@ class _TradePageState extends State<TradePage> {
     final error = await widget.market.submitPayoutInvoice(
       trade.id,
       _invoice.text,
-      fiberAddr: _fiberAddr.text,
     );
     if (!mounted) return;
     setState(() => _error = error);
@@ -658,11 +629,7 @@ class _TradePageState extends State<TradePage> {
   }
 
   Future<void> _fiat(TwineTrade trade) async {
-    final error = await widget.market.fiatSent(
-      trade.id,
-      _invoice.text,
-      fiberAddr: _fiberAddr.text,
-    );
+    final error = await widget.market.fiatSent(trade.id, _invoice.text);
     if (!mounted) return;
     setState(() => _error = error);
   }
@@ -940,8 +907,8 @@ class _PaidSheetState extends State<_PaidSheet> {
               decoration: InputDecoration(
                 labelText: 'Fiber invoice for the CKB',
                 helperText: widget.ckb == null
-                    ? 'Create this in your Fiber wallet. The hold uses this invoice\'s payment hash.'
-                    : 'Create this in your Fiber wallet. The hold uses this invoice\'s payment hash, and ${widget.ckb} CKB is paid there.',
+                    ? 'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash.'
+                    : 'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash, and ${widget.ckb} CKB is paid there.',
               ),
             ),
           ],

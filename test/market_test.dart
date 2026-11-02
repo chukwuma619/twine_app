@@ -173,7 +173,7 @@ void main() {
     expect(find.text('Lock the CKB'), findsOneWidget);
     expect(
       find.text(
-        'A buyer took this. Pay this in your Fiber wallet. You cannot cancel after it locks.',
+        'A buyer took this. Pay this invoice in your Fiber wallet. You cannot cancel after it locks.',
       ),
       findsOneWidget,
     );
@@ -293,7 +293,6 @@ void main() {
                   MaterialPageRoute<void>(
                     builder: (context) => PostPage(
                       catalog: _catalog,
-                      fiberNode: '02abc',
                       onSubmit: (draft) async {
                         sent = draft;
                         return draft.validate(_catalog);
@@ -311,24 +310,12 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(
-      find.text(
-        'My channel is open and I have outbound liquidity for the hold.',
-      ),
-    );
-    await tester.tap(
-      find.text(
-        'My channel is open and I have outbound liquidity for the hold.',
-      ),
-    );
-    await tester.pump();
     await tester.ensureVisible(find.text('Post'));
     await tester.tap(find.text('Post'));
     await tester.pump();
-    expect(find.text('Enter your Fiber pubkey.'), findsOneWidget);
+    expect(find.text('Enter how much CKB this post covers.'), findsOneWidget);
     expect(sent, isNull);
 
-    await tester.enterText(_field('Your Fiber pubkey'), '02abc');
     await tester.enterText(_field('CKB available'), '100');
     await tester.enterText(_field('Price per CKB'), '1500');
     await tester.enterText(_field('Minimum'), '150000');
@@ -531,27 +518,15 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: TakePage(market: market, orderId: 'buy-1', fiberNode: '02abc'),
+        home: TakePage(market: market, orderId: 'buy-1'),
       ),
     );
 
     expect(find.text('Sell CKB'), findsOneWidget);
     expect(find.text('You lock CKB in your Fiber wallet.'), findsOneWidget);
-    await tester.enterText(_field('Your Fiber pubkey'), '02abc');
     await tester.enterText(_field('Fiat amount'), '1500');
     await tester.pump();
     expect(find.text('About 1.00 CKB'), findsOneWidget);
-    await tester.ensureVisible(
-      find.text(
-        'My channel is open and I have outbound liquidity for the hold.',
-      ),
-    );
-    await tester.tap(
-      find.text(
-        'My channel is open and I have outbound liquidity for the hold.',
-      ),
-    );
-    await tester.pump();
     await tester.ensureVisible(find.text('Take'));
     await tester.tap(find.text('Take'));
     await tester.pumpAndSettle();

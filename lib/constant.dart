@@ -11,7 +11,7 @@ const kindChat = 4243;
 /// Addressable order. The `d` tag is the order id. The daemon publishes these.
 const kindOrder = 31420;
 
-/// Addressable announcement of a daemon's Fiber node. The `d` tag is [fiberNodeTag].
+/// Addressable announcement of the desk Fiber node. The `d` tag is [fiberNodeTag].
 const kindFiberNode = 31421;
 
 /// `d` tag on a Fiber node announcement.

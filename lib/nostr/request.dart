@@ -9,7 +9,6 @@ const minPostCkb = 100;
 class NewOrderDraft {
   const NewOrderDraft({
     required this.side,
-    required this.fiberPubkey,
     required this.availableCkb,
     required this.fiatCurrency,
     required this.pricePerCkb,
@@ -19,7 +18,6 @@ class NewOrderDraft {
   });
 
   final OrderSide side;
-  final String fiberPubkey;
   final String availableCkb;
   final String fiatCurrency;
   final String pricePerCkb;
@@ -28,7 +26,6 @@ class NewOrderDraft {
   final List<String> methodIds;
 
   String? validate(List<CatalogMethod> catalog) {
-    if (fiberPubkey.trim().isEmpty) return 'Enter your Fiber pubkey.';
     final available = _amount(availableCkb, 'how much CKB this post covers');
     if (available != null) return available;
     final price = _amount(pricePerCkb, 'a price per CKB');
@@ -64,7 +61,6 @@ class NewOrderDraft {
       action: actionNewOrder,
       payload: {
         'side': side.wire,
-        'fiber_pubkey': fiberPubkey.trim(),
         'available_ckb': availableCkb.trim(),
         'fiat_currency': fiatCurrency.trim(),
         'price_per_ckb': pricePerCkb.trim(),
@@ -82,24 +78,19 @@ class TakeDraft {
   const TakeDraft({
     required this.orderId,
     required this.fiatAmount,
-    required this.fiberPubkey,
     required this.paymentMethodId,
     this.invoice,
-    this.fiberAddr,
     this.requireInvoice = false,
   });
 
   final String orderId;
   final String fiatAmount;
-  final String fiberPubkey;
   final String paymentMethodId;
   final String? invoice;
-  final String? fiberAddr;
   final bool requireInvoice;
 
   String? validate() {
     if (orderId.trim().isEmpty) return 'That post is missing an id.';
-    if (fiberPubkey.trim().isEmpty) return 'Enter your Fiber pubkey.';
     final amount = _amount(fiatAmount, 'the fiat amount');
     if (amount != null) return amount;
     if (paymentMethodId.trim().isEmpty) return 'Pick a payment method.';
@@ -107,20 +98,17 @@ class TakeDraft {
       final payout = invoiceError(invoice ?? '');
       if (payout != null) return payout;
     }
-    return fiberAddrError(fiberAddr);
+    return null;
   }
 
   TwineEnvelope envelope() {
     final payload = {
       'order_id': orderId.trim(),
       'fiat_amount': fiatAmount.trim(),
-      'fiber_pubkey': fiberPubkey.trim(),
       'payment_method_id': paymentMethodId.trim(),
     };
     final payout = invoice?.trim();
     if (payout != null && payout.isNotEmpty) payload['invoice'] = payout;
-    final addr = fiberAddr?.trim();
-    if (addr != null && addr.isNotEmpty) payload['fiber_addr'] = addr;
     return TwineEnvelope(action: actionTake, payload: payload);
   }
 }
@@ -128,51 +116,23 @@ class TakeDraft {
 TwineEnvelope payoutInvoiceRequest({
   required String tradeId,
   required String invoice,
-  String? fiberAddr,
 }) {
   return TwineEnvelope(
     action: actionPayoutInvoice,
     tradeId: tradeId,
-    payload: {'invoice': invoice.trim(), ..._fiberAddr(fiberAddr)},
+    payload: {'invoice': invoice.trim()},
   );
 }
 
 TwineEnvelope fiatSentRequest({
   required String tradeId,
   required String invoice,
-  String? fiberAddr,
 }) {
   return TwineEnvelope(
     action: actionFiatSent,
     tradeId: tradeId,
-    payload: {'invoice': invoice.trim(), ..._fiberAddr(fiberAddr)},
+    payload: {'invoice': invoice.trim()},
   );
-}
-
-Map<String, String> _fiberAddr(String? addr) {
-  final trimmed = addr?.trim() ?? '';
-  if (trimmed.isEmpty) return const {};
-  return {'fiber_addr': trimmed};
-}
-
-String? fiberAddrError(String? addr) {
-  final trimmed = addr?.trim() ?? '';
-  if (trimmed.isEmpty) return null;
-  if (!trimmed.startsWith('/')) {
-    return 'Fiber listen address must be a multiaddr, like /ip4/1.2.3.4/tcp/8228.';
-  }
-  final lower = trimmed.toLowerCase();
-  if (lower.contains('/ip4/127.') ||
-      lower.contains('/ip4/10.') ||
-      lower.contains('/ip4/192.168.') ||
-      lower.contains('/ip4/0.0.0.0') ||
-      lower.contains('/ip6/::1') ||
-      lower.contains('/dns4/localhost') ||
-      lower.contains('/dns/localhost') ||
-      RegExp(r'/ip4/172\.(1[6-9]|2[0-9]|3[0-1])\.').hasMatch(lower)) {
-    return 'That address is not reachable from Twine. Connect to this hub in Fiber Studio instead.';
-  }
-  return null;
 }
 
 TwineEnvelope releaseRequest(String tradeId) {

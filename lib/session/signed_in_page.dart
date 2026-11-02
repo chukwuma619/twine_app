@@ -89,7 +89,9 @@ class SignedInPage extends StatelessWidget {
             ],
             if (fiberNode != null) ...[
               const SizedBox(height: 24),
-              Text('Fiber node', style: theme.textTheme.titleMedium),
+              Text('Desk Fiber node', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(deskNodeSummary()),
               const SizedBox(height: 8),
               SelectableText(fiberNode!),
               if (fiberAddresses.isEmpty) ...[
@@ -104,13 +106,6 @@ class SignedInPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   SelectableText(address),
                 ],
-              const SizedBox(height: 8),
-              Text(channelHubSummary()),
-            ] else if (!connecting &&
-                relayError == null &&
-                connectedRelays.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              const Text('Waiting for the Fiber node…'),
             ],
             const SizedBox(height: 24),
             OutlinedButton(

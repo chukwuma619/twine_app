@@ -38,6 +38,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   image_picker: ^1.2.1
   pointycastle: ^3.9.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

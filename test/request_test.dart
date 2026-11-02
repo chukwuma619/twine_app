@@ -13,7 +13,6 @@ void main() {
   test('a post names the side, the amounts, and catalog method ids', () {
     const draft = NewOrderDraft(
       side: OrderSide.sell,
-      fiberPubkey: ' 02abc ',
       availableCkb: '100',
       fiatCurrency: 'NGN',
       pricePerCkb: '1500',
@@ -27,7 +26,6 @@ void main() {
     expect(envelope.action, actionNewOrder);
     expect(envelope.payload, {
       'side': 'sell',
-      'fiber_pubkey': '02abc',
       'available_ckb': '100',
       'fiat_currency': 'NGN',
       'price_per_ckb': '1500',
@@ -42,7 +40,6 @@ void main() {
   test('a post whose smallest trade is under 100 CKB is refused', () {
     const draft = NewOrderDraft(
       side: OrderSide.sell,
-      fiberPubkey: '02abc',
       availableCkb: '120',
       fiatCurrency: 'NGN',
       pricePerCkb: '1500',
@@ -56,7 +53,6 @@ void main() {
   test('a post with the minimum above the maximum is refused', () {
     const draft = NewOrderDraft(
       side: OrderSide.buy,
-      fiberPubkey: '02abc',
       availableCkb: '1',
       fiatCurrency: 'USD',
       pricePerCkb: '1',
@@ -71,7 +67,6 @@ void main() {
     const draft = TakeDraft(
       orderId: 'order-1',
       fiatAmount: '2500',
-      fiberPubkey: '02taker',
       paymentMethodId: 'gtbank',
     );
     expect(draft.validate(), isNull);
@@ -79,23 +74,8 @@ void main() {
     expect(draft.envelope().payload, {
       'order_id': 'order-1',
       'fiat_amount': '2500',
-      'fiber_pubkey': '02taker',
       'payment_method_id': 'gtbank',
     });
-    const withAddr = TakeDraft(
-      orderId: 'order-1',
-      fiatAmount: '2500',
-      fiberPubkey: '02taker',
-      paymentMethodId: 'gtbank',
-      fiberAddr: '/ip4/1.2.3.4/tcp/8228',
-    );
-    expect(
-      withAddr.envelope().payload,
-      containsPair('fiber_addr', '/ip4/1.2.3.4/tcp/8228'),
-    );
-    expect(fiberAddrError('1.2.3.4:8228'), contains('multiaddr'));
-    expect(fiberAddrError('/ip4/1.2.3.4/tcp/8228'), isNull);
-    expect(fiberAddrError('/ip4/127.0.0.1/tcp/8228'), contains('reachable'));
     expect(
       fiatSentRequest(tradeId: 'trade-1', invoice: 'inv').tradeId,
       'trade-1',

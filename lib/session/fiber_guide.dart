@@ -17,53 +17,50 @@ class FiberConnectGuide extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pubkey = fiberNode;
-    final steps = fiberConnectSteps(
-      announced: pubkey != null,
-      hasMultiaddr: fiberAddresses.isNotEmpty,
-    );
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Connect your Fiber node', style: theme.textTheme.titleMedium),
+        Text('Pay with any Fiber wallet', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         const Text(
-          'Do this once before you post or take. The daemon coordinates the hold. It does not hold your Fiber key.',
+          'Create the payout invoice in the wallet that should receive the CKB, and pay the hold invoice from the wallet that is sending it. Twine does not ask which wallet that is.',
         ),
         const SizedBox(height: 12),
-        for (var i = 0; i < steps.length; i++) ...[
-          Text('${i + 1}. ${steps[i]}'),
-          if (i == 1 && pubkey != null) ...[
-            const SizedBox(height: 8),
-            Text('Daemon Fiber pubkey', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 4),
-            SelectableText(pubkey),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: () => _copy(context, pubkey),
-                child: const Text('Copy pubkey'),
-              ),
+        Text('Desk Fiber node', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Text(deskNodeSummary()),
+        const SizedBox(height: 8),
+        if (pubkey == null)
+          const Text(
+            'This daemon has not announced a Fiber node yet. A wallet that already has a route does not need one.',
+          )
+        else ...[
+          Text('Pubkey', style: theme.textTheme.labelLarge),
+          const SizedBox(height: 4),
+          SelectableText(pubkey),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => _copy(context, pubkey),
+              child: const Text('Copy pubkey'),
             ),
-            if (fiberAddresses.isEmpty)
-              const Text(
-                'Waiting for this daemon to broadcast a public multiaddr.',
-              )
-            else
-              for (final address in fiberAddresses) ...[
-                Text('Multiaddr', style: theme.textTheme.labelLarge),
-                const SizedBox(height: 4),
-                SelectableText(address),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: () => _copy(context, address),
-                    child: const Text('Copy multiaddr'),
-                  ),
+          ),
+          if (fiberAddresses.isEmpty)
+            const Text('This daemon has not announced a public multiaddr yet.')
+          else
+            for (final address in fiberAddresses) ...[
+              Text('Multiaddr', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 4),
+              SelectableText(address),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => _copy(context, address),
+                  child: const Text('Copy multiaddr'),
                 ),
-              ],
-          ] else
-            const SizedBox(height: 8),
+              ),
+            ],
         ],
       ],
     );

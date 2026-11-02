@@ -205,9 +205,7 @@ class _MarketPageState extends State<MarketPage> {
                     _noticeBanner(),
                     _Status(
                       market: market,
-                      fiberNode: widget.fiberNode,
                       connecting: widget.connecting,
-                      linked: widget.linked,
                       relayError: widget.relayError,
                       partialRelays:
                           widget.linked &&
@@ -235,9 +233,7 @@ class _MarketPageState extends State<MarketPage> {
                       ),
                     _Status(
                       market: market,
-                      fiberNode: widget.fiberNode,
                       connecting: widget.connecting,
-                      linked: widget.linked,
                       relayError: widget.relayError,
                       partialRelays:
                           widget.linked &&
@@ -251,14 +247,10 @@ class _MarketPageState extends State<MarketPage> {
                               market: market,
                               showCanceled: _showCanceled,
                               solverAvailable: widget.solverAvailable,
-                              fiberNode: widget.fiberNode,
-                              fiberAddresses: widget.fiberAddresses,
                             )
                           : _Trades(
                               market: market,
                               solverAvailable: widget.solverAvailable,
-                              fiberNode: widget.fiberNode,
-                              fiberAddresses: widget.fiberAddresses,
                             ),
                     ),
                   ],
@@ -271,11 +263,7 @@ class _MarketPageState extends State<MarketPage> {
   Future<void> _openPost(BuildContext context) {
     return Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (context) => _LivePost(
-          market: widget.market,
-          fiberNode: widget.fiberNode,
-          fiberAddresses: widget.fiberAddresses,
-        ),
+        builder: (context) => _LivePost(market: widget.market),
       ),
     );
   }
@@ -289,28 +277,16 @@ List<TwineOrder> _listedPosts(List<TwineOrder> orders) {
 }
 
 class _LivePost extends StatelessWidget {
-  const _LivePost({
-    required this.market,
-    this.fiberNode,
-    this.fiberAddresses = const [],
-  });
+  const _LivePost({required this.market});
 
   final TwineMarket market;
-  final String? fiberNode;
-  final List<String> fiberAddresses;
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: market,
       builder: (context, _) {
-        return PostPage(
-          fiberPubkey: market.fiberPubkey,
-          catalog: market.book.catalog,
-          fiberNode: fiberNode,
-          fiberAddresses: fiberAddresses,
-          onSubmit: market.post,
-        );
+        return PostPage(catalog: market.book.catalog, onSubmit: market.post);
       },
     );
   }
@@ -320,16 +296,12 @@ class _Status extends StatelessWidget {
   const _Status({
     required this.market,
     required this.connecting,
-    required this.linked,
-    this.fiberNode,
     this.relayError,
     this.partialRelays = false,
   });
 
   final TwineMarket market;
-  final String? fiberNode;
   final bool connecting;
-  final bool linked;
   final String? relayError;
   final bool partialRelays;
 
@@ -361,8 +333,6 @@ class _Status extends StatelessWidget {
       lines.add(_errorLine(theme, relayError!, onContainer: true));
     } else if (connecting) {
       lines.add(const Text('Connecting to relays…'));
-    } else if (fiberNode == null && linked) {
-      lines.add(const Text('Waiting for the Fiber node…'));
     }
     if (lines.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -392,15 +362,11 @@ class _Posts extends StatelessWidget {
     required this.market,
     required this.showCanceled,
     this.solverAvailable,
-    this.fiberNode,
-    this.fiberAddresses = const [],
   });
 
   final TwineMarket market;
   final bool showCanceled;
   final bool? solverAvailable;
-  final String? fiberNode;
-  final List<String> fiberAddresses;
 
   @override
   Widget build(BuildContext context) {
@@ -426,8 +392,6 @@ class _Posts extends StatelessWidget {
           market: market,
           order: orders[index],
           solverAvailable: solverAvailable,
-          fiberNode: fiberNode,
-          fiberAddresses: fiberAddresses,
         );
       },
     );
@@ -439,15 +403,11 @@ class _PostCard extends StatelessWidget {
     required this.market,
     required this.order,
     this.solverAvailable,
-    this.fiberNode,
-    this.fiberAddresses = const [],
   });
 
   final TwineMarket market;
   final TwineOrder order;
   final bool? solverAvailable;
-  final String? fiberNode;
-  final List<String> fiberAddresses;
 
   @override
   Widget build(BuildContext context) {
@@ -571,8 +531,6 @@ class _PostCard extends StatelessWidget {
           market: market,
           tradeId: tradeId,
           solverAvailable: solverAvailable,
-          fiberNode: fiberNode,
-          fiberAddresses: fiberAddresses,
         ),
       ),
     );
@@ -581,12 +539,7 @@ class _PostCard extends StatelessWidget {
   void _openTake(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => TakePage(
-          market: market,
-          orderId: order.orderId,
-          fiberNode: fiberNode,
-          fiberAddresses: fiberAddresses,
-        ),
+        builder: (context) => TakePage(market: market, orderId: order.orderId),
       ),
     );
   }
@@ -637,17 +590,10 @@ String _holdLabel(int hours) {
 }
 
 class _Trades extends StatelessWidget {
-  const _Trades({
-    required this.market,
-    this.solverAvailable,
-    this.fiberNode,
-    this.fiberAddresses = const [],
-  });
+  const _Trades({required this.market, this.solverAvailable});
 
   final TwineMarket market;
   final bool? solverAvailable;
-  final String? fiberNode;
-  final List<String> fiberAddresses;
 
   @override
   Widget build(BuildContext context) {
@@ -683,8 +629,6 @@ class _Trades extends StatelessWidget {
                     market: market,
                     tradeId: trade.id,
                     solverAvailable: solverAvailable,
-                    fiberNode: fiberNode,
-                    fiberAddresses: fiberAddresses,
                   ),
                 ),
               );

@@ -101,7 +101,7 @@ class TwineOrder {
     required this.orderId,
     required this.side,
     required this.makerNostrPubkey,
-    required this.makerFiberPubkey,
+    this.makerFiberPubkey,
     required this.availableCkb,
     required this.fiatCurrency,
     required this.pricePerCkb,
@@ -117,7 +117,7 @@ class TwineOrder {
   final String orderId;
   final OrderSide side;
   final String makerNostrPubkey;
-  final String makerFiberPubkey;
+  final String? makerFiberPubkey;
   final String availableCkb;
   final String fiatCurrency;
   final String pricePerCkb;
@@ -189,7 +189,6 @@ class TwineOrder {
     final orderId = _text(map, 'order_id');
     final side = OrderSide.parse(_text(map, 'side') ?? '');
     final makerNostr = _text(map, 'maker_nostr_pubkey');
-    final makerFiber = _text(map, 'maker_fiber_pubkey');
     final available = _text(map, 'available_ckb');
     final currency = _text(map, 'fiat_currency');
     final price = _text(map, 'price_per_ckb');
@@ -203,7 +202,6 @@ class TwineOrder {
     if (orderId == null ||
         side == null ||
         makerNostr == null ||
-        makerFiber == null ||
         available == null ||
         currency == null ||
         price == null ||
@@ -218,7 +216,7 @@ class TwineOrder {
       orderId: orderId,
       side: side,
       makerNostrPubkey: makerNostr,
-      makerFiberPubkey: makerFiber,
+      makerFiberPubkey: _text(map, 'maker_fiber_pubkey'),
       availableCkb: available,
       fiatCurrency: currency,
       pricePerCkb: price,
@@ -237,7 +235,7 @@ class TwineOrder {
       'order_id': orderId,
       'side': side.wire,
       'maker_nostr_pubkey': makerNostrPubkey,
-      'maker_fiber_pubkey': makerFiberPubkey,
+      if (makerFiberPubkey != null) 'maker_fiber_pubkey': makerFiberPubkey,
       'available_ckb': availableCkb,
       'fiat_currency': fiatCurrency,
       'price_per_ckb': pricePerCkb,

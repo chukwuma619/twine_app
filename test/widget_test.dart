@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:twine_app/market/channel.dart' show channelHubSummary;
+import 'package:twine_app/market/channel.dart' show deskNodeSummary;
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
@@ -290,9 +290,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Fiber node'), findsOneWidget);
+    expect(find.text('Desk Fiber node'), findsOneWidget);
     expect(find.text('02abc'), findsOneWidget);
-    expect(find.text(channelHubSummary()), findsOneWidget);
+    expect(find.text(deskNodeSummary()), findsOneWidget);
   });
 
   testWidgets('fiber steps show once in a dismissable dialog', (tester) async {
@@ -319,14 +319,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Connect your Fiber node'), findsOneWidget);
-    expect(find.textContaining('Fiber Studio'), findsWidgets);
+    expect(find.text('Pay with any Fiber wallet'), findsOneWidget);
+    expect(find.textContaining('does not ask which wallet'), findsOneWidget);
     expect(find.text('Got it'), findsOneWidget);
 
     await tester.tap(find.text('Got it'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Connect your Fiber node'), findsNothing);
+    expect(find.text('Pay with any Fiber wallet'), findsNothing);
     expect(find.text('No posts yet.'), findsOneWidget);
     expect(await store.fiberGuideSeen(), isTrue);
 
@@ -341,7 +341,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Connect your Fiber node'), findsNothing);
+    expect(find.text('Pay with any Fiber wallet'), findsNothing);
     expect(find.text('No posts yet.'), findsOneWidget);
   });
 }

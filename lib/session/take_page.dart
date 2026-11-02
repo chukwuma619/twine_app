@@ -1,48 +1,33 @@
 import 'package:flutter/material.dart';
 
 import '../market/amount.dart';
-import '../market/channel.dart';
 import '../market/role.dart';
 import '../nostr/order.dart';
 import '../nostr/request.dart';
-import 'channel_ready.dart';
 import 'market.dart';
 
 class TakePage extends StatefulWidget {
-  const TakePage({
-    super.key,
-    required this.market,
-    required this.orderId,
-    this.fiberNode,
-    this.fiberAddresses = const [],
-  });
+  const TakePage({super.key, required this.market, required this.orderId});
 
   final TwineMarket market;
   final String orderId;
-  final String? fiberNode;
-  final List<String> fiberAddresses;
 
   @override
   State<TakePage> createState() => _TakePageState();
 }
 
 class _TakePageState extends State<TakePage> {
-  late final TextEditingController _fiber;
   late final TextEditingController _amount;
   late final TextEditingController _invoice;
-  late final TextEditingController _fiberAddr;
   String? _methodId;
-  bool _channelReady = false;
   bool _busy = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _fiber = TextEditingController(text: widget.market.fiberPubkey ?? '');
     _amount = TextEditingController();
     _invoice = TextEditingController();
-    _fiberAddr = TextEditingController(text: widget.market.fiberAddr ?? '');
     _amount.addListener(() {
       if (mounted) setState(() {});
     });
@@ -53,10 +38,8 @@ class _TakePageState extends State<TakePage> {
 
   @override
   void dispose() {
-    _fiber.dispose();
     _amount.dispose();
     _invoice.dispose();
-    _fiberAddr.dispose();
     super.dispose();
   }
 
@@ -80,7 +63,6 @@ class _TakePageState extends State<TakePage> {
         final theme = Theme.of(context);
         final role = tradeSide(order, widget.market.accountPubkey);
         final title = role == TradeSide.seller ? 'Sell CKB' : 'Buy CKB';
-        final waitingNode = widget.fiberNode == null;
         final estimate = aboutCkb(_amount.text, order.pricePerCkb);
         return Scaffold(
           appBar: AppBar(title: Text(title)),
@@ -125,19 +107,6 @@ class _TakePageState extends State<TakePage> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      TextField(
-                        controller: _fiber,
-                        enabled: !_busy,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        decoration: const InputDecoration(
-                          labelText: 'Your Fiber pubkey',
-                          helperText:
-                              'This is your Fiber node pubkey, not an npub.',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
                       if (role == TradeSide.buyer) ...[
                         TextField(
                           controller: _invoice,
@@ -149,38 +118,12 @@ class _TakePageState extends State<TakePage> {
                           decoration: const InputDecoration(
                             labelText: 'Fiber invoice for the CKB',
                             helperText:
-                                'Create this in your Fiber wallet. The hold uses this invoice\'s payment hash.',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _fiberAddr,
-                          enabled: !_busy,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          decoration: const InputDecoration(
-                            labelText: 'Fiber listen address (optional)',
-                            helperText:
-                                'Only if this node is publicly reachable. 127.0.0.1 will not work — connect to the hub instead.',
+                                'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash.',
                             border: OutlineInputBorder(),
                           ),
                         ),
                         const SizedBox(height: 12),
                       ],
-                      ChannelReady(
-                        role: channelRoleFor(role),
-                        fiberNode: widget.fiberNode,
-                        fiberAddresses: widget.fiberAddresses,
-                        ready: role == TradeSide.seller ? _channelReady : null,
-                        onReadyChanged: role == TradeSide.seller
-                            ? (ready) {
-                                setState(() => _channelReady = ready);
-                              }
-                            : null,
-                        enabled: !_busy,
-                      ),
-                      const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
                         children: [
@@ -209,12 +152,7 @@ class _TakePageState extends State<TakePage> {
                       ],
                       const SizedBox(height: 12),
                       FilledButton(
-                        onPressed:
-                            _busy ||
-                                waitingNode ||
-                                (role == TradeSide.seller && !_channelReady)
-                            ? null
-                            : () => _submit(order, role),
+                        onPressed: _busy ? null : () => _submit(order, role),
                         child: _busy
                             ? const SizedBox(
                                 height: 18,
@@ -245,10 +183,8 @@ class _TakePageState extends State<TakePage> {
     final draft = TakeDraft(
       orderId: order.orderId,
       fiatAmount: _amount.text,
-      fiberPubkey: _fiber.text,
       paymentMethodId: methodId,
       invoice: role == TradeSide.buyer ? _invoice.text : null,
-      fiberAddr: role == TradeSide.buyer ? _fiberAddr.text : null,
       requireInvoice: role == TradeSide.buyer,
     );
     final invalid = draft.validate();
@@ -257,13 +193,12 @@ class _TakePageState extends State<TakePage> {
       return;
     }
     final estimate = aboutCkb(_amount.text, order.pricePerCkb);
-    final channelRole = channelRoleFor(role);
     final roleLine = role == TradeSide.seller
         ? 'You lock CKB in your Fiber wallet.'
         : 'You pay by mobile transfer after the seller locks.';
     final confirmBody = estimate == null
-        ? '$roleLine ${channelConfirmLine(channelRole)}'
-        : '$roleLine About $estimate CKB at this price. ${channelConfirmLine(channelRole)}';
+        ? roleLine
+        : '$roleLine About $estimate CKB at this price.';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {

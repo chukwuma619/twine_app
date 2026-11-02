@@ -54,9 +54,6 @@ class TwineMarket extends ChangeNotifier {
   Set<String> _tradesBeforeTake = const {};
   bool _stopped = false;
 
-  String? get fiberPubkey => book.fiberPubkey;
-  String? get fiberAddr => book.fiberAddr;
-
   Future<void> open() {
     final pending = _opening;
     if (pending != null) return pending;
@@ -71,7 +68,6 @@ class TwineMarket extends ChangeNotifier {
     final before = {for (final order in book.orders) order.orderId};
     final error = await _send(draft.envelope());
     if (error != null) return error;
-    book.fiberPubkey = draft.fiberPubkey.trim();
     _ordersBeforePost = before;
     pending.add(_pendingOrder(draft));
     awaitingPost = true;
@@ -92,9 +88,6 @@ class TwineMarket extends ChangeNotifier {
     final before = {for (final trade in book.trades) trade.id};
     final error = await _send(draft.envelope());
     if (error != null) return error;
-    book.fiberPubkey = draft.fiberPubkey.trim();
-    final addr = draft.fiberAddr?.trim();
-    if (addr != null && addr.isNotEmpty) book.fiberAddr = addr;
     _tradesBeforeTake = before;
     awaitingTake = !book.trades.any((trade) => !before.contains(trade.id));
     notifyListeners();
@@ -102,51 +95,27 @@ class TwineMarket extends ChangeNotifier {
     return null;
   }
 
-  Future<String?> submitPayoutInvoice(
-    String tradeId,
-    String invoice, {
-    String? fiberAddr,
-  }) async {
-    final invalid = invoiceError(invoice) ?? fiberAddrError(fiberAddr);
+  Future<String?> submitPayoutInvoice(String tradeId, String invoice) async {
+    final invalid = invoiceError(invoice);
     if (invalid != null) return invalid;
-    if (fiberAddr != null && fiberAddr.trim().isNotEmpty) {
-      book.fiberAddr = fiberAddr.trim();
-    }
     final error = await _send(
-      payoutInvoiceRequest(
-        tradeId: tradeId,
-        invoice: invoice,
-        fiberAddr: fiberAddr ?? book.fiberAddr,
-      ),
+      payoutInvoiceRequest(tradeId: tradeId, invoice: invoice),
     );
     if (error != null) return error;
     await _persist();
     return null;
   }
 
-  Future<String?> fiatSent(
-    String tradeId,
-    String invoice, {
-    String? fiberAddr,
-  }) async {
+  Future<String?> fiatSent(String tradeId, String invoice) async {
     final current = book.trade(tradeId);
-    final invalid =
-        invoiceError(
-          invoice,
-          holdInvoice: current?.holdInvoice,
-          allowEmpty: current?.phase == TradePhase.waitingFiat,
-        ) ??
-        fiberAddrError(fiberAddr);
+    final invalid = invoiceError(
+      invoice,
+      holdInvoice: current?.holdInvoice,
+      allowEmpty: current?.phase == TradePhase.waitingFiat,
+    );
     if (invalid != null) return invalid;
-    if (fiberAddr != null && fiberAddr.trim().isNotEmpty) {
-      book.fiberAddr = fiberAddr.trim();
-    }
     final error = await _send(
-      fiatSentRequest(
-        tradeId: tradeId,
-        invoice: invoice,
-        fiberAddr: fiberAddr ?? book.fiberAddr,
-      ),
+      fiatSentRequest(tradeId: tradeId, invoice: invoice),
     );
     if (error != null) return error;
     await _persist();
@@ -515,7 +484,6 @@ class TwineMarket extends ChangeNotifier {
       orderId: 'local-${pending.length}-${draft.side.wire}',
       side: draft.side,
       makerNostrPubkey: accountPubkey,
-      makerFiberPubkey: draft.fiberPubkey.trim(),
       availableCkb: draft.availableCkb.trim(),
       fiatCurrency: draft.fiatCurrency.trim(),
       pricePerCkb: draft.pricePerCkb.trim(),
