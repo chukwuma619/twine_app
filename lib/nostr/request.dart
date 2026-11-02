@@ -1,5 +1,6 @@
+import 'package:currency_picker/currency_picker.dart';
+
 import '../constant.dart';
-import 'catalog.dart';
 import 'envelope.dart';
 import 'order.dart';
 
@@ -14,7 +15,6 @@ class NewOrderDraft {
     required this.pricePerCkb,
     required this.min,
     required this.max,
-    required this.methodIds,
   });
 
   final OrderSide side;
@@ -23,9 +23,8 @@ class NewOrderDraft {
   final String pricePerCkb;
   final String min;
   final String max;
-  final List<String> methodIds;
 
-  String? validate(List<CatalogMethod> catalog) {
+  String? validate() {
     final available = _amount(availableCkb, 'how much CKB this post covers');
     if (available != null) return available;
     final price = _amount(pricePerCkb, 'a price per CKB');
@@ -47,11 +46,9 @@ class NewOrderDraft {
     if (offered < minimumCkb) {
       return 'Offer enough CKB to cover the minimum trade.';
     }
-    final known = methodsForCurrency(catalog, fiatCurrency.trim());
-    if (known.isEmpty) return 'Pick a currency this daemon accepts.';
-    if (methodIds.isEmpty ||
-        methodIds.any((id) => !known.any((method) => method.id == id))) {
-      return 'Pick a payment method.';
+    final currency = fiatCurrency.trim();
+    if (CurrencyService().findByCode(currency) == null) {
+      return 'Pick a currency.';
     }
     return null;
   }
@@ -66,9 +63,6 @@ class NewOrderDraft {
         'price_per_ckb': pricePerCkb.trim(),
         'min': min.trim(),
         'max': max.trim(),
-        'payment_methods': [
-          for (final id in methodIds) {'method_id': id},
-        ],
       },
     );
   }
@@ -78,14 +72,12 @@ class TakeDraft {
   const TakeDraft({
     required this.orderId,
     required this.fiatAmount,
-    required this.paymentMethodId,
     this.invoice,
     this.requireInvoice = false,
   });
 
   final String orderId;
   final String fiatAmount;
-  final String paymentMethodId;
   final String? invoice;
   final bool requireInvoice;
 
@@ -93,7 +85,6 @@ class TakeDraft {
     if (orderId.trim().isEmpty) return 'That post is missing an id.';
     final amount = _amount(fiatAmount, 'the fiat amount');
     if (amount != null) return amount;
-    if (paymentMethodId.trim().isEmpty) return 'Pick a payment method.';
     if (requireInvoice) {
       final payout = invoiceError(invoice ?? '');
       if (payout != null) return payout;
@@ -105,7 +96,6 @@ class TakeDraft {
     final payload = {
       'order_id': orderId.trim(),
       'fiat_amount': fiatAmount.trim(),
-      'payment_method_id': paymentMethodId.trim(),
     };
     final payout = invoice?.trim();
     if (payout != null && payout.isNotEmpty) payload['invoice'] = payout;

@@ -1,16 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:twine_app/constant.dart';
-import 'package:twine_app/nostr/catalog.dart';
 import 'package:twine_app/nostr/order.dart';
 import 'package:twine_app/nostr/request.dart';
 
-const _catalog = [
-  CatalogMethod(id: 'gtbank', kind: 'bank', label: 'GTBank', currency: 'NGN'),
-  CatalogMethod(id: 'zelle', kind: 'wallet', label: 'Zelle', currency: 'USD'),
-];
-
 void main() {
-  test('a post names the side, the amounts, and catalog method ids', () {
+  test('a post names the side and the amounts', () {
     const draft = NewOrderDraft(
       side: OrderSide.sell,
       availableCkb: '100',
@@ -18,10 +12,9 @@ void main() {
       pricePerCkb: '1500',
       min: '150000',
       max: '300000',
-      methodIds: ['gtbank'],
     );
 
-    expect(draft.validate(_catalog), isNull);
+    expect(draft.validate(), isNull);
     final envelope = draft.envelope();
     expect(envelope.action, actionNewOrder);
     expect(envelope.payload, {
@@ -31,10 +24,31 @@ void main() {
       'price_per_ckb': '1500',
       'min': '150000',
       'max': '300000',
-      'payment_methods': [
-        {'method_id': 'gtbank'},
-      ],
     });
+  });
+
+  test('a post accepts any currency in the picker', () {
+    const euro = NewOrderDraft(
+      side: OrderSide.sell,
+      availableCkb: '100',
+      fiatCurrency: 'EUR',
+      pricePerCkb: '1500',
+      min: '150000',
+      max: '300000',
+    );
+    expect(euro.validate(), isNull);
+    final payload = euro.envelope().payload as Map;
+    expect(payload['fiat_currency'], 'EUR');
+
+    const unknown = NewOrderDraft(
+      side: OrderSide.sell,
+      availableCkb: '100',
+      fiatCurrency: 'NOTACOIN',
+      pricePerCkb: '1500',
+      min: '150000',
+      max: '300000',
+    );
+    expect(unknown.validate(), 'Pick a currency.');
   });
 
   test('a post whose smallest trade is under 100 CKB is refused', () {
@@ -45,9 +59,8 @@ void main() {
       pricePerCkb: '1500',
       min: '3000',
       max: '180000',
-      methodIds: ['gtbank'],
     );
-    expect(draft.validate(_catalog), 'The minimum trade is 100 CKB.');
+    expect(draft.validate(), 'The minimum trade is 100 CKB.');
   });
 
   test('a post with the minimum above the maximum is refused', () {
@@ -58,23 +71,17 @@ void main() {
       pricePerCkb: '1',
       min: '20',
       max: '10',
-      methodIds: ['zelle'],
     );
-    expect(draft.validate(_catalog), 'The minimum is above the maximum.');
+    expect(draft.validate(), 'The minimum is above the maximum.');
   });
 
-  test('a take names the post, the amount, and one method', () {
-    const draft = TakeDraft(
-      orderId: 'order-1',
-      fiatAmount: '2500',
-      paymentMethodId: 'gtbank',
-    );
+  test('a take names the post and the amount', () {
+    const draft = TakeDraft(orderId: 'order-1', fiatAmount: '2500');
     expect(draft.validate(), isNull);
     expect(draft.envelope().action, actionTake);
     expect(draft.envelope().payload, {
       'order_id': 'order-1',
       'fiat_amount': '2500',
-      'payment_method_id': 'gtbank',
     });
     expect(
       fiatSentRequest(tradeId: 'trade-1', invoice: 'inv').tradeId,

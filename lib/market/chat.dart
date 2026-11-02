@@ -63,6 +63,21 @@ class TradeNote {
   /// Compressed receipt, base64.
   final String? image;
 
+  /// What the buyer should pay. A new message is one block of text.
+  /// Older messages stored a name, a number, and a note.
+  String get detailsText {
+    final written = text?.trim();
+    if (written != null && written.isNotEmpty) return written;
+    final lines = <String>[
+      if (accountName != null && accountName!.trim().isNotEmpty)
+        accountName!.trim(),
+      if (accountNumber != null && accountNumber!.trim().isNotEmpty)
+        accountNumber!.trim(),
+      if (note != null && note!.trim().isNotEmpty) note!.trim(),
+    ];
+    return lines.join('\n');
+  }
+
   Map<String, Object?> toJson() {
     return {
       'id': id,

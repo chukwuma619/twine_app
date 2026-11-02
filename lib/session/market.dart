@@ -9,7 +9,6 @@ import '../market/book.dart';
 import '../market/chat.dart';
 import '../market/phase.dart';
 import '../market/role.dart';
-import '../nostr/catalog.dart';
 import '../nostr/chat.dart';
 import '../nostr/envelope.dart';
 import '../nostr/nip44.dart';
@@ -46,7 +45,6 @@ class TwineMarket extends ChangeNotifier {
 
   StreamSubscription<DaemonReplyEvent>? _replySub;
   StreamSubscription<TwineOrder>? _orderSub;
-  StreamSubscription<OpenedCatalog>? _catalogSub;
   StreamSubscription<NostrEvent>? _chatSub;
   Future<void>? _opening;
   int _generation = 0;
@@ -63,7 +61,7 @@ class TwineMarket extends ChangeNotifier {
   }
 
   Future<String?> post(NewOrderDraft draft) async {
-    final invalid = draft.validate(book.catalog);
+    final invalid = draft.validate();
     if (invalid != null) return invalid;
     final before = {for (final order in book.orders) order.orderId};
     final error = await _send(draft.envelope());
@@ -151,41 +149,29 @@ class TwineMarket extends ChangeNotifier {
 
   Future<String?> shareAccount(
     String tradeId, {
-    required String accountName,
-    required String accountNumber,
-    String? note,
+    required String details,
   }) async {
     final trade = book.trade(tradeId);
     if (trade == null) return 'That trade is not on this device yet.';
     final order = trade.orderId.isEmpty ? null : book.order(trade.orderId);
     if (sideOn(trade, accountPubkey, order) != TradeSide.seller) {
-      return 'The seller shares the account.';
+      return 'The seller sends the payment details.';
     }
     if (trade.phase != TradePhase.waitingFiat &&
         trade.phase != TradePhase.waitingHold) {
-      return 'Share the account before the buyer pays.';
+      return 'Send the payment details before the buyer pays.';
     }
     if (book.paymentDetails(tradeId) != null) {
-      return 'The account is already on this trade.';
+      return 'The payment details are already on this trade.';
     }
-    final name = accountName.trim();
-    final number = accountNumber.trim();
-    final extra = note?.trim();
-    if (name.isEmpty) return 'Enter the account name.';
-    if (number.isEmpty) return 'Enter the account number.';
-    if (name.length > 80 || number.length > 80) {
-      return 'That account detail is too long.';
-    }
-    if (extra != null && extra.length > maxChatText) {
-      return 'That note is too long.';
-    }
+    final text = details.trim();
+    if (text.isEmpty) return 'Write the payment details.';
+    if (text.length > maxChatText) return 'That message is too long.';
     return _sendChat(
       ChatBody(
         tradeId: tradeId,
         kind: TradeNoteKind.paymentDetails,
-        accountName: name,
-        accountNumber: number,
-        note: extra == null || extra.isEmpty ? null : extra,
+        text: text,
       ),
     );
   }
@@ -276,11 +262,9 @@ class TwineMarket extends ChangeNotifier {
     nostr.onSocketsReplaced = null;
     _replySub?.cancel();
     _orderSub?.cancel();
-    _catalogSub?.cancel();
     _chatSub?.cancel();
     _replySub = null;
     _orderSub = null;
-    _catalogSub = null;
     _chatSub = null;
   }
 
@@ -293,7 +277,6 @@ class TwineMarket extends ChangeNotifier {
     }
     _replySub = nostr.replies.listen(_onReply, onError: (_) {});
     _orderSub = nostr.orders.listen(_onOrder, onError: (_) {});
-    _catalogSub = nostr.catalogs.listen(_onCatalog, onError: (_) {});
     _chatSub = nostr.chats.listen(_onChat, onError: (_) {});
     nostr.onSocketsReplaced = refreshTrades;
     if (generation != _generation) return;
@@ -423,13 +406,6 @@ class TwineMarket extends ChangeNotifier {
     }
   }
 
-  void _onCatalog(OpenedCatalog catalog) {
-    book.applyCatalog(catalog.methods, catalog.updatedAt);
-    if (_stopped) return;
-    notifyListeners();
-    unawaited(_persist());
-  }
-
   void _onOrder(TwineOrder order) {
     final known = book.order(order.orderId) != null;
     book.applyOrder(order);
@@ -466,20 +442,6 @@ class TwineMarket extends ChangeNotifier {
   }
 
   TwineOrder _pendingOrder(NewOrderDraft draft) {
-    final methods = <TwinePaymentMethod>[];
-    for (final id in draft.methodIds) {
-      for (final method in book.catalog) {
-        if (method.id != id) continue;
-        methods.add(
-          TwinePaymentMethod(
-            id: method.id,
-            kind: method.kind,
-            label: method.label,
-            currency: method.currency,
-          ),
-        );
-      }
-    }
     return TwineOrder(
       orderId: 'local-${pending.length}-${draft.side.wire}',
       side: draft.side,
@@ -489,7 +451,6 @@ class TwineMarket extends ChangeNotifier {
       pricePerCkb: draft.pricePerCkb.trim(),
       min: draft.min.trim(),
       max: draft.max.trim(),
-      paymentMethods: methods,
       holdHours: 36,
       updatedAt: DateTime.now().toUtc(),
     );

@@ -8,7 +8,6 @@ import 'package:twine_app/market/amount.dart';
 import 'package:twine_app/market/book.dart';
 import 'package:twine_app/market/phase.dart';
 import 'package:twine_app/market/role.dart';
-import 'package:twine_app/nostr/catalog.dart';
 import 'package:twine_app/nostr/envelope.dart';
 import 'package:twine_app/nostr/order.dart';
 import 'package:twine_app/store/book_store.dart';
@@ -40,7 +39,6 @@ void main() {
       expect(waiting?.phase, TradePhase.waitingFiat);
       expect(waiting?.holdInvoice, 'hold-invoice');
       expect(waiting?.fiatAmount, '2500');
-      expect(waiting?.paymentLabel, 'GTBank');
       expect(waiting?.amountShannons, '100000000');
 
       book.applyReply(_pay(), DateTime.utc(2026, 10, 6, 1));
@@ -141,29 +139,6 @@ void main() {
     },
   );
 
-  test('an older payment catalog does not replace the newer one', () {
-    final book = TwineBook();
-    const gtbank = CatalogMethod(
-      id: 'gtbank',
-      kind: 'bank',
-      label: 'GTBank',
-      currency: 'NGN',
-    );
-    const zelle = CatalogMethod(
-      id: 'zelle',
-      kind: 'wallet',
-      label: 'Zelle',
-      currency: 'USD',
-    );
-    book.applyCatalog(const [gtbank, zelle], DateTime.utc(2026, 10, 6, 2));
-    book.applyCatalog(const [gtbank], DateTime.utc(2026, 10, 6, 1));
-    expect(book.catalog.map((method) => method.id), ['gtbank', 'zelle']);
-
-    final restored = TwineBook.fromJson(book.toJson());
-    expect(restored?.catalog.map((method) => method.id), ['gtbank', 'zelle']);
-    expect(restored?.catalogUpdatedAt, DateTime.utc(2026, 10, 6, 2));
-  });
-
   test('a failed payout asks for a new invoice', () {
     final book = TwineBook();
     book.applyReply(_pay(), DateTime.utc(2026, 10, 6, 1));
@@ -232,9 +207,6 @@ void main() {
           'fiat_amount': '2500',
           'fiat_currency': 'NGN',
           'reference': 'trade-1',
-          'kind': 'bank',
-          'label': 'GTBank',
-          'currency': 'NGN',
           'seller_nostr': 'seller',
           'buyer_nostr': 'buyer',
         },
@@ -277,9 +249,6 @@ void main() {
           'fiat_amount': '2500',
           'fiat_currency': 'NGN',
           'reference': 'trade-1',
-          'kind': 'bank',
-          'label': 'GTBank',
-          'currency': 'NGN',
           'pay_by': 1700000900,
           'release_by': 1700130600,
         },
@@ -314,7 +283,6 @@ void main() {
               'fiat_amount': '2500',
               'fiat_currency': 'NGN',
               'amount_shannons': '100000000',
-              'payment_label': 'GTBank',
               'reference': 'tw-1',
               'hold_invoice': 'hold-invoice',
               'lock_by': 1700003600,
@@ -353,14 +321,6 @@ TwineOrder _order({
     pricePerCkb: '1500',
     min: '1000',
     max: '5000',
-    paymentMethods: const [
-      TwinePaymentMethod(
-        id: 'gtbank',
-        kind: 'bank',
-        label: 'GTBank',
-        currency: 'NGN',
-      ),
-    ],
     holdHours: 36,
     updatedAt: at ?? DateTime.utc(2026, 10, 6),
     status: status,
@@ -387,9 +347,6 @@ TwineEnvelope _waiting() {
       'fiat_amount': '2500',
       'fiat_currency': 'NGN',
       'reference': 'trade-1',
-      'kind': 'bank',
-      'label': 'GTBank',
-      'currency': 'NGN',
     },
   );
 }

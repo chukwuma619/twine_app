@@ -1,13 +1,43 @@
+import 'package:currency_picker/currency_picker.dart';
 import 'package:flutter/material.dart';
 
-import '../nostr/catalog.dart';
 import '../nostr/order.dart';
 import '../nostr/request.dart';
 
-class PostPage extends StatefulWidget {
-  const PostPage({super.key, required this.onSubmit, this.catalog = const []});
+class _CurrencyField extends StatelessWidget {
+  const _CurrencyField({
+    required this.code,
+    required this.enabled,
+    required this.onPick,
+  });
 
-  final List<CatalogMethod> catalog;
+  final String code;
+  final bool enabled;
+  final VoidCallback onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = CurrencyService().findByCode(code);
+    final label = currency == null
+        ? code
+        : '${currency.code} · ${currency.name}';
+    return InkWell(
+      onTap: enabled ? onPick : null,
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Currency',
+          border: OutlineInputBorder(),
+          suffixIcon: Icon(Icons.arrow_drop_down),
+        ),
+        child: Text(label),
+      ),
+    );
+  }
+}
+
+class PostPage extends StatefulWidget {
+  const PostPage({super.key, required this.onSubmit});
+
   final Future<String?> Function(NewOrderDraft draft) onSubmit;
 
   @override
@@ -20,7 +50,6 @@ class _PostPageState extends State<PostPage> {
   late final TextEditingController _min;
   late final TextEditingController _max;
   late String _currency;
-  late Set<String> _methodIds;
   bool _busy = false;
   String? _error;
 
@@ -31,28 +60,7 @@ class _PostPageState extends State<PostPage> {
     _price = TextEditingController();
     _min = TextEditingController();
     _max = TextEditingController();
-    final currencies = catalogCurrencies(widget.catalog);
-    _currency = currencies.isEmpty ? '' : currencies.first;
-    _methodIds = {
-      for (final method in methodsForCurrency(widget.catalog, _currency))
-        method.id,
-    };
-  }
-
-  @override
-  void didUpdateWidget(PostPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final currencies = catalogCurrencies(widget.catalog);
-    if (currencies.isEmpty || currencies.contains(_currency)) return;
-    _currency = currencies.first;
-    _methodIds
-      ..clear()
-      ..addAll(
-        methodsForCurrency(
-          widget.catalog,
-          _currency,
-        ).map((method) => method.id),
-      );
+    _currency = 'NGN';
   }
 
   @override
@@ -67,8 +75,6 @@ class _PostPageState extends State<PostPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currencies = catalogCurrencies(widget.catalog);
-    final methods = methodsForCurrency(widget.catalog, _currency);
     return Scaffold(
       appBar: AppBar(title: const Text('New post')),
       body: SafeArea(
@@ -92,29 +98,11 @@ class _PostPageState extends State<PostPage> {
                     helper: 'At least $minPostCkb CKB.',
                   ),
                   const SizedBox(height: 12),
-                  if (currencies.isEmpty)
-                    const Text('Waiting for payment methods.')
-                  else
-                    DropdownButtonFormField<String>(
-                      initialValue: _currency,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Currency',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        for (final currency in currencies)
-                          DropdownMenuItem(
-                            value: currency,
-                            child: Text(currency),
-                          ),
-                      ],
-                      onChanged: _busy
-                          ? null
-                          : (currency) {
-                              if (currency != null) _chooseCurrency(currency);
-                            },
-                    ),
+                  _CurrencyField(
+                    code: _currency,
+                    enabled: !_busy,
+                    onPick: _pickCurrency,
+                  ),
                   const SizedBox(height: 12),
                   _field(_price, 'Price per CKB', number: true),
                   const SizedBox(height: 12),
@@ -132,17 +120,6 @@ class _PostPageState extends State<PostPage> {
                     number: true,
                     suffix: _currency.isEmpty ? null : _currency,
                   ),
-                  const SizedBox(height: 8),
-                  for (final method in methods)
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(method.label),
-                      subtitle: Text(method.kind),
-                      value: _methodIds.contains(method.id),
-                      onChanged: _busy
-                          ? null
-                          : (checked) => _toggle(method.id, checked ?? false),
-                    ),
                   if (_error != null) ...[
                     const SizedBox(height: 8),
                     Text(
@@ -154,7 +131,7 @@ class _PostPageState extends State<PostPage> {
                   ],
                   const SizedBox(height: 12),
                   FilledButton(
-                    onPressed: _busy || currencies.isEmpty ? null : _submit,
+                    onPressed: _busy ? null : _submit,
                     child: _busy
                         ? const SizedBox(
                             height: 18,
@@ -196,28 +173,12 @@ class _PostPageState extends State<PostPage> {
     );
   }
 
-  void _chooseCurrency(String currency) {
-    setState(() {
-      _currency = currency;
-      _methodIds
-        ..clear()
-        ..addAll(
-          methodsForCurrency(
-            widget.catalog,
-            currency,
-          ).map((method) => method.id),
-        );
-    });
-  }
-
-  void _toggle(String id, bool selected) {
-    setState(() {
-      if (selected) {
-        _methodIds.add(id);
-      } else {
-        _methodIds.remove(id);
-      }
-    });
+  void _pickCurrency() {
+    showCurrencyPicker(
+      context: context,
+      showDragHandle: true,
+      onSelect: (currency) => setState(() => _currency = currency.code),
+    );
   }
 
   Future<void> _submit() async {
@@ -228,9 +189,8 @@ class _PostPageState extends State<PostPage> {
       pricePerCkb: _price.text,
       min: _min.text,
       max: _max.text,
-      methodIds: _methodIds.toList(),
     );
-    final invalid = draft.validate(widget.catalog);
+    final invalid = draft.validate();
     if (invalid != null) {
       setState(() => _error = invalid);
       return;

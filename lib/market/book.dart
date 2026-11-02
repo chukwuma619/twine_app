@@ -1,4 +1,3 @@
-import '../nostr/catalog.dart';
 import '../nostr/envelope.dart';
 import '../nostr/order.dart';
 import '../nostr/reply.dart';
@@ -11,21 +10,16 @@ class TwineBook {
     List<TwineOrder>? orders,
     List<TwineTrade>? trades,
     List<TradeNote>? notes,
-    List<CatalogMethod>? catalog,
-    this.catalogUpdatedAt,
     this.fiberPubkey,
     this.fiberAddr,
     this.notice,
   }) : orders = [...?orders],
        trades = [...?trades],
-       notes = [...?notes],
-       catalog = [...?catalog];
+       notes = [...?notes];
 
   final List<TwineOrder> orders;
   final List<TwineTrade> trades;
   final List<TradeNote> notes;
-  List<CatalogMethod> catalog;
-  DateTime? catalogUpdatedAt;
   String? fiberPubkey;
   String? fiberAddr;
   String? notice;
@@ -92,13 +86,6 @@ class TwineBook {
       orders.add(incoming);
     }
     orders.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-  }
-
-  void applyCatalog(List<CatalogMethod> methods, DateTime at) {
-    final current = catalogUpdatedAt;
-    if (current != null && at.isBefore(current)) return;
-    catalog = [...methods];
-    catalogUpdatedAt = at;
   }
 
   void applyReply(TwineEnvelope envelope, DateTime at) {
@@ -225,9 +212,6 @@ class TwineBook {
         amountShannons: snapshot.amountShannons,
         fiatAmount: snapshot.fiatAmount,
         fiatCurrency: snapshot.fiatCurrency,
-        paymentKind: snapshot.paymentKind ?? base.paymentKind,
-        paymentLabel: snapshot.paymentLabel ?? base.paymentLabel,
-        paymentCurrency: snapshot.paymentCurrency ?? base.paymentCurrency,
         reference: snapshot.reference ?? base.reference,
         sellerNostr: snapshot.sellerNostr,
         buyerNostr: snapshot.buyerNostr,
@@ -342,9 +326,6 @@ class TwineBook {
         fiatAmount: fiat?.fiatAmount ?? need?.fiatAmount ?? base.fiatAmount,
         fiatCurrency:
             fiat?.fiatCurrency ?? need?.fiatCurrency ?? base.fiatCurrency,
-        paymentKind: fiat?.kind ?? base.paymentKind,
-        paymentLabel: fiat?.label ?? base.paymentLabel,
-        paymentCurrency: fiat?.currency ?? base.paymentCurrency,
         reference: fiat?.reference ?? base.reference,
         sellerNostr:
             pay?.sellerNostr ??
@@ -397,8 +378,6 @@ class TwineBook {
       'fiber_pubkey': fiberPubkey,
       'fiber_addr': fiberAddr,
       'notice': notice,
-      'catalog': [for (final method in catalog) method.toJson()],
-      'catalog_updated_at': catalogUpdatedAt?.toIso8601String(),
       'orders': [for (final item in orders) item.toJson()],
       'trades': [for (final item in trades) item.toJson()],
       'notes': [for (final item in notes) item.toJson()],
@@ -434,17 +413,10 @@ class TwineBook {
     }
     final fiber = map['fiber_pubkey'];
     final notice = map['notice'];
-    final catalogAt = DateTime.tryParse(
-      map['catalog_updated_at'] is String
-          ? map['catalog_updated_at'] as String
-          : '',
-    );
     return TwineBook(
       orders: orders,
       trades: trades,
       notes: notes,
-      catalog: _catalog(map['catalog']),
-      catalogUpdatedAt: catalogAt,
       fiberPubkey: fiber is String && fiber.trim().isNotEmpty
           ? fiber.trim()
           : null,
@@ -457,17 +429,6 @@ class TwineBook {
           : null,
     );
   }
-}
-
-List<CatalogMethod> _catalog(Object? value) {
-  if (value is! List) return const [];
-  final methods = <CatalogMethod>[];
-  for (final item in value) {
-    final method = CatalogMethod.tryParse(item);
-    if (method == null) return const [];
-    methods.add(method);
-  }
-  return methods;
 }
 
 String? _orderId(Object? payload) {

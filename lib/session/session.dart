@@ -168,7 +168,6 @@ class TwineSession extends ChangeNotifier {
       nostr.watchReplies();
       nostr.watchFiberNode();
       nostr.watchOrders();
-      nostr.watchCatalog();
       _fiberSub = nostr.fiberNodes.listen((announcement) {
         if (_disposed) return;
         fiberNode = announcement.pubkey;

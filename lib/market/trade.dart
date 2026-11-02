@@ -11,9 +11,6 @@ class TwineTrade {
     this.amountShannons,
     this.fiatAmount,
     this.fiatCurrency,
-    this.paymentKind,
-    this.paymentLabel,
-    this.paymentCurrency,
     this.reference,
     this.payoutFailure,
     this.notice,
@@ -36,9 +33,6 @@ class TwineTrade {
   final String? amountShannons;
   final String? fiatAmount;
   final String? fiatCurrency;
-  final String? paymentKind;
-  final String? paymentLabel;
-  final String? paymentCurrency;
   final String? reference;
   final String? payoutFailure;
   final String? notice;
@@ -66,9 +60,6 @@ class TwineTrade {
     String? amountShannons,
     String? fiatAmount,
     String? fiatCurrency,
-    String? paymentKind,
-    String? paymentLabel,
-    String? paymentCurrency,
     String? reference,
     String? payoutFailure,
     bool keepPayoutFailure = true,
@@ -95,9 +86,6 @@ class TwineTrade {
       amountShannons: amountShannons ?? this.amountShannons,
       fiatAmount: fiatAmount ?? this.fiatAmount,
       fiatCurrency: fiatCurrency ?? this.fiatCurrency,
-      paymentKind: paymentKind ?? this.paymentKind,
-      paymentLabel: paymentLabel ?? this.paymentLabel,
-      paymentCurrency: paymentCurrency ?? this.paymentCurrency,
       reference: reference ?? this.reference,
       payoutFailure: keepPayoutFailure
           ? (payoutFailure ?? this.payoutFailure)
@@ -127,9 +115,6 @@ class TwineTrade {
       'amount_shannons': amountShannons,
       'fiat_amount': fiatAmount,
       'fiat_currency': fiatCurrency,
-      'payment_kind': paymentKind,
-      'payment_label': paymentLabel,
-      'payment_currency': paymentCurrency,
       'reference': reference,
       'payout_failure': payoutFailure,
       'notice': notice,
@@ -162,9 +147,6 @@ class TwineTrade {
       amountShannons: _optional(map, 'amount_shannons'),
       fiatAmount: _optional(map, 'fiat_amount'),
       fiatCurrency: _optional(map, 'fiat_currency'),
-      paymentKind: _optional(map, 'payment_kind'),
-      paymentLabel: _optional(map, 'payment_label'),
-      paymentCurrency: _optional(map, 'payment_currency'),
       reference: _optional(map, 'reference'),
       payoutFailure: _optional(map, 'payout_failure'),
       notice: _optional(map, 'notice'),

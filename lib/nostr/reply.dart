@@ -138,9 +138,6 @@ class WaitingFiat {
     required this.fiatAmount,
     required this.fiatCurrency,
     required this.reference,
-    required this.kind,
-    required this.label,
-    required this.currency,
     this.sellerNostr,
     this.buyerNostr,
     this.payBy,
@@ -150,9 +147,6 @@ class WaitingFiat {
   final String fiatAmount;
   final String fiatCurrency;
   final String reference;
-  final String kind;
-  final String label;
-  final String currency;
   final String? sellerNostr;
   final String? buyerNostr;
   final DateTime? payBy;
@@ -164,15 +158,7 @@ class WaitingFiat {
     final fiatAmount = _text(map, 'fiat_amount');
     final fiatCurrency = _text(map, 'fiat_currency');
     final reference = _text(map, 'reference');
-    final kind = _text(map, 'kind');
-    final label = _text(map, 'label');
-    final currency = _text(map, 'currency');
-    if (fiatAmount == null ||
-        fiatCurrency == null ||
-        reference == null ||
-        kind == null ||
-        label == null ||
-        currency == null) {
+    if (fiatAmount == null || fiatCurrency == null || reference == null) {
       return null;
     }
     final parties = _parties(map);
@@ -180,9 +166,6 @@ class WaitingFiat {
       fiatAmount: fiatAmount,
       fiatCurrency: fiatCurrency,
       reference: reference,
-      kind: kind,
-      label: label,
-      currency: currency,
       sellerNostr: parties?.$1,
       buyerNostr: parties?.$2,
       payBy: unixSeconds(map['pay_by']),
@@ -213,9 +196,6 @@ class TradeSnapshot {
     required this.fiatAmount,
     required this.fiatCurrency,
     required this.amountShannons,
-    this.paymentKind,
-    this.paymentLabel,
-    this.paymentCurrency,
     this.reference,
     this.holdInvoice,
     this.payoutInvoice,
@@ -233,9 +213,6 @@ class TradeSnapshot {
   final String fiatAmount;
   final String fiatCurrency;
   final String amountShannons;
-  final String? paymentKind;
-  final String? paymentLabel;
-  final String? paymentCurrency;
   final String? reference;
   final String? holdInvoice;
   final String? payoutInvoice;
@@ -274,9 +251,6 @@ class TradeSnapshot {
       fiatAmount: fiatAmount,
       fiatCurrency: fiatCurrency,
       amountShannons: amount,
-      paymentKind: _text(map, 'payment_kind'),
-      paymentLabel: _text(map, 'payment_label'),
-      paymentCurrency: _text(map, 'payment_currency'),
       reference: _text(map, 'reference'),
       holdInvoice: _text(map, 'hold_invoice'),
       payoutInvoice: _text(map, 'payout_invoice'),

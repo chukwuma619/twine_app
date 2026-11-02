@@ -148,11 +148,7 @@ class _MarketPageState extends State<MarketPage> {
     return ListenableBuilder(
       listenable: market,
       builder: (context, _) {
-        final canPost =
-            posting &&
-            market.ready &&
-            !market.sending &&
-            market.book.catalog.isNotEmpty;
+        final canPost = posting && market.ready && !market.sending;
         final title = switch (_section) {
           _Section.post => 'Posts',
           _Section.trade => 'Trades',
@@ -287,7 +283,7 @@ class _LivePost extends StatelessWidget {
     return ListenableBuilder(
       listenable: market,
       builder: (context, _) {
-        return PostPage(catalog: market.book.catalog, onSubmit: market.post);
+        return PostPage(onSubmit: market.post);
       },
     );
   }
@@ -417,9 +413,6 @@ class _PostCard extends StatelessWidget {
     final pending = order.orderId.startsWith('local-');
     final open = market.book.openTradeFor(order.orderId);
     final listed = order.status == PostStatus.open;
-    final methods = order.paymentMethods
-        .map((method) => method.label)
-        .join(', ');
     final muted = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -514,7 +507,6 @@ class _PostCard extends StatelessWidget {
               label: 'Limits',
               value: '${order.min}–${order.max} ${order.fiatCurrency}',
             ),
-            if (methods.isNotEmpty) _Fact(label: 'Payment', value: methods),
             _Fact(
               label: 'Fiber hold',
               value: '${_holdLabel(order.holdHours)} locked on Fiber',

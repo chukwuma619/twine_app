@@ -19,7 +19,6 @@ class TakePage extends StatefulWidget {
 class _TakePageState extends State<TakePage> {
   late final TextEditingController _amount;
   late final TextEditingController _invoice;
-  String? _methodId;
   bool _busy = false;
   String? _error;
 
@@ -31,9 +30,6 @@ class _TakePageState extends State<TakePage> {
     _amount.addListener(() {
       if (mounted) setState(() {});
     });
-    final order = widget.market.book.order(widget.orderId);
-    final methods = order?.paymentMethods ?? const <TwinePaymentMethod>[];
-    if (methods.isNotEmpty) _methodId = methods.first.id;
   }
 
   @override
@@ -124,23 +120,6 @@ class _TakePageState extends State<TakePage> {
                         ),
                         const SizedBox(height: 12),
                       ],
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final method in order.paymentMethods)
-                            ChoiceChip(
-                              label: Text('${method.label} · ${method.kind}'),
-                              selected: _methodId == method.id,
-                              onSelected: _busy
-                                  ? null
-                                  : (selected) {
-                                      if (selected) {
-                                        setState(() => _methodId = method.id);
-                                      }
-                                    },
-                            ),
-                        ],
-                      ),
                       if (_error != null) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -175,15 +154,9 @@ class _TakePageState extends State<TakePage> {
   }
 
   Future<void> _submit(TwineOrder order, TradeSide role) async {
-    final methodId = _methodId;
-    if (methodId == null) {
-      setState(() => _error = 'Pick a payment method.');
-      return;
-    }
     final draft = TakeDraft(
       orderId: order.orderId,
       fiatAmount: _amount.text,
-      paymentMethodId: methodId,
       invoice: role == TradeSide.buyer ? _invoice.text : null,
       requireInvoice: role == TradeSide.buyer,
     );

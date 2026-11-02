@@ -14,10 +14,10 @@ To buy CKB:
 
 1. Create a Nostr key. That key is your account. There is no username.
 2. Connect to a daemon. Connect your Fiber node outbound to that operator's hub.
-3. Browse posts. Each one is someone selling CKB at a price, with fiat limits and payment methods.
-4. Take a post. Enter the fiat amount, your Fiber pubkey, a payment method, and a Fiber invoice that should receive the CKB.
+3. Browse posts. Each one is someone selling CKB at a price, with fiat limits.
+4. Take a post. Enter the fiat amount and a Fiber invoice that should receive the CKB.
 5. Wait for the seller to lock. They pay a hold invoice in their own Fiber wallet. The app does not pay it.
-6. The seller shares their account in chat. You send fiat outside Twine, then mark it sent.
+6. The seller writes how you should pay, in the trade. You send fiat outside Twine, then mark it sent.
 7. The seller checks the credit and releases. The daemon pays your invoice. The trade is done.
 
 To sell, post instead of taking, then lock the hold, wait for fiat, and release.
@@ -93,13 +93,13 @@ The bottom bar is **Posts**, **Trade**, and **Account**.
 
 Posts is one list: other people selling CKB, and your own posts. **Take** buys from someone else's post. **Cancel post** takes yours down. You cannot take your own post. A post with no CKB left cannot be taken.
 
-A card shows the price per CKB, the CKB still available, the fiat limits, the payment methods, and the hold length. **Yours** marks your post. **Canceled** marks a post the poster took down. **Fully taken** means no CKB is left.
+A card shows the price per CKB, the CKB still available, the fiat limits, and the hold length. **Yours** marks your post. **Canceled** marks a post the poster took down. **Fully taken** means no CKB is left.
 
-**New post** asks for your Fiber pubkey, how much CKB is for sale, a currency from the daemon's catalog, a price per CKB, fiat min and max, and one or more payment methods. The post button stays off until that catalog arrives and until you confirm the Fiber channel is ready. The Fiber pubkey is remembered after the first post or take.
+**New post** asks for how much CKB is for sale, a currency, a price per CKB, and fiat min and max. The currency field opens a searchable list of currencies. The Fiber pubkey is remembered after the first post or take.
 
 The post shows on the book immediately, marked as yours, until the daemon's public order comes back. You cannot cancel that local copy. Once the public order is on the book, **Cancel post** removes it.
 
-**Take** asks for a fiat amount, your Fiber pubkey, one payment method from the post, and a Fiber invoice that should receive the CKB. You can add a **public** Fiber listen multiaddr. A local `127.0.0.1` address is refused; connect that node outbound to the hub instead. The app then waits for the hold invoice and tells you to look in Trades.
+**Take** asks for a fiat amount and a Fiber invoice that should receive the CKB. You can add a **public** Fiber listen multiaddr. A local `127.0.0.1` address is refused; connect that node outbound to the hub instead. The app then waits for the hold invoice and tells you to look in Trades.
 
 ## A trade
 
@@ -108,8 +108,8 @@ Open a trade from the post's **Trade** button, or from the **Trade** tab. The sc
 | Screen | Who | What you do |
 | --- | --- | --- |
 | Lock the CKB | Seller | Pay the hold invoice in your Fiber wallet. The invoice is on the trade. The app does not pay it. |
-| Share your account | Seller | Send the account name, account number, and an optional note for the method the daemon named. |
-| Pay the seller | Buyer | Wait for that account, send fiat outside Twine, then mark it sent. |
+| Send payment details | Seller | Write the bank or wallet details in one field and send them. The buyer sees that text. |
+| Pay the seller | Buyer | Wait for those details, send fiat outside Twine, then mark it sent. |
 | Check the payment | Seller | Release after the credit is in your account. Release asks you to confirm. The receipt is the buyer's claim. |
 | Send a new invoice | Buyer | The payout failed. Submit another Fiber invoice. |
 | Disputed | Either party | The hold stays locked until the solver decides. The seller can still release when a payout invoice is already stored. |
@@ -158,14 +158,13 @@ Nothing in this store is the Fiber seed. The Fiber pubkey you type is only the p
 
 ## Nostr
 
-Actions are encrypted to the daemon and signed with your key. Replies are encrypted to you and must be signed by the daemon you chose. Orders, the Fiber node pubkey, and the payment catalog are public events from that daemon. These kinds are application constants, not NIPs.
+Actions are encrypted to the daemon and signed with your key. Replies are encrypted to you and must be signed by the daemon you chose. Orders and the Fiber node pubkey are public events from that daemon. These kinds are application constants, not NIPs.
 
 | Kind | What the app does with it |
 | --- | --- |
 | `4242` | Sends an action. Subscribes to replies authored by the daemon and tagged to this account. |
 | `31420` | Reads public orders. The `d` tag is the order id. |
 | `31421` | Reads the Fiber node announcement. The `d` tag is `fiber-node`. |
-| `31422` | Reads the payment catalog. The `d` tag is `payment-methods`. |
 | `4243` | Sends and reads the trade thread. The daemon does not subscribe to this kind. |
 
 The actions this app sends are `new-order`, `take`, `fiat-sent`, `release`, `cancel`, and `dispute`. Field names, who may send each action, and the clock (hold length, release deadline, refund) are defined by the daemon.
@@ -180,4 +179,4 @@ The actions this app sends are `new-order`, `take`, `fiat-sent`, `release`, `can
 | `lib/market/` | The book, trade phases, who may press which button, and the thread. |
 | `lib/nostr/` | Keys, NIP-44, sealing actions and chat, and the relay client. |
 | `lib/store/` | Keystore reads and writes for the secret, the daemon, and the book. |
-| `test/` | Book, order, chat, catalog, key, and screen tests. No live relay. |
+| `test/` | Book, order, chat, key, and screen tests. No live relay. |

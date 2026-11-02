@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:twine_app/market/book.dart';
+import 'package:twine_app/market/chat.dart';
 import 'package:twine_app/market/phase.dart';
 import 'package:twine_app/market/role.dart';
 import 'package:twine_app/market/trade.dart';
-import 'package:twine_app/nostr/catalog.dart';
 import 'package:twine_app/nostr/envelope.dart';
 import 'package:twine_app/nostr/order.dart';
 import 'package:twine_app/nostr/request.dart';
@@ -72,7 +72,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Fiat amount'), findsOneWidget);
-    expect(find.text('GTBank · bank'), findsOneWidget);
+    expect(find.text('GTBank · bank'), findsNothing);
   });
 
   testWidgets('a post just published shows in the list', (tester) async {
@@ -233,7 +233,6 @@ void main() {
         updatedAt: DateTime.utc(2026, 10, 6),
         fiatAmount: '2500',
         fiatCurrency: 'NGN',
-        paymentLabel: 'GTBank',
         reference: 'trade-1',
         sellerNostr: 'seller',
         buyerNostr: 'buyer',
@@ -252,8 +251,8 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Share account'), findsOneWidget);
-    expect(find.text('Account name'), findsOneWidget);
+    expect(find.text('Payment details'), findsOneWidget);
+    expect(find.text('Send'), findsOneWidget);
     expect(find.text('The hold is locked.'), findsNothing);
 
     await tester.pumpWidget(
@@ -275,8 +274,50 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Pay 2500 NGN with GTBank.'), findsOneWidget);
+    expect(find.text('Pay 2500 NGN.'), findsOneWidget);
     expect(find.text("I've paid"), findsNothing);
+  });
+
+  testWidgets('the buyer reads the payment details the seller sent', (
+    tester,
+  ) async {
+    final order = _order(maker: 'seller');
+    final market = _market(
+      pubkey: 'buyer',
+      orders: [order],
+      trades: [
+        TwineTrade(
+          id: 'trade-1',
+          orderId: order.orderId,
+          phase: TradePhase.waitingFiat,
+          updatedAt: DateTime.utc(2026, 10, 6),
+          fiatAmount: '2500',
+          fiatCurrency: 'NGN',
+          reference: 'trade-1',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+        ),
+      ],
+    );
+    market.book.addNote(
+      TradeNote(
+        id: 'note-1',
+        tradeId: 'trade-1',
+        at: DateTime.utc(2026, 10, 6),
+        kind: TradeNoteKind.paymentDetails,
+        text: 'GTBank\nAda Lovelace\n0123456789',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TradePage(market: market, tradeId: 'trade-1'),
+      ),
+    );
+
+    expect(find.textContaining('0123456789'), findsOneWidget);
+    expect(find.textContaining('Ada Lovelace'), findsOneWidget);
+    expect(find.text("I've paid"), findsOneWidget);
   });
 
   testWidgets('posting sends the draft and stays when the draft is refused', (
@@ -292,10 +333,9 @@ void main() {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (context) => PostPage(
-                      catalog: _catalog,
                       onSubmit: (draft) async {
                         sent = draft;
-                        return draft.validate(_catalog);
+                        return draft.validate();
                       },
                     ),
                   ),
@@ -328,33 +368,26 @@ void main() {
 
     expect(sent?.side, OrderSide.sell);
     expect(sent?.fiatCurrency, 'NGN');
-    expect(sent?.methodIds, ['gtbank']);
     expect(find.text('Open'), findsOneWidget);
   });
 
-  testWidgets('the currency select switches the payment methods', (
-    tester,
-  ) async {
+  testWidgets('the currency picker can choose any currency', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: PostPage(
-          catalog: _catalog,
-          onSubmit: (draft) async => draft.validate(_catalog),
-        ),
-      ),
+      MaterialApp(home: PostPage(onSubmit: (draft) async => draft.validate())),
     );
 
-    expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
-    expect(find.text('GTBank'), findsOneWidget);
-    expect(find.text('Zelle'), findsNothing);
+    expect(find.text('NGN · Nigeria Naira'), findsOneWidget);
 
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('USD').last);
+    await tester.tap(find.text('NGN · Nigeria Naira'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Zelle'), findsOneWidget);
-    expect(find.text('GTBank'), findsNothing);
+    await tester.enterText(find.byType(TextField).last, 'Japanese');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Japanese Yen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('JPY · Japanese Yen'), findsOneWidget);
+    expect(find.text('Japanese Yen'), findsNothing);
   });
 
   test('dispute is hidden when the solver is absent', () {
@@ -388,7 +421,6 @@ void main() {
           updatedAt: DateTime.utc(2026, 10, 6),
           fiatAmount: '2500',
           fiatCurrency: 'NGN',
-          paymentLabel: 'GTBank',
           sellerNostr: 'seller',
           buyerNostr: 'buyer',
           payBy: DateTime.now().toUtc().add(
@@ -534,19 +566,19 @@ void main() {
     expect(find.textContaining('About 1.00 CKB'), findsWidgets);
   });
 
-  testWidgets('the post form waits until the daemon publishes methods', (
+  testWidgets('the post form is ready without a payment catalog', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(home: PostPage(onSubmit: (draft) async => null)),
     );
 
-    expect(find.text('Waiting for payment methods.'), findsOneWidget);
-    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+    expect(find.text('Waiting for payment methods.'), findsNothing);
+    expect(find.text('NGN · Nigeria Naira'), findsOneWidget);
     final button = tester.widget<FilledButton>(
       find.widgetWithText(FilledButton, 'Post'),
     );
-    expect(button.onPressed, isNull);
+    expect(button.onPressed, isNotNull);
   });
 
   testWidgets('a daemon refusal shows once and then leaves the list', (
@@ -619,11 +651,6 @@ TwineMarket _market({
   );
 }
 
-const _catalog = [
-  CatalogMethod(id: 'gtbank', kind: 'bank', label: 'GTBank', currency: 'NGN'),
-  CatalogMethod(id: 'zelle', kind: 'wallet', label: 'Zelle', currency: 'USD'),
-];
-
 TwineOrder _order({
   String id = 'order-1',
   String maker = 'maker',
@@ -641,14 +668,6 @@ TwineOrder _order({
     pricePerCkb: '1500',
     min: '1000',
     max: '5000',
-    paymentMethods: const [
-      TwinePaymentMethod(
-        id: 'gtbank',
-        kind: 'bank',
-        label: 'GTBank',
-        currency: 'NGN',
-      ),
-    ],
     holdHours: 36,
     updatedAt: DateTime.utc(2026, 10, 6),
     status: status,

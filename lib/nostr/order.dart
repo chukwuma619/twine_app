@@ -64,38 +64,6 @@ enum OrderSide {
   }
 }
 
-class TwinePaymentMethod {
-  const TwinePaymentMethod({
-    required this.id,
-    required this.kind,
-    required this.label,
-    required this.currency,
-  });
-
-  final String id;
-  final String kind;
-  final String label;
-  final String currency;
-
-  static TwinePaymentMethod? tryParse(Object? value) {
-    final map = _map(value);
-    if (map == null) return null;
-    final id = _text(map, 'id');
-    final kind = _text(map, 'kind');
-    final label = _text(map, 'label');
-    final currency = _text(map, 'currency');
-    if (id == null || kind == null || label == null || currency == null) {
-      return null;
-    }
-    return TwinePaymentMethod(
-      id: id,
-      kind: kind,
-      label: label,
-      currency: currency,
-    );
-  }
-}
-
 class TwineOrder {
   const TwineOrder({
     required this.orderId,
@@ -107,7 +75,6 @@ class TwineOrder {
     required this.pricePerCkb,
     required this.min,
     required this.max,
-    required this.paymentMethods,
     required this.holdHours,
     required this.updatedAt,
     this.status = PostStatus.open,
@@ -123,7 +90,6 @@ class TwineOrder {
   final String pricePerCkb;
   final String min;
   final String max;
-  final List<TwinePaymentMethod> paymentMethods;
   final int holdHours;
   final DateTime updatedAt;
   final PostStatus status;
@@ -146,7 +112,6 @@ class TwineOrder {
       pricePerCkb: pricePerCkb,
       min: min,
       max: max,
-      paymentMethods: paymentMethods,
       holdHours: holdHours,
       updatedAt: updatedAt,
       status: status ?? this.status,
@@ -195,7 +160,6 @@ class TwineOrder {
     final min = _text(map, 'min');
     final max = _text(map, 'max');
     final holdHours = _hours(map['hold_hours']);
-    final methods = _methods(map['payment_methods']);
     final status = map.containsKey('status')
         ? PostStatus.parse(_text(map, 'status') ?? '')
         : PostStatus.open;
@@ -208,7 +172,6 @@ class TwineOrder {
         min == null ||
         max == null ||
         holdHours == null ||
-        methods == null ||
         status == null) {
       return null;
     }
@@ -222,7 +185,6 @@ class TwineOrder {
       pricePerCkb: price,
       min: min,
       max: max,
-      paymentMethods: methods,
       holdHours: holdHours,
       updatedAt: updatedAt,
       status: status,
@@ -241,15 +203,6 @@ class TwineOrder {
       'price_per_ckb': pricePerCkb,
       'min': min,
       'max': max,
-      'payment_methods': [
-        for (final method in paymentMethods)
-          {
-            'id': method.id,
-            'kind': method.kind,
-            'label': method.label,
-            'currency': method.currency,
-          },
-      ],
       'hold_hours': holdHours,
       'status': status.wire,
       'updated_at': updatedAt.toIso8601String(),
@@ -285,17 +238,6 @@ int? _hours(Object? value) {
     return value.toInt();
   }
   return null;
-}
-
-List<TwinePaymentMethod>? _methods(Object? value) {
-  if (value is! List || value.isEmpty) return null;
-  final methods = <TwinePaymentMethod>[];
-  for (final item in value) {
-    final method = TwinePaymentMethod.tryParse(item);
-    if (method == null) return null;
-    methods.add(method);
-  }
-  return methods;
 }
 
 String? _identifier(List<List<String>>? tags) {

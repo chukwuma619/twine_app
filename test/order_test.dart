@@ -21,7 +21,7 @@ void main() {
     expect(order?.orderId, 'order-1');
     expect(order?.side, OrderSide.sell);
     expect(order?.availableCkb, '10');
-    expect(order?.paymentMethods.single.label, 'GTBank');
+    expect(order?.fiatCurrency, 'NGN');
     expect(order?.holdHours, 36);
     expect(order?.status, PostStatus.open);
     expect(order?.reservedCkb, '1');
@@ -80,9 +80,6 @@ NostrEvent _orderEvent(
       'price_per_ckb': '1500',
       'min': '1000',
       'max': '5000',
-      'payment_methods': [
-        {'id': 'gtbank', 'kind': 'bank', 'label': 'GTBank', 'currency': 'NGN'},
-      ],
       'hold_hours': 36,
       'reserved_ckb': '1',
     }),

@@ -39,6 +39,7 @@ dependencies:
   image_picker: ^1.2.1
   pointycastle: ^3.9.1
   qr_flutter: ^4.1.0
+  currency_picker: ^2.0.22
 
 dev_dependencies:
   flutter_test:

@@ -17,12 +17,6 @@ const kindFiberNode = 31421;
 /// `d` tag on a Fiber node announcement.
 const fiberNodeTag = 'fiber-node';
 
-/// Addressable payment catalog. The `d` tag is [paymentCatalogTag].
-const kindCatalog = 31422;
-
-/// `d` tag on a payment catalog announcement.
-const paymentCatalogTag = 'payment-methods';
-
 const actionNewOrder = 'new-order';
 const actionTake = 'take';
 const actionPayoutInvoice = 'payout-invoice';

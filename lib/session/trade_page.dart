@@ -36,9 +36,7 @@ class TradePage extends StatefulWidget {
 
 class _TradePageState extends State<TradePage> {
   final _invoice = TextEditingController();
-  final _accountName = TextEditingController();
-  final _accountNumber = TextEditingController();
-  final _accountNote = TextEditingController();
+  final _details = TextEditingController();
   final _chat = TextEditingController();
   Timer? _tick;
   String? _error;
@@ -58,9 +56,7 @@ class _TradePageState extends State<TradePage> {
   void dispose() {
     _tick?.cancel();
     _invoice.dispose();
-    _accountName.dispose();
-    _accountNumber.dispose();
-    _accountNote.dispose();
+    _details.dispose();
     _chat.dispose();
     super.dispose();
   }
@@ -163,36 +159,19 @@ class _TradePageState extends State<TradePage> {
                           const SizedBox(height: 16),
                           Text(
                             trade.phase == TradePhase.waitingHold
-                                ? 'Share the account before you lock, so the buyer can pay as soon as the CKB is locked.'
-                                : 'The CKB is locked. Share the account the buyer should pay.',
+                                ? 'Send the payment details before you lock, so the buyer can pay as soon as the CKB is locked.'
+                                : 'The CKB is locked. Send the payment details the buyer should use.',
                           ),
                           const SizedBox(height: 16),
-                          Text(
-                            'Account for ${trade.paymentLabel ?? 'this method'}',
-                            style: theme.textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 8),
                           TextField(
-                            controller: _accountName,
+                            controller: _details,
                             enabled: !widget.market.sending,
+                            minLines: 4,
+                            maxLines: 8,
                             decoration: const InputDecoration(
-                              labelText: 'Account name',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _accountNumber,
-                            enabled: !widget.market.sending,
-                            decoration: const InputDecoration(
-                              labelText: 'Account number',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _accountNote,
-                            enabled: !widget.market.sending,
-                            decoration: const InputDecoration(
-                              labelText: 'Note',
+                              labelText: 'Payment details',
+                              alignLabelWithHint: true,
+                              hintText: 'Bank, account name, account number',
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -200,7 +179,7 @@ class _TradePageState extends State<TradePage> {
                             onPressed: widget.market.sending
                                 ? null
                                 : () => _share(trade),
-                            child: _actionChild('Share account'),
+                            child: _actionChild('Send'),
                           ),
                         ] else if (shareAccount) ...[
                           const SizedBox(height: 16),
@@ -553,9 +532,7 @@ class _TradePageState extends State<TradePage> {
   Future<void> _share(TwineTrade trade) async {
     final error = await widget.market.shareAccount(
       trade.id,
-      accountName: _accountName.text,
-      accountNumber: _accountNumber.text,
-      note: _accountNote.text,
+      details: _details.text,
     );
     if (!mounted) return;
     setState(() => _error = error);
@@ -591,8 +568,7 @@ class _TradePageState extends State<TradePage> {
       isScrollControlled: true,
       builder: (context) => _PaidSheet(
         amount: '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}',
-        accountName: details.accountName ?? '',
-        accountNumber: details.accountNumber ?? '',
+        details: details.detailsText,
         needsReceipt: !hasProof,
         holdInvoice: trade.holdInvoice,
         askInvoice: false,
@@ -740,25 +716,24 @@ class _AccountCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final number = details.accountNumber ?? '';
+    final text = details.detailsText;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Pay this account', style: theme.textTheme.titleSmall),
+        Text('Pay here', style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
-        Text(details.accountName ?? ''),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: SelectableText(number)),
+            Expanded(child: SelectableText(text)),
             IconButton(
-              onPressed: number.isEmpty
+              onPressed: text.isEmpty
                   ? null
-                  : () => Clipboard.setData(ClipboardData(text: number)),
+                  : () => Clipboard.setData(ClipboardData(text: text)),
               icon: const Icon(Icons.copy),
             ),
           ],
         ),
-        if (details.note != null) Text(details.note!),
       ],
     );
   }
@@ -828,8 +803,7 @@ class _PaidInput {
 class _PaidSheet extends StatefulWidget {
   const _PaidSheet({
     required this.amount,
-    required this.accountName,
-    required this.accountNumber,
+    required this.details,
     required this.needsReceipt,
     this.holdInvoice,
     this.ckb,
@@ -837,8 +811,7 @@ class _PaidSheet extends StatefulWidget {
   });
 
   final String amount;
-  final String accountName;
-  final String accountNumber;
+  final String details;
   final bool needsReceipt;
   final String? holdInvoice;
   final String? ckb;
@@ -870,9 +843,9 @@ class _PaidSheetState extends State<_PaidSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Pay ${widget.amount} to ${widget.accountName}'),
+          Text('Pay ${widget.amount}'),
           const SizedBox(height: 4),
-          Text(widget.accountNumber),
+          SelectableText(widget.details),
           const SizedBox(height: 16),
           if (widget.needsReceipt) ...[
             TextField(
@@ -984,14 +957,13 @@ class _PaidSheetState extends State<_PaidSheet> {
 
 String _paymentLine(TradeSide? side, TwineTrade trade) {
   final amount = '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}'.trim();
-  final method = trade.paymentLabel ?? 'the named method';
   switch (side) {
     case TradeSide.buyer:
-      return 'Pay $amount with $method.';
+      return 'Pay $amount.';
     case TradeSide.seller:
-      return 'The buyer pays you $amount with $method.';
+      return 'The buyer pays you $amount.';
     case null:
-      return 'This trade is for $amount with $method.';
+      return 'This trade is for $amount.';
   }
 }
 
