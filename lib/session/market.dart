@@ -181,7 +181,6 @@ class TwineMarket extends ChangeNotifier {
   Future<String?> markPaid(
     String tradeId, {
     String invoice = '',
-    required String bankReference,
     String? image,
   }) async {
     final trade = book.trade(tradeId);
@@ -194,9 +193,6 @@ class TwineMarket extends ChangeNotifier {
       return 'Wait for the seller to share the account.';
     }
     if (book.paymentProof(tradeId) == null) {
-      final reference = bankReference.trim();
-      if (reference.isEmpty) return 'Enter the bank reference.';
-      if (reference.length > 80) return 'That reference is too long.';
       final receipt = image?.trim();
       if (receipt == null || receipt.isEmpty) return 'Attach the receipt.';
       final List<int> raw;
@@ -206,14 +202,12 @@ class TwineMarket extends ChangeNotifier {
         return 'That receipt could not be read.';
       }
       if (raw.length > maxReceiptBytes) {
-        return 'Crop the receipt and try a smaller picture.';
+        return 'That picture is still too large.';
       }
       final posted = await _sendChat(
         ChatBody(
           tradeId: tradeId,
           kind: TradeNoteKind.paymentProof,
-          amount: trade.fiatAmount,
-          bankReference: reference,
           image: receipt,
         ),
       );

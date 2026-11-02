@@ -318,6 +318,16 @@ void main() {
     expect(find.textContaining('0123456789'), findsOneWidget);
     expect(find.textContaining('Ada Lovelace'), findsOneWidget);
     expect(find.text("I've paid"), findsOneWidget);
+
+    await tester.ensureVisible(find.text("I've paid"));
+    await tester.tap(find.text("I've paid"));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Attach the receipt'), findsOneWidget);
+    expect(find.text('Photo library'), findsOneWidget);
+    expect(find.text('Camera'), findsOneWidget);
+    expect(find.text('Bank reference'), findsNothing);
+    expect(find.textContaining('Fiber invoice'), findsNothing);
   });
 
   testWidgets('posting sends the draft and stays when the draft is refused', (

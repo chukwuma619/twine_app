@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,10 +12,10 @@ import '../market/chat.dart';
 import '../market/clocks.dart';
 import '../market/outcome.dart';
 import '../market/phase.dart';
+import '../market/receipt.dart';
 import '../market/role.dart';
 import '../market/steps.dart';
 import '../market/trade.dart';
-import '../nostr/request.dart';
 import 'market.dart';
 import 'notice_bar.dart';
 
@@ -567,23 +568,12 @@ class _TradePageState extends State<TradePage> {
       context: context,
       isScrollControlled: true,
       builder: (context) => _PaidSheet(
-        amount: '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}',
-        details: details.detailsText,
+        amount: '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}'.trim(),
         needsReceipt: !hasProof,
-        holdInvoice: trade.holdInvoice,
-        askInvoice: false,
-        ckb: trade.amountShannons == null
-            ? null
-            : shannonsToCkb(trade.amountShannons!),
       ),
     );
     if (paid == null || !mounted) return;
-    final error = await widget.market.markPaid(
-      trade.id,
-      invoice: paid.invoice,
-      bankReference: paid.reference,
-      image: paid.image,
-    );
+    final error = await widget.market.markPaid(trade.id, image: paid.image);
     if (!mounted) return;
     setState(() => _error = error);
   }
@@ -789,100 +779,72 @@ class _Line extends StatelessWidget {
 }
 
 class _PaidInput {
-  const _PaidInput({
-    required this.invoice,
-    required this.reference,
-    this.image,
-  });
+  const _PaidInput({this.image});
 
-  final String invoice;
-  final String reference;
   final String? image;
 }
 
 class _PaidSheet extends StatefulWidget {
-  const _PaidSheet({
-    required this.amount,
-    required this.details,
-    required this.needsReceipt,
-    this.holdInvoice,
-    this.ckb,
-    this.askInvoice = true,
-  });
+  const _PaidSheet({required this.amount, required this.needsReceipt});
 
   final String amount;
-  final String details;
   final bool needsReceipt;
-  final String? holdInvoice;
-  final String? ckb;
-  final bool askInvoice;
 
   @override
   State<_PaidSheet> createState() => _PaidSheetState();
 }
 
 class _PaidSheetState extends State<_PaidSheet> {
-  final _invoice = TextEditingController();
-  final _reference = TextEditingController();
-  String? _image;
+  Uint8List? _receipt;
   String? _error;
-
-  @override
-  void dispose() {
-    _invoice.dispose();
-    _reference.dispose();
-    super.dispose();
-  }
+  bool _compressing = false;
 
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final receipt = _receipt;
     return Padding(
       padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Pay ${widget.amount}'),
-          const SizedBox(height: 4),
-          SelectableText(widget.details),
-          const SizedBox(height: 16),
+          Text(
+            widget.needsReceipt
+                ? 'Attach the receipt'
+                : 'Mark the payment as sent',
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.needsReceipt
+                ? 'A photo of the ${widget.amount} payment. Twine shrinks it before it is sent.'
+                : 'The receipt is already on this trade.',
+          ),
           if (widget.needsReceipt) ...[
-            TextField(
-              controller: _reference,
-              decoration: const InputDecoration(labelText: 'Bank reference'),
-            ),
+            const SizedBox(height: 16),
+            if (receipt != null)
+              Image.memory(receipt, height: 180, fit: BoxFit.contain),
+            if (_compressing) ...[
+              const SizedBox(height: 12),
+              const Text('Shrinking the photo…'),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               children: [
                 OutlinedButton(
-                  onPressed: () => _pick(ImageSource.gallery),
-                  child: Text(
-                    _image == null ? 'Photo library' : 'Receipt attached',
-                  ),
+                  onPressed: _compressing
+                      ? null
+                      : () => _pick(ImageSource.gallery),
+                  child: const Text('Photo library'),
                 ),
                 OutlinedButton(
-                  onPressed: () => _pick(ImageSource.camera),
+                  onPressed: _compressing
+                      ? null
+                      : () => _pick(ImageSource.camera),
                   child: const Text('Camera'),
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (widget.askInvoice) ...[
-            TextField(
-              controller: _invoice,
-              minLines: 1,
-              maxLines: 4,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(
-                labelText: 'Fiber invoice for the CKB',
-                helperText: widget.ckb == null
-                    ? 'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash.'
-                    : 'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash, and ${widget.ckb} CKB is paid there.',
-              ),
             ),
           ],
           if (_error != null) ...[
@@ -895,7 +857,10 @@ class _PaidSheetState extends State<_PaidSheet> {
             ),
           ],
           const SizedBox(height: 12),
-          FilledButton(onPressed: _submit, child: const Text("I've paid")),
+          FilledButton(
+            onPressed: _compressing ? null : _submit,
+            child: const Text("I've paid"),
+          ),
         ],
       ),
     );
@@ -905,52 +870,47 @@ class _PaidSheetState extends State<_PaidSheet> {
     try {
       final file = await ImagePicker().pickImage(
         source: source,
-        maxWidth: 720,
-        imageQuality: 35,
+        maxWidth: 1600,
+        imageQuality: 85,
       );
       if (file == null || !mounted) return;
       final bytes = await file.readAsBytes();
       if (!mounted) return;
-      if (bytes.length > maxReceiptBytes) {
-        setState(() => _error = 'Crop the receipt and try a smaller picture.');
+      setState(() {
+        _compressing = true;
+        _receipt = null;
+        _error = null;
+      });
+      final compressed = await compute(compressReceipt, bytes);
+      if (!mounted) return;
+      if (compressed == null) {
+        setState(() {
+          _compressing = false;
+          _error = 'That picture could not be sent. Try another one.';
+        });
         return;
       }
       setState(() {
-        _image = base64Encode(bytes);
-        _error = null;
+        _compressing = false;
+        _receipt = compressed;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'Could not open the camera or library.');
+      setState(() {
+        _compressing = false;
+        _error = 'Could not open the camera or library.';
+      });
     }
   }
 
   void _submit() {
-    final invoice = _invoice.text.trim();
-    if (widget.askInvoice) {
-      final invalid = invoiceError(invoice, holdInvoice: widget.holdInvoice);
-      if (invalid != null) {
-        setState(() => _error = invalid);
-        return;
-      }
-    }
-    if (widget.needsReceipt) {
-      if (_reference.text.trim().isEmpty) {
-        setState(() => _error = 'Enter the bank reference.');
-        return;
-      }
-      if (_image == null) {
-        setState(() => _error = 'Attach the receipt.');
-        return;
-      }
+    if (widget.needsReceipt && _receipt == null) {
+      setState(() => _error = 'Attach the receipt.');
+      return;
     }
     Navigator.pop(
       context,
-      _PaidInput(
-        invoice: invoice,
-        reference: _reference.text.trim(),
-        image: _image,
-      ),
+      _PaidInput(image: _receipt == null ? null : base64Encode(_receipt!)),
     );
   }
 }

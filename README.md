@@ -122,11 +122,10 @@ Open a trade from the post's **Trade** button, or from the **Trade** tab. The sc
 
 The buyer marks fiat as sent from **I've paid**:
 
-1. Enter the bank reference and attach a receipt photo, unless a receipt is already on the thread.
-2. Paste the Fiber invoice that should receive the CKB.
-3. The app posts the receipt on the thread, then sends `fiat-sent` with that invoice.
+1. Attach a receipt photo, unless a receipt is already on the thread. The app compresses the photo before sending.
+2. The app posts the receipt on the thread, then sends `fiat-sent`. The payout invoice from take is already on the trade.
 
-If the receipt is already posted and the mark is retried, the receipt stays and only the invoice is sent again. A later payout failure asks for a new invoice without a new receipt.
+If the receipt is already posted and the mark is retried, the receipt stays and only the mark is sent again. A later payout failure asks for a new invoice without a new receipt.
 
 Amounts the daemon sends as shannons are shown in CKB. `1` CKB is `100000000` shannons.
 
@@ -134,9 +133,9 @@ Amounts the daemon sends as shannons are shown in CKB. `1` CKB is `100000000` sh
 
 The thread is on the trade, encrypted to the other trader, once the daemon has named both Nostr keys. Until then the app says it is still waiting to learn who the other person is.
 
-You can send a text (up to 1000 characters), payment details (the seller's account), or a payment proof (the buyer's amount, bank reference, and receipt). The app also adds a local status line when the daemon moves the trade. That line is not published.
+You can send a text (up to 1000 characters), payment details (the seller's account), or a payment proof (the buyer's receipt photo). The app also adds a local status line when the daemon moves the trade. That line is not published.
 
-A receipt is chosen from the photo library, scaled down, and has to fit in one relay event. The limit is 48000 bytes after that. A picture that is still too large asks you to crop it.
+A receipt is chosen from the photo library or the camera. The app compresses it to a JPEG until it fits in one relay event. The limit is 48000 bytes after that. A picture that still does not fit asks you to try another one.
 
 The app only accepts a thread message signed by the counterparty on that trade and tagged with that trade id.
 

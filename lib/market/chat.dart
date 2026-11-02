@@ -1,6 +1,6 @@
 import 'phase.dart';
 
-/// A receipt image, after compression, has to fit in one relay event.
+/// A receipt image, after the app compresses it, has to fit in one relay event.
 const maxReceiptBytes = 48000;
 
 const maxChatText = 1000;
