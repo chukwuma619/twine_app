@@ -105,10 +105,15 @@ class TwineSession extends ChangeNotifier {
   bool _disposed = false;
   bool _relayWork = false;
   Timer? _catchUpTimer;
+  int _quietProbes = 0;
+  DateTime? _relaysReplacedAt;
 
-  /// How often a quiet phone reloads what the relays already stored.
+  /// How often a quiet phone checks that a relay still answers.
   /// The live subscription still delivers an update the moment it arrives.
-  static const _catchUpEvery = Duration(seconds: 30);
+  static const _catchUpEvery = Duration(seconds: 10);
+
+  /// After a successful dial, leave the new sockets alone this long.
+  static const _replaceCooldown = Duration(seconds: 12);
 
   void _notify() {
     if (!_disposed) notifyListeners();
@@ -125,10 +130,14 @@ class TwineSession extends ChangeNotifier {
     }
   }
 
-  /// Reloads the book without closing the live subscriptions. Coming back to
-  /// the app reconnects first, because a phone often wakes with a socket that
-  /// still looks open and delivers nothing. A reload that no relay answers
-  /// does the same.
+  bool get _relaysCooledDown {
+    final replaced = _relaysReplacedAt;
+    if (replaced == null) return true;
+    return DateTime.now().difference(replaced) >= _replaceCooldown;
+  }
+
+  /// Reloads the book without closing a subscription a relay is still answering.
+  /// Coming back to the app dials again. So do two probes that no relay answers.
   Future<void> catchUp({bool force = false}) async {
     if (_relayWork || _disposed) return;
     final current = daemon;
@@ -136,20 +145,34 @@ class TwineSession extends ChangeNotifier {
     if (!connectRelays || account == null || current == null || book == null) {
       return;
     }
-    if (showBackup || editingDaemon || !book.ready || book.sending) return;
+    if (showBackup || editingDaemon || book.sending) return;
 
     _relayWork = true;
     try {
-      var online = !force && nostr.relaysOpen;
-      if (online) {
+      var answered = false;
+      if (!force && nostr.relaysOpen) {
         try {
-          online = await nostr.reconcile();
+          answered = await nostr.reconcile();
         } catch (_) {
-          online = false;
+          answered = false;
         }
       }
-      if (!online) await _openRelays(current.relays);
-      if (_disposed) return;
+      final plan = planRelayRecovery(
+        force: force,
+        socketsOpen: nostr.relaysOpen,
+        probeAnswered: answered,
+        quietProbes: _quietProbes,
+        cooledDown: _relaysCooledDown,
+      );
+      _quietProbes = plan.quietProbes;
+      if (plan.replace) {
+        await _openRelays(current.relays);
+        if (relayError == null) {
+          _relaysReplacedAt = DateTime.now();
+          _quietProbes = 0;
+        }
+      }
+      if (_disposed || !book.ready) return;
       await book.refreshTrades();
     } finally {
       _relayWork = false;
@@ -158,9 +181,8 @@ class TwineSession extends ChangeNotifier {
 
   Future<void> _openRelays(List<String> relays) async {
     await _fiberSub?.cancel();
-    fiberNode = null;
-    fiberAddresses = const [];
-    solverAvailable = null;
+    connecting = true;
+    relayError = null;
     _notify();
     try {
       final open = await nostr.connect(relays);

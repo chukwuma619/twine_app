@@ -11,6 +11,35 @@ import 'fiber_node.dart';
 import 'order.dart';
 import 'reply.dart';
 
+class RelayRecovery {
+  const RelayRecovery({required this.replace, required this.quietProbes});
+
+  final bool replace;
+  final int quietProbes;
+}
+
+/// Replace the sockets after resume, a closed socket, or two missed answers.
+RelayRecovery planRelayRecovery({
+  required bool force,
+  required bool socketsOpen,
+  required bool probeAnswered,
+  required int quietProbes,
+  required bool cooledDown,
+}) {
+  if (force) {
+    return const RelayRecovery(replace: true, quietProbes: 0);
+  }
+  if (probeAnswered) {
+    return const RelayRecovery(replace: false, quietProbes: 0);
+  }
+  final misses = quietProbes + 1;
+  if (!cooledDown) {
+    return RelayRecovery(replace: false, quietProbes: misses);
+  }
+  final replace = !socketsOpen || misses >= 2;
+  return RelayRecovery(replace: replace, quietProbes: replace ? 0 : misses);
+}
+
 class TwineRelayException implements Exception {
   TwineRelayException(this.message);
 
@@ -61,7 +90,10 @@ class TwineNostr {
   String _openSockets = '';
 
   /// How long a one-shot reload waits for a relay to finish.
-  static const _fetchTimeout = Duration(seconds: 8);
+  static const _fetchTimeout = Duration(seconds: 5);
+
+  /// How long to wait when closing a socket that may already be dead.
+  static const _closeBudget = Duration(seconds: 2);
 
   Stream<DaemonReplyEvent> get replies => _replies.stream;
 
@@ -354,8 +386,14 @@ class TwineNostr {
 
   Future<List<String>> connect(List<String> relays) async {
     stopWatching();
-    await nostr.disconnect();
-    final result = await nostr.connect(relays);
+    // A dead socket's close often never finishes. Drop it, then dial.
+    _releaseSockets();
+    final NostrResult<void> result;
+    try {
+      result = await nostr.connect(relays).timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      throw TwineRelayException('no nostr relay connected');
+    }
     if (result.isFailure) {
       throw TwineRelayException(result.failureOrNull!.message);
     }
@@ -388,6 +426,21 @@ class TwineNostr {
         onSocketsReplaced?.call();
       } catch (_) {}
     });
+  }
+
+  void _releaseSockets() {
+    final registry = nostr.relays.relaysWebSocketsRegistry;
+    final sockets = registry.values.toList();
+    registry.clear();
+    for (final socket in sockets) {
+      unawaited(
+        Future<void>(() async {
+          try {
+            await socket.sink.close().timeout(_closeBudget);
+          } catch (_) {}
+        }),
+      );
+    }
   }
 
   String _socketKey() {
