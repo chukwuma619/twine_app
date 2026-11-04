@@ -157,9 +157,8 @@ class TwineMarket extends ChangeNotifier {
     if (sideOn(trade, accountPubkey, order) != TradeSide.seller) {
       return 'The seller sends the payment details.';
     }
-    if (trade.phase != TradePhase.waitingFiat &&
-        trade.phase != TradePhase.waitingHold) {
-      return 'Send the payment details before the buyer pays.';
+    if (trade.phase != TradePhase.waitingFiat) {
+      return 'Send the payment details after the CKB is locked.';
     }
     if (book.paymentDetails(tradeId) != null) {
       return 'The payment details are already on this trade.';

@@ -36,6 +36,7 @@ Future<void> startTwine({
         initialAccount: account,
         initialDaemon: daemon,
         connectRelays: true,
+        checkUpdates: true,
       ),
     );
   } catch (_) {
@@ -56,6 +57,7 @@ Future<void> startTwine({
               daemonStore: daemonStore,
               bookStore: bookStore,
               connectRelays: true,
+              checkUpdates: true,
             ),
           );
         },
@@ -83,9 +85,15 @@ class _StorageFailureApp extends StatelessWidget {
                 children: [
                   const Text('Could not read the saved account.'),
                   const SizedBox(height: 16),
-                  FilledButton(onPressed: onRetry, child: const Text('Try again')),
+                  FilledButton(
+                    onPressed: onRetry,
+                    child: const Text('Try again'),
+                  ),
                   const SizedBox(height: 12),
-                  OutlinedButton(onPressed: onImport, child: const Text('Import')),
+                  OutlinedButton(
+                    onPressed: onImport,
+                    child: const Text('Import'),
+                  ),
                 ],
               ),
             ),

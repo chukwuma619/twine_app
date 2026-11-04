@@ -7,6 +7,8 @@ import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/store/account_store.dart';
 import 'package:twine_app/store/book_store.dart';
 import 'package:twine_app/store/daemon_store.dart';
+import 'package:twine_app/update/update_binding.dart';
+import 'package:twine_app/update/update_controller.dart';
 
 import 'backup_page.dart';
 import 'daemon_page.dart';
@@ -25,6 +27,7 @@ class TwineApp extends StatefulWidget {
     this.initialAccount,
     this.initialDaemon,
     this.connectRelays = false,
+    this.checkUpdates = false,
   });
 
   final TwineNostr nostr;
@@ -34,6 +37,7 @@ class TwineApp extends StatefulWidget {
   final TwineAccount? initialAccount;
   final TwineDaemon? initialDaemon;
   final bool connectRelays;
+  final bool checkUpdates;
 
   @override
   State<TwineApp> createState() => _TwineAppState();
@@ -42,6 +46,7 @@ class TwineApp extends StatefulWidget {
 class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
   late final TwineSession _session;
   late final BookStore _books;
+  UpdateController? _updates;
   AppLifecycleState? _lifecycle;
 
   @override
@@ -49,6 +54,10 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _books = widget.bookStore ?? MemoryBookStore();
+    if (widget.checkUpdates) {
+      _updates = UpdateController(client: createUpdateClient());
+      unawaited(_updates!.check());
+    }
     _session = TwineSession(
       nostr: widget.nostr,
       store: widget.store,
@@ -63,6 +72,7 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _updates?.dispose();
     _session.dispose();
     super.dispose();
   }
@@ -76,7 +86,10 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
         (previous == AppLifecycleState.paused ||
             previous == AppLifecycleState.hidden ||
             previous == AppLifecycleState.detached);
-    if (cameBack) unawaited(_session.catchUp(force: true));
+    if (cameBack) {
+      unawaited(_session.catchUp(force: true));
+      unawaited(_updates?.check());
+    }
   }
 
   @override
@@ -136,6 +149,7 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
     }
     return MarketPage(
       market: market,
+      updates: _updates,
       showFiberGuide: session.showFiberGuide,
       onFiberGuideDismissed: session.dismissFiberGuide,
       fiberNode: session.fiberNode,
@@ -158,6 +172,7 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
         onChangeDaemon: session.editDaemon,
         onLogOut: session.logOut,
         error: session.logoutError,
+        updates: _updates,
       ),
     );
   }

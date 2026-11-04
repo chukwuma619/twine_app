@@ -171,6 +171,7 @@ void main() {
     );
 
     expect(find.text('Lock the CKB'), findsOneWidget);
+    expect(find.text('Payment details'), findsNothing);
     expect(
       find.text(
         'A buyer took this. Pay this invoice in your Fiber wallet. You cannot cancel after it locks.',
@@ -213,7 +214,7 @@ void main() {
     expect(find.text('Waiting for the seller'), findsOneWidget);
     expect(
       find.text(
-        'Once the seller locks, pay any time before the hold’s release deadline.',
+        'When the seller locks the CKB, they send the account you should pay.',
       ),
       findsOneWidget,
     );
@@ -315,8 +316,8 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('0123456789'), findsOneWidget);
-    expect(find.textContaining('Ada Lovelace'), findsOneWidget);
+    expect(find.textContaining('0123456789'), findsNWidgets(2));
+    expect(find.textContaining('Ada Lovelace'), findsNWidgets(2));
     expect(find.text("I've paid"), findsOneWidget);
 
     await tester.ensureVisible(find.text("I've paid"));
@@ -644,6 +645,66 @@ void main() {
 
     await tester.pump(const Duration(seconds: 4));
     expect(find.text('this payout hash was already used'), findsNothing);
+  });
+
+  testWidgets('the thread names the speaker and keeps the account once', (
+    tester,
+  ) async {
+    final order = _order(maker: 'seller');
+    final market = _market(
+      pubkey: 'buyer',
+      orders: [order],
+      trades: [
+        TwineTrade(
+          id: 'trade-1',
+          orderId: order.orderId,
+          phase: TradePhase.waitingFiat,
+          updatedAt: DateTime.utc(2026, 10, 6),
+          fiatAmount: '2500',
+          fiatCurrency: 'NGN',
+          reference: 'trade-1',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+        ),
+      ],
+    );
+    market.book.addNote(
+      TradeNote(
+        id: 'details',
+        tradeId: 'trade-1',
+        at: DateTime.utc(2026, 10, 6, 1),
+        kind: TradeNoteKind.paymentDetails,
+        author: 'seller',
+        text: 'GTBank\nAda Lovelace\n0123456789',
+      ),
+    );
+    market.book.addNote(
+      TradeNote(
+        id: 'hello',
+        tradeId: 'trade-1',
+        at: DateTime.utc(2026, 10, 6, 2),
+        kind: TradeNoteKind.text,
+        author: 'seller',
+        text: 'Paid yet?',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TradePage(market: market, tradeId: 'trade-1'),
+      ),
+    );
+
+    expect(find.text('Them', skipOffstage: false), findsNWidgets(2));
+    expect(find.text('Paid yet?', skipOffstage: false), findsOneWidget);
+    expect(find.text('Payment details', skipOffstage: false), findsOneWidget);
+    expect(find.text('Pay here'), findsOneWidget);
+    expect(
+      find.textContaining('0123456789', skipOffstage: false),
+      findsNWidgets(2),
+    );
+    expect(find.text('Message'), findsOneWidget);
+    expect(find.text('No messages yet.'), findsNothing);
   });
 }
 

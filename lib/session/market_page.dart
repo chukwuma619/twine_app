@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:twine_app/twine_logo.dart';
+import 'package:twine_app/update/update_controller.dart';
+import 'package:twine_app/update/update_panel.dart';
 
+import '../market/chat.dart';
 import '../market/role.dart';
 import '../market/steps.dart';
 import '../nostr/order.dart';
@@ -28,9 +31,11 @@ class MarketPage extends StatefulWidget {
     this.relayCount = 0,
     this.showFiberGuide = false,
     this.onFiberGuideDismissed,
+    this.updates,
   });
 
   final TwineMarket market;
+  final UpdateController? updates;
   final Widget account;
   final String? fiberNode;
   final List<String> fiberAddresses;
@@ -84,6 +89,12 @@ class _MarketPageState extends State<MarketPage> {
   void _dismissShownNotice() {
     if (_notice == null) return;
     setState(() => _notice = null);
+  }
+
+  Widget _updateBanner() {
+    final updates = widget.updates;
+    if (updates == null) return const SizedBox.shrink();
+    return UpdateBanner(controller: updates);
   }
 
   Widget _noticeBanner() {
@@ -199,6 +210,7 @@ class _MarketPageState extends State<MarketPage> {
           body: _section == _Section.account
               ? Column(
                   children: [
+                    _updateBanner(),
                     _noticeBanner(),
                     _Status(
                       market: market,
@@ -215,6 +227,7 @@ class _MarketPageState extends State<MarketPage> {
                 )
               : Column(
                   children: [
+                    _updateBanner(),
                     _noticeBanner(),
                     if (posting)
                       Align(
@@ -582,6 +595,45 @@ String _holdLabel(int hours) {
   return hours == 1 ? '1 hour' : '$hours hours';
 }
 
+class _LinePreview {
+  const _LinePreview(this.text, {required this.incoming});
+
+  final String text;
+  final bool incoming;
+}
+
+_LinePreview? _lastLine(TwineMarket market, String tradeId) {
+  final notes = market.book.thread(tradeId);
+  for (var i = notes.length - 1; i >= 0; i--) {
+    final note = notes[i];
+    final incoming =
+        note.author?.toLowerCase() != market.accountPubkey.toLowerCase();
+    final preview = _preview(note, incoming);
+    if (preview != null) return preview;
+  }
+  return null;
+}
+
+_LinePreview? _preview(TradeNote note, bool incoming) {
+  switch (note.kind) {
+    case TradeNoteKind.text:
+      final text = note.text?.trim();
+      if (text == null || text.isEmpty) return null;
+      return _LinePreview(
+        '${incoming ? 'Them' : 'You'}: $text',
+        incoming: incoming,
+      );
+    case TradeNoteKind.paymentDetails:
+      return _LinePreview('Payment details', incoming: incoming);
+    case TradeNoteKind.paymentProof:
+      return _LinePreview('Receipt', incoming: incoming);
+    case TradeNoteKind.status:
+      final text = note.text?.trim();
+      if (text == null || text.isEmpty) return null;
+      return _LinePreview(text, incoming: false);
+  }
+}
+
 class _Trades extends StatelessWidget {
   const _Trades({required this.market, this.solverAvailable});
 
@@ -609,11 +661,19 @@ class _Trades extends StatelessWidget {
         final detail = trade.fiatAmount == null
             ? trade.id
             : '${trade.fiatAmount} ${trade.fiatCurrency ?? order?.fiatCurrency ?? ''}';
+        final preview = _lastLine(market, trade.id);
         return Card(
           margin: EdgeInsets.zero,
           child: ListTile(
             title: Text(title),
-            subtitle: Text(detail),
+            subtitle: Text(
+              preview == null ? detail : '$detail\n${preview.text}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: preview != null && preview.incoming
+                  ? const TextStyle(fontWeight: FontWeight.w600)
+                  : null,
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.of(context).push(
