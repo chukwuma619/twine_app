@@ -135,7 +135,7 @@ class _TradePageState extends State<TradePage> {
             !trade.phase.terminal &&
             trade.phase != TradePhase.refunding;
         final lines = _lines(trade.id);
-        _pin(lines.length);
+        _pin(lines.length + (outcome == null ? 0 : 1));
         final timing = _timing(trade, side);
         final step = _step(
           trade: trade,
@@ -188,22 +188,23 @@ class _TradePageState extends State<TradePage> {
                           ConstrainedBox(
                             constraints: BoxConstraints(maxHeight: summaryMax),
                             child: SingleChildScrollView(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _summary(
-                                    theme: theme,
-                                    trade: trade,
-                                    orderCurrency: order?.fiatCurrency,
-                                    side: side,
-                                    timing: timing,
-                                  ),
-                                  if (outcome != null) _outcome(theme, outcome),
-                                ],
+                              child: _summary(
+                                theme: theme,
+                                trade: trade,
+                                orderCurrency: order?.fiatCurrency,
+                                side: side,
+                                timing: timing,
                               ),
                             ),
                           ),
-                          Expanded(child: _conversation(theme, lines, peer)),
+                          Expanded(
+                            child: _conversation(
+                              theme,
+                              lines,
+                              peer,
+                              outcome: outcome,
+                            ),
+                          ),
                           if (step != null && dockCap > 0)
                             ConstrainedBox(
                               constraints: BoxConstraints(maxHeight: dockCap),
@@ -329,38 +330,27 @@ class _TradePageState extends State<TradePage> {
     );
   }
 
-  Widget _outcome(ThemeData theme, String outcome) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        TwineTokens.md,
-        TwineTokens.sm,
-        TwineTokens.md,
-        0,
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(TwineTokens.sm),
-          child: Text(
-            outcome,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _conversation(ThemeData theme, List<TradeNote> lines, String? peer) {
+  Widget _conversation(
+    ThemeData theme,
+    List<TradeNote> lines,
+    String? peer, {
+    String? outcome,
+  }) {
     if (peer == null) {
-      return const _ThreadEmpty(
-        icon: Icons.lock_outline,
-        message: 'The thread opens once this trade has both keys.',
+      return Column(
+        children: [
+          if (outcome != null) _SystemLine(text: outcome),
+          const Expanded(
+            child: _ThreadEmpty(
+              icon: Icons.lock_outline,
+              message: 'The thread opens once this trade has both keys.',
+            ),
+          ),
+        ],
       );
     }
-    if (lines.isEmpty) {
+    final closing = outcome == null ? 0 : 1;
+    if (lines.isEmpty && closing == 0) {
       return const _ThreadEmpty(
         icon: Icons.chat_bubble_outline,
         message: 'No messages yet.',
@@ -374,8 +364,14 @@ class _TradePageState extends State<TradePage> {
         TwineTokens.md,
         TwineTokens.md,
       ),
-      itemCount: lines.length,
+      itemCount: lines.length + closing,
       itemBuilder: (context, index) {
+        if (index == lines.length) {
+          return Padding(
+            padding: EdgeInsets.only(top: lines.isEmpty ? 0 : TwineTokens.sm),
+            child: _SystemLine(text: outcome!),
+          );
+        }
         final line = lines[index];
         final previous = index == 0 ? null : lines[index - 1];
         final grouped = previous != null && _sameSpeaker(previous, line);
@@ -1007,7 +1003,10 @@ class _TradePageState extends State<TradePage> {
                   ),
                 ),
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 480),
+                  constraints: BoxConstraints(
+                    maxHeight: 480,
+                    maxWidth: MediaQuery.sizeOf(context).width - 48,
+                  ),
                   child: InteractiveViewer(
                     child: Image.memory(bytes, fit: BoxFit.contain),
                   ),
@@ -1327,19 +1326,34 @@ class _ReceiptImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => onOpen(bytes),
-          borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
-            child: Image.memory(bytes, height: 160, fit: BoxFit.contain),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: 160),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => onOpen(bytes),
+                borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+                  child: Image.memory(
+                    bytes,
+                    width: maxWidth,
+                    height: 160,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -1486,53 +1500,59 @@ class _Bubble extends StatelessWidget {
     Widget child,
     _BubbleInk colors,
   ) {
-    final width = MediaQuery.sizeOf(context).width;
     final tail = TwineTokens.radiusBubbleTail;
     final round = TwineTokens.radiusMd;
     final corner = showName ? tail : round;
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: width * 0.78),
-        child: Column(
-          crossAxisAlignment: mine
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
-          children: [
-            if (showName)
-              Padding(
-                padding: const EdgeInsets.only(bottom: TwineTokens.xxs),
-                child: Text(
-                  mine ? 'You' : 'Them',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth * 0.78
+            : MediaQuery.sizeOf(context).width * 0.78;
+        return Align(
+          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: Column(
+              crossAxisAlignment: mine
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                if (showName)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: TwineTokens.xxs),
+                    child: Text(
+                      mine ? 'You' : 'Them',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.fill,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(mine ? round : corner),
+                      topRight: Radius.circular(mine ? corner : round),
+                      bottomLeft: Radius.circular(round),
+                      bottomRight: Radius.circular(round),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      TwineTokens.sm,
+                      TwineTokens.xs,
+                      TwineTokens.sm,
+                      TwineTokens.xs,
+                    ),
+                    child: child,
                   ),
                 ),
-              ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.fill,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(mine ? round : corner),
-                  topRight: Radius.circular(mine ? corner : round),
-                  bottomLeft: Radius.circular(round),
-                  bottomRight: Radius.circular(round),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  TwineTokens.sm,
-                  TwineTokens.xs,
-                  TwineTokens.sm,
-                  TwineTokens.xs,
-                ),
-                child: child,
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1632,7 +1652,12 @@ class _PaidSheetState extends State<_PaidSheet> {
             if (receipt != null)
               ClipRRect(
                 borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
-                child: Image.memory(receipt, height: 180, fit: BoxFit.contain),
+                child: Image.memory(
+                  receipt,
+                  height: 180,
+                  width: MediaQuery.sizeOf(context).width - 48,
+                  fit: BoxFit.contain,
+                ),
               ),
             if (_compressing) ...[
               const SizedBox(height: TwineTokens.sm),
@@ -1856,27 +1881,52 @@ class _CopyLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          width: TwineTokens.labelColumn,
-          child: Text(label, style: TwineTokens.muted(theme)),
+        Row(
+          children: [
+            Expanded(child: Text(label, style: TwineTokens.muted(theme))),
+            IconButton(
+              tooltip: 'Copy $label',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(
+                width: TwineTokens.control,
+                height: TwineTokens.control,
+              ),
+              onPressed: onCopy,
+              icon: const Icon(Icons.copy, size: TwineTokens.iconSm),
+            ),
+          ],
         ),
-        Expanded(
-          child: SelectableText(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Copy $label',
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-          onPressed: onCopy,
-          icon: const Icon(Icons.copy, size: 18),
+        SelectableText(
+          value,
+          style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
         ),
       ],
+    );
+  }
+}
+
+class _SystemLine extends StatelessWidget {
+  const _SystemLine({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: TwineTokens.xs),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          height: 1.35,
+        ),
+      ),
     );
   }
 }

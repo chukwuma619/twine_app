@@ -225,6 +225,7 @@ class TwineBook {
         solver: base.solver,
       ),
     );
+    _rememberStatus(snapshot.tradeId, moving ? snapshot.phase : base.phase, at);
   }
 
   void _newInvoice(TwineEnvelope envelope, DateTime at) {
@@ -350,6 +351,10 @@ class TwineBook {
       ),
     );
     if (!moving) return;
+    _rememberStatus(tradeId, phase, at);
+  }
+
+  void _rememberStatus(String tradeId, TradePhase phase, DateTime at) {
     final line = statusLine(phase);
     if (line == null) return;
     addNote(
@@ -420,7 +425,8 @@ class TwineBook {
       fiberPubkey: fiber is String && fiber.trim().isNotEmpty
           ? fiber.trim()
           : null,
-      fiberAddr: map['fiber_addr'] is String &&
+      fiberAddr:
+          map['fiber_addr'] is String &&
               (map['fiber_addr'] as String).trim().isNotEmpty
           ? (map['fiber_addr'] as String).trim()
           : null,
