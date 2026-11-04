@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:twine_app/twine_logo.dart';
-import 'package:twine_app/update/update_controller.dart';
-import 'package:twine_app/update/update_panel.dart';
 
 import '../market/chat.dart';
 import '../market/role.dart';
@@ -32,11 +30,9 @@ class MarketPage extends StatefulWidget {
     this.relayCount = 0,
     this.showFiberGuide = false,
     this.onFiberGuideDismissed,
-    this.updates,
   });
 
   final TwineMarket market;
-  final UpdateController? updates;
   final Widget account;
   final String? fiberNode;
   final List<String> fiberAddresses;
@@ -90,12 +86,6 @@ class _MarketPageState extends State<MarketPage> {
   void _dismissShownNotice() {
     if (_notice == null) return;
     setState(() => _notice = null);
-  }
-
-  Widget _updateBanner() {
-    final updates = widget.updates;
-    if (updates == null) return const SizedBox.shrink();
-    return UpdateBanner(controller: updates);
   }
 
   Widget _noticeBanner() {
@@ -211,7 +201,6 @@ class _MarketPageState extends State<MarketPage> {
           body: _section == _Section.account
               ? Column(
                   children: [
-                    _updateBanner(),
                     _noticeBanner(),
                     _Status(
                       market: market,
@@ -228,7 +217,6 @@ class _MarketPageState extends State<MarketPage> {
                 )
               : Column(
                   children: [
-                    _updateBanner(),
                     _noticeBanner(),
                     if (posting)
                       Padding(

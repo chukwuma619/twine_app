@@ -36,7 +36,6 @@ Future<void> startTwine({
         initialAccount: account,
         initialDaemon: daemon,
         connectRelays: true,
-        checkUpdates: true,
       ),
     );
   } catch (_) {
@@ -57,7 +56,6 @@ Future<void> startTwine({
               daemonStore: daemonStore,
               bookStore: bookStore,
               connectRelays: true,
-              checkUpdates: true,
             ),
           );
         },

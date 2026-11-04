@@ -4,8 +4,6 @@ import 'package:twine_app/market/channel.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
 import 'package:twine_app/twine_logo.dart';
-import 'package:twine_app/update/update_controller.dart';
-import 'package:twine_app/update/update_panel.dart';
 
 class SignedInPage extends StatelessWidget {
   const SignedInPage({
@@ -22,7 +20,6 @@ class SignedInPage extends StatelessWidget {
     this.fiberAddresses = const [],
     this.relayError,
     this.error,
-    this.updates,
   });
 
   final TwineAccount account;
@@ -37,7 +34,6 @@ class SignedInPage extends StatelessWidget {
   final List<String> fiberAddresses;
   final String? relayError;
   final String? error;
-  final UpdateController? updates;
 
   @override
   Widget build(BuildContext context) {
@@ -111,10 +107,6 @@ class SignedInPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   SelectableText(address),
                 ],
-            ],
-            if (updates != null) ...[
-              const SizedBox(height: 24),
-              UpdateSection(controller: updates!),
             ],
             const SizedBox(height: 24),
             OutlinedButton(
