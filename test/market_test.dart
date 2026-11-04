@@ -695,7 +695,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Them', skipOffstage: false), findsNWidgets(2));
+    expect(find.text('Them', skipOffstage: false), findsOneWidget);
     expect(find.text('Paid yet?', skipOffstage: false), findsOneWidget);
     expect(find.text('Payment details', skipOffstage: false), findsOneWidget);
     expect(find.text('Pay here'), findsOneWidget);

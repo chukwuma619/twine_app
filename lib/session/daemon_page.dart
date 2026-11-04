@@ -82,7 +82,6 @@ class _DaemonPageState extends State<DaemonPage> {
                     enableSuggestions: false,
                     decoration: const InputDecoration(
                       labelText: 'Daemon public key',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -96,7 +95,6 @@ class _DaemonPageState extends State<DaemonPage> {
                     decoration: const InputDecoration(
                       labelText: 'Relays',
                       hintText: 'wss://relay.example.com',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   if (widget.error != null) ...[

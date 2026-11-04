@@ -16,6 +16,7 @@ import '../market/receipt.dart';
 import '../market/role.dart';
 import '../market/steps.dart';
 import '../market/trade.dart';
+import '../ui/twine_tokens.dart';
 import 'market.dart';
 import 'notice_bar.dart';
 
@@ -46,7 +47,6 @@ class _TradePageState extends State<TradePage> {
   String? _error;
   String? _banner;
   bool _lifting = false;
-  bool _showKeys = false;
   bool _nearLimit = false;
   bool _shiftHeld = false;
   _Work? _busy;
@@ -100,7 +100,7 @@ class _TradePageState extends State<TradePage> {
             appBar: AppBar(title: const Text('Trade')),
             body: const SafeArea(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: EdgeInsets.all(TwineTokens.lg),
                 child: Text('This trade is no longer on this device.'),
               ),
             ),
@@ -136,6 +136,7 @@ class _TradePageState extends State<TradePage> {
             trade.phase != TradePhase.refunding;
         final lines = _lines(trade.id);
         _pin(lines.length);
+        final timing = _timing(trade, side);
         final step = _step(
           trade: trade,
           side: side,
@@ -148,7 +149,25 @@ class _TradePageState extends State<TradePage> {
         );
         return Scaffold(
           resizeToAvoidBottomInset: true,
-          appBar: AppBar(title: Text(tradeTitle(trade.phase, side))),
+          appBar: AppBar(
+            title: Text(
+              tradeTitle(trade.phase, side),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            actions: [
+              IconButton(
+                tooltip: 'Trade details',
+                onPressed: () => _openDetails(
+                  trade: trade,
+                  side: side,
+                  timing: timing,
+                  orderCurrency: order?.fiatCurrency,
+                ),
+                icon: const Icon(Icons.info_outline),
+              ),
+            ],
+          ),
           body: SafeArea(
             child: Column(
               children: [
@@ -157,52 +176,45 @@ class _TradePageState extends State<TradePage> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
+                      final height = constraints.maxHeight;
+                      final summaryMax = height * 0.34 < 148
+                          ? height * 0.34
+                          : 148.0;
+                      final dockCap = height * 0.46 < 240
+                          ? height * 0.46
+                          : 240.0;
                       return Column(
                         children: [
                           ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxHeight: constraints.maxHeight * 0.34,
-                            ),
-                            child: ListView(
-                              shrinkWrap: true,
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                              children: [
-                                _header(
-                                  theme: theme,
-                                  trade: trade,
-                                  orderCurrency: order?.fiatCurrency,
-                                  side: side,
-                                  outcome: outcome,
-                                ),
-                              ],
+                            constraints: BoxConstraints(maxHeight: summaryMax),
+                            child: SingleChildScrollView(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _summary(
+                                    theme: theme,
+                                    trade: trade,
+                                    orderCurrency: order?.fiatCurrency,
+                                    side: side,
+                                    timing: timing,
+                                  ),
+                                  if (outcome != null) _outcome(theme, outcome),
+                                ],
+                              ),
                             ),
                           ),
-                          const Divider(height: 1),
                           Expanded(child: _conversation(theme, lines, peer)),
-                          if (step != null) ...[
-                            const Divider(height: 1),
+                          if (step != null && dockCap > 0)
                             ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxHeight: constraints.maxHeight * 0.38,
-                              ),
-                              child: ListView(
-                                shrinkWrap: true,
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  12,
-                                  16,
-                                  8,
-                                ),
-                                children: [step],
-                              ),
+                              constraints: BoxConstraints(maxHeight: dockCap),
+                              child: _ActionDock(child: step),
                             ),
-                          ],
                         ],
                       );
                     },
                   ),
                 ),
-                if (compose) _composer(trade),
+                if (compose) _composer(trade, separated: step == null),
               ],
             ),
           ),
@@ -211,113 +223,176 @@ class _TradePageState extends State<TradePage> {
     );
   }
 
-  Widget _header({
+  Widget _summary({
     required ThemeData theme,
     required TwineTrade trade,
     required TradeSide? side,
-    required String? outcome,
+    required List<String> timing,
     String? orderCurrency,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (outcome != null) ...[
-          Text(outcome, style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-        ],
-        if (orderCurrency != null)
-          Text(orderCurrency, style: theme.textTheme.titleMedium),
-        if (trade.amountShannons != null)
-          Text('${shannonsToCkb(trade.amountShannons!)} CKB'),
-        const SizedBox(height: 4),
-        Text(_sideLine(side)),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton(
-            style: TextButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    final scheme = theme.colorScheme;
+    final muted = TwineTokens.muted(theme);
+    final ckb = trade.amountShannons == null
+        ? null
+        : '${shannonsToCkb(trade.amountShannons!)} CKB';
+    final showPayment = _showPayment(trade);
+    final role = switch (side) {
+      TradeSide.buyer => 'Buyer',
+      TradeSide.seller => 'Seller',
+      null => null,
+    };
+    final deadline = timing.isEmpty ? null : timing.first;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          TwineTokens.md,
+          TwineTokens.sm,
+          TwineTokens.md,
+          TwineTokens.sm,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (ckb != null)
+                        Text(ckb, style: TwineTokens.title(theme)),
+                      if (showPayment) ...[
+                        if (ckb != null)
+                          const SizedBox(height: TwineTokens.xxs),
+                        Text(
+                          _paymentLine(side, trade),
+                          style: TwineTokens.body(theme),
+                        ),
+                      ] else if (orderCurrency != null && ckb == null)
+                        Text(
+                          orderCurrency,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      if (side == null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: TwineTokens.xxs),
+                          child: Text(
+                            'Waiting to learn which side you are on.',
+                            style: muted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (role != null) ...[
+                  const SizedBox(width: TwineTokens.sm),
+                  _RoleMark(label: role),
+                ],
+              ],
             ),
-            onPressed: () => setState(() => _showKeys = !_showKeys),
-            child: Text(_showKeys ? 'Hide keys' : 'Show keys'),
+            if (showPayment) ...[
+              const SizedBox(height: TwineTokens.xs),
+              _CopyLine(
+                label: 'Reference',
+                value: trade.reference ?? trade.id,
+                onCopy: () => _copy(trade.reference ?? trade.id),
+              ),
+              if (side == TradeSide.buyer) ...[
+                const SizedBox(height: TwineTokens.xxs),
+                Text('Put the reference on the payment.', style: muted),
+              ],
+            ],
+            if (deadline != null) ...[
+              const SizedBox(height: TwineTokens.xs),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.schedule,
+                    size: TwineTokens.iconSm,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: TwineTokens.xs),
+                  Expanded(child: Text(deadline, style: muted)),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _outcome(ThemeData theme, String outcome) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        TwineTokens.md,
+        TwineTokens.sm,
+        TwineTokens.md,
+        0,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(TwineTokens.sm),
+          child: Text(
+            outcome,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
           ),
         ),
-        if (_showKeys)
-          _Parties(
-            me: widget.market.accountPubkey,
-            seller: trade.sellerNostr,
-            buyer: trade.buyerNostr,
-            encode: _npub,
-          ),
-        ..._clocks(trade, side),
-        const SizedBox(height: 8),
-        Text('Reference', style: theme.textTheme.titleSmall),
-        SelectableText(trade.reference ?? trade.id),
-        if (trade.fiatAmount != null &&
-            trade.phase != TradePhase.waitingHold &&
-            trade.phase != TradePhase.waitingInvoice) ...[
-          const SizedBox(height: 8),
-          Text(_paymentLine(side, trade)),
-          if (side == TradeSide.buyer) ...[
-            const SizedBox(height: 4),
-            const Text('Put the reference on the payment.'),
-          ],
-        ],
-      ],
+      ),
     );
   }
 
   Widget _conversation(ThemeData theme, List<TradeNote> lines, String? peer) {
     if (peer == null) {
-      return const Padding(
-        padding: EdgeInsets.all(24),
-        child: Text('The thread opens once this trade has both keys.'),
+      return const _ThreadEmpty(
+        icon: Icons.lock_outline,
+        message: 'The thread opens once this trade has both keys.',
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Text(
-            'Encrypted to the other trader. The relay can see that these two keys are talking.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+    if (lines.isEmpty) {
+      return const _ThreadEmpty(
+        icon: Icons.chat_bubble_outline,
+        message: 'No messages yet.',
+      );
+    }
+    return ListView.builder(
+      controller: _thread,
+      padding: const EdgeInsets.fromLTRB(
+        TwineTokens.md,
+        TwineTokens.sm,
+        TwineTokens.md,
+        TwineTokens.md,
+      ),
+      itemCount: lines.length,
+      itemBuilder: (context, index) {
+        final line = lines[index];
+        final previous = index == 0 ? null : lines[index - 1];
+        final grouped = previous != null && _sameSpeaker(previous, line);
+        return Padding(
+          padding: EdgeInsets.only(
+            top: grouped ? TwineTokens.xxs : (index == 0 ? 0 : TwineTokens.sm),
           ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            controller: _thread,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            itemCount: lines.isEmpty ? 1 : lines.length,
-            itemBuilder: (context, index) {
-              if (lines.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Text(
-                    'No messages yet.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                );
-              }
-              final line = lines[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _Bubble(
-                  line: line,
-                  mine:
-                      line.author?.toLowerCase() ==
-                      widget.market.accountPubkey.toLowerCase(),
-                  onOpenReceipt: _openReceipt,
-                ),
-              );
-            },
+          child: _Bubble(
+            line: line,
+            mine:
+                line.author?.toLowerCase() ==
+                widget.market.accountPubkey.toLowerCase(),
+            showName: !grouped,
+            onOpenReceipt: _openReceipt,
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -332,188 +407,226 @@ class _TradePageState extends State<TradePage> {
     required bool waitingFiat,
   }) {
     final children = <Widget>[];
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      height: 1.35,
+    );
+    void add(Widget child, {double gap = TwineTokens.sm}) {
+      if (children.isNotEmpty) children.add(SizedBox(height: gap));
+      children.add(child);
+    }
+
     final accountVisible = details != null && _holdLocked(trade.phase);
     if (accountVisible) {
-      children.add(_AccountCard(details: details, side: side));
+      add(_AccountCard(details: details, side: side));
     } else if (shareAccount && peer != null) {
-      children.add(
+      add(
         const Text(
           'The CKB is locked. Send the payment details the buyer should use.',
         ),
       );
-      children.add(const SizedBox(height: 12));
-      children.add(
-        TextField(
-          controller: _details,
-          enabled: !_blocked,
-          minLines: 3,
-          maxLines: 6,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            labelText: 'Payment details',
-            alignLabelWithHint: true,
-            hintText: 'Bank, account name, account number',
-          ),
-        ),
-      );
-      children.add(const SizedBox(height: 12));
-      children.add(
-        FilledButton(
-          onPressed: _blocked ? null : () => _share(trade),
-          child: _actionChild('Send', _Work.share),
-        ),
-      );
+      add(_detailsField());
+      add(_primary('Send', _Work.share, () => _share(trade)));
     } else if (shareAccount) {
-      children.add(const Text('Waiting to learn who the buyer is.'));
+      add(const Text('Waiting to learn who the buyer is.'));
     } else if (waitingFiat) {
-      children.add(
+      add(
         const Text(
           'The CKB is locked. Waiting for the seller to share the account you should pay.',
         ),
       );
     }
     if (trade.payoutFailure != null) {
-      children.add(const SizedBox(height: 12));
-      children.add(Text(trade.payoutFailure!));
+      add(
+        Text(
+          trade.payoutFailure!,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.error,
+            height: 1.35,
+          ),
+        ),
+      );
       if (side == TradeSide.buyer) {
-        children.add(const SizedBox(height: 8));
-        children.add(const Text('Paste another invoice for the same payment.'));
+        add(
+          const Text('Paste another invoice for the same payment.'),
+          gap: TwineTokens.xs,
+        );
       }
     }
     if (actions.payHold) {
-      children.add(const SizedBox(height: 12));
-      children.add(
+      add(
         const Text(
           'A buyer took this. Pay this invoice in your Fiber wallet. You cannot cancel after it locks.',
         ),
       );
-      children.add(const SizedBox(height: 8));
-      children.add(
-        Center(
-          child: QrImageView(
-            data: trade.holdInvoice!,
-            size: 180,
-            backgroundColor: Colors.white,
-          ),
-        ),
-      );
-      children.add(const SizedBox(height: 8));
-      children.add(
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: SelectableText(trade.holdInvoice!)),
-            IconButton(
-              tooltip: 'Copy invoice',
-              onPressed: () => _copy(trade.holdInvoice!),
-              icon: const Icon(Icons.copy),
-            ),
-          ],
-        ),
-      );
-      children.add(const SizedBox(height: 4));
-      children.add(
-        const Text('Waiting for the operator node to report the lock.'),
+      add(_invoiceQr(trade.holdInvoice!), gap: TwineTokens.sm);
+      add(_invoiceCopy(trade.holdInvoice!), gap: TwineTokens.xs);
+      add(
+        Text('Waiting for the operator node to report the lock.', style: muted),
+        gap: TwineTokens.xs,
       );
     } else if (side == TradeSide.buyer &&
         trade.phase == TradePhase.waitingHold) {
-      children.add(const SizedBox(height: 12));
-      children.add(
+      add(
         const Text(
           'When the seller locks the CKB, they send the account you should pay.',
         ),
       );
     } else if (side == null && trade.phase == TradePhase.waitingHold) {
-      children.add(const SizedBox(height: 12));
-      children.add(const Text('Waiting to learn who locks the CKB.'));
+      add(const Text('Waiting to learn who locks the CKB.'));
     }
     if (trade.phase == TradePhase.fiatSent && side == TradeSide.seller) {
-      children.add(const SizedBox(height: 12));
-      children.add(
+      add(
         const Text(
           'The buyer says they paid. Release the CKB after the money is in your account.',
         ),
       );
     } else if (trade.phase == TradePhase.fiatSent && side == TradeSide.buyer) {
-      children.add(const SizedBox(height: 12));
-      children.add(const Text('Waiting for the seller to release the CKB.'));
+      add(const Text('Waiting for the seller to release the CKB.'));
     }
     if (proof != null &&
         side == TradeSide.seller &&
         (trade.phase == TradePhase.fiatSent ||
             trade.phase == TradePhase.disputed)) {
-      children.add(const SizedBox(height: 12));
-      children.add(_ReceiptCard(proof: proof, onOpen: _openReceipt));
+      add(_ReceiptCard(proof: proof, onOpen: _openReceipt));
     }
     if (trade.phase == TradePhase.releasing) {
-      children.add(const SizedBox(height: 12));
-      children.add(const Text('Sending the CKB to the invoice on file.'));
+      add(const Text('Sending the CKB to the invoice on file.'));
     }
     if (trade.phase == TradePhase.disputed) {
-      children.add(const SizedBox(height: 12));
-      children.add(Text(_disputeLine(trade)));
+      add(Text(_disputeLine(trade)));
     }
     if (actions.submitInvoice) {
-      children.add(const SizedBox(height: 12));
-      children.add(_invoiceField(trade));
-      children.add(const SizedBox(height: 12));
-      children.add(
-        FilledButton(
-          onPressed: _blocked ? null : () => _submitInvoice(trade),
-          child: _actionChild('Submit payout invoice', _Work.invoice),
+      add(_invoiceField(trade));
+      add(
+        _primary(
+          'Submit payout invoice',
+          _Work.invoice,
+          () => _submitInvoice(trade),
         ),
       );
     }
     if (waitingFiat && details != null) {
-      children.add(const SizedBox(height: 12));
-      children.add(
-        FilledButton(
-          onPressed: _blocked ? null : () => _paid(trade, proof != null),
-          child: _actionChild("I've paid", _Work.paid),
-        ),
-      );
+      add(_primary("I've paid", _Work.paid, () => _paid(trade, proof != null)));
     } else if (actions.sendFiat && trade.phase != TradePhase.waitingFiat) {
-      children.add(const SizedBox(height: 12));
-      children.add(_invoiceField(trade));
-      children.add(const SizedBox(height: 12));
-      children.add(
-        FilledButton(
-          onPressed: _blocked ? null : () => _fiat(trade),
-          child: _actionChild('Submit payout invoice', _Work.invoice),
-        ),
-      );
+      add(_invoiceField(trade));
+      add(_primary('Submit payout invoice', _Work.invoice, () => _fiat(trade)));
     }
     if (actions.release) {
-      children.add(const SizedBox(height: 12));
-      children.add(
-        FilledButton(
-          onPressed: _blocked ? null : () => _release(trade),
-          child: _actionChild('Release the CKB', _Work.release),
-        ),
-      );
+      add(_primary('Release the CKB', _Work.release, () => _release(trade)));
     }
     if (actions.dispute) {
-      children.add(const SizedBox(height: 12));
-      children.add(
-        OutlinedButton(
-          onPressed: _blocked ? null : () => _dispute(trade),
-          child: _actionChild('Dispute', _Work.dispute),
-        ),
+      add(
+        _quiet('Dispute', _Work.dispute, () => _dispute(trade)),
+        gap: TwineTokens.xs,
       );
     }
     if (actions.cancel) {
-      children.add(const SizedBox(height: 4));
-      children.add(
-        TextButton(
-          onPressed: _blocked ? null : () => _cancel(trade),
-          child: _actionChild('Cancel trade', _Work.cancel),
-        ),
+      add(
+        _quiet('Cancel trade', _Work.cancel, () => _cancel(trade)),
+        gap: TwineTokens.xxs,
       );
     }
     if (children.isEmpty) return null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: children,
+    );
+  }
+
+  Widget _detailsField() {
+    return TextField(
+      controller: _details,
+      enabled: !_blocked,
+      minLines: 3,
+      maxLines: 6,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: const InputDecoration(
+        labelText: 'Payment details',
+        alignLabelWithHint: true,
+        hintText: 'Bank, account name, account number',
+      ),
+    );
+  }
+
+  Widget _invoiceQr(String invoice) {
+    return Center(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(TwineTokens.sm),
+          child: QrImageView(
+            data: invoice,
+            size: 168,
+            backgroundColor: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _invoiceCopy(String invoice) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                TwineTokens.sm,
+                10,
+                TwineTokens.xxs,
+                10,
+              ),
+              child: SelectableText(
+                invoice,
+                style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Copy invoice',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _copy(invoice),
+            icon: const Icon(Icons.copy, size: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _primary(String label, _Work work, VoidCallback onPressed) {
+    return FilledButton(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(TwineTokens.control),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+        ),
+      ),
+      onPressed: _blocked ? null : onPressed,
+      child: _actionChild(label, work),
+    );
+  }
+
+  Widget _quiet(String label, _Work work, VoidCallback onPressed) {
+    final theme = Theme.of(context);
+    return TextButton(
+      style: TextButton.styleFrom(
+        foregroundColor: theme.colorScheme.error,
+        minimumSize: const Size.fromHeight(40),
+      ),
+      onPressed: _blocked ? null : onPressed,
+      child: _actionChild(label, work),
     );
   }
 
@@ -532,72 +645,127 @@ class _TradePageState extends State<TradePage> {
     );
   }
 
-  Widget _composer(TwineTrade trade) {
+  Widget _composer(TwineTrade trade, {required bool separated}) {
     final blocked = _blocked;
     final over = _chat.text.length > maxChatText;
+    final canSend = !blocked && _chat.text.trim().isNotEmpty && !over;
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Focus(
-                  onKeyEvent: _trackShift,
-                  child: TextField(
-                    controller: _chat,
-                    enabled: !blocked,
-                    minLines: 1,
-                    maxLines: 4,
-                    textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: blocked ? null : (_) => _send(trade),
-                    onChanged: (value) {
-                      if (_shiftHeld || !value.contains('\n')) return;
-                      final text = value.replaceAll('\n', '');
-                      _chat.value = TextEditingValue(
-                        text: text,
-                        selection: TextSelection.collapsed(offset: text.length),
-                      );
-                      if (text.trim().isEmpty || blocked) return;
-                      _send(trade);
-                    },
-                    decoration: const InputDecoration(
-                      hintText: 'Message',
-                      isDense: true,
+    final scheme = theme.colorScheme;
+    final radius = BorderRadius.circular(TwineTokens.radiusComposer);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: separated
+            ? Border(top: BorderSide(color: scheme.outlineVariant))
+            : null,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          TwineTokens.sm,
+          TwineTokens.xs,
+          TwineTokens.sm,
+          TwineTokens.sm,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Focus(
+                    onKeyEvent: _trackShift,
+                    child: TextField(
+                      controller: _chat,
+                      enabled: !blocked,
+                      minLines: 1,
+                      maxLines: 4,
+                      textCapitalization: TextCapitalization.sentences,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: canSend ? (_) => _send(trade) : null,
+                      onChanged: (value) {
+                        if (_shiftHeld || !value.contains('\n')) return;
+                        final text = value.replaceAll('\n', '');
+                        _chat.value = TextEditingValue(
+                          text: text,
+                          selection: TextSelection.collapsed(
+                            offset: text.length,
+                          ),
+                        );
+                        if (text.trim().isEmpty || blocked || over) return;
+                        _send(trade);
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Message',
+                        isDense: true,
+                        filled: true,
+                        fillColor: scheme.surfaceContainerHighest,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: TwineTokens.md,
+                          vertical: TwineTokens.sm,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: radius,
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: radius,
+                          borderSide: BorderSide.none,
+                        ),
+                        disabledBorder: OutlineInputBorder(
+                          borderRadius: radius,
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: radius,
+                          borderSide: BorderSide(
+                            color: scheme.primary,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                tooltip: 'Send message',
-                onPressed: blocked ? null : () => _send(trade),
-                icon: _busy == _Work.chat
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send),
+                const SizedBox(width: TwineTokens.xs),
+                IconButton.filled(
+                  tooltip: 'Send message',
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(
+                      TwineTokens.control,
+                      TwineTokens.control,
+                    ),
+                    fixedSize: const Size(
+                      TwineTokens.control,
+                      TwineTokens.control,
+                    ),
+                  ),
+                  onPressed: canSend ? () => _send(trade) : null,
+                  icon: _busy == _Work.chat
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send),
+                ),
+              ],
+            ),
+            if (_nearLimit) ...[
+              const SizedBox(height: TwineTokens.xxs),
+              Padding(
+                padding: const EdgeInsets.only(right: TwineTokens.control),
+                child: Text(
+                  '${_chat.text.length}/$maxChatText',
+                  textAlign: TextAlign.end,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: over ? scheme.error : scheme.onSurfaceVariant,
+                  ),
+                ),
               ),
             ],
-          ),
-          if (_nearLimit) ...[
-            const SizedBox(height: 4),
-            Text(
-              '${_chat.text.length}/$maxChatText',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: over
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -613,62 +781,144 @@ class _TradePageState extends State<TradePage> {
     );
   }
 
-  List<Widget> _clocks(TwineTrade trade, TradeSide? side) {
+  List<String> _timing(TwineTrade trade, TradeSide? side) {
     final now = DateTime.now().toUtc();
-    final lines = <Widget>[];
+    final lines = <String>[];
     if (trade.phase == TradePhase.waitingInvoice) {
       final due = trade.invoiceBy;
       if (due != null) {
         final left = remainingLabel(due, now);
         lines.add(
-          Text(
-            side == TradeSide.buyer
-                ? 'Send the payout invoice. $left'
-                : 'Waiting for the payout invoice. $left',
-          ),
+          side == TradeSide.buyer
+              ? 'Send the payout invoice. $left'
+              : 'Waiting for the payout invoice. $left',
         );
       } else {
-        lines.add(const Text('The payout invoice is due within an hour.'));
+        lines.add('The payout invoice is due within an hour.');
       }
     } else if (trade.phase == TradePhase.waitingHold) {
       if (side == TradeSide.seller) {
         if (trade.lockBy != null) {
-          lines.add(Text(remainingLabel(trade.lockBy!, now)));
+          lines.add(remainingLabel(trade.lockBy!, now));
         } else {
-          lines.add(const Text('Pay the hold invoice within an hour.'));
+          lines.add('Pay the hold invoice within an hour.');
         }
       }
     } else if (!trade.phase.terminal && trade.phase != TradePhase.refunding) {
       if (side == TradeSide.buyer && trade.phase == TradePhase.waitingFiat) {
         if (trade.payBy != null) {
-          lines.add(Text(remainingLabel(trade.payBy!, now)));
+          lines.add(remainingLabel(trade.payBy!, now));
         } else {
-          lines.add(const Text('Pay before the hold’s release deadline.'));
+          lines.add('Pay before the hold’s release deadline.');
         }
       }
       if (trade.releaseBy != null) {
-        lines.add(
-          Text('Release window: ${remainingLabel(trade.releaseBy!, now)}'),
-        );
+        lines.add('Release window: ${remainingLabel(trade.releaseBy!, now)}');
       } else {
-        lines.add(
-          const Text('Release at least 30 minutes before the hold ends.'),
-        );
+        lines.add('Release at least 30 minutes before the hold ends.');
       }
       if (trade.holdEndsAt != null) {
         lines.add(
-          Text(
-            'The hold returns the CKB to the seller ${remainingLabel(trade.holdEndsAt!, now)}.',
-          ),
+          'The hold returns the CKB to the seller ${remainingLabel(trade.holdEndsAt!, now)}.',
         );
       } else {
-        lines.add(
-          const Text('The hold returns the CKB to the seller when it ends.'),
-        );
+        lines.add('The hold returns the CKB to the seller when it ends.');
       }
     }
-    if (lines.isEmpty) return const [];
-    return [const SizedBox(height: 8), ...lines];
+    return lines;
+  }
+
+  void _openDetails({
+    required TwineTrade trade,
+    required TradeSide? side,
+    required List<String> timing,
+    String? orderCurrency,
+  }) {
+    final amount = trade.amountShannons == null
+        ? null
+        : '${shannonsToCkb(trade.amountShannons!)} CKB';
+    final reference = trade.reference ?? trade.id;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final bottom = MediaQuery.viewPaddingOf(context).bottom;
+        final muted = TwineTokens.muted(theme);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            TwineTokens.md,
+            0,
+            TwineTokens.md,
+            TwineTokens.lg + bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Trade details', style: TwineTokens.title(theme)),
+                const SizedBox(height: TwineTokens.md),
+                Text(_sideLine(side), style: TwineTokens.body(theme)),
+                if (amount != null) ...[
+                  const SizedBox(height: TwineTokens.sm),
+                  Text(
+                    amount,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ] else if (orderCurrency != null) ...[
+                  const SizedBox(height: TwineTokens.xs),
+                  Text(orderCurrency),
+                ],
+                const SizedBox(height: TwineTokens.md),
+                Text('Reference', style: TwineTokens.section(theme)),
+                const SizedBox(height: TwineTokens.xxs),
+                Row(
+                  children: [
+                    Expanded(child: SelectableText(reference)),
+                    IconButton(
+                      tooltip: 'Copy reference',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _copy(reference),
+                      icon: const Icon(Icons.copy, size: 20),
+                    ),
+                  ],
+                ),
+                if (timing.isNotEmpty) ...[
+                  const SizedBox(height: TwineTokens.sm),
+                  Text('Timing', style: TwineTokens.section(theme)),
+                  const SizedBox(height: TwineTokens.xxs),
+                  for (final line in timing)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: TwineTokens.xxs),
+                      child: Text(
+                        line,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: TwineTokens.xs),
+                _Parties(
+                  me: widget.market.accountPubkey,
+                  seller: trade.sellerNostr,
+                  buyer: trade.buyerNostr,
+                  encode: _npub,
+                ),
+                const SizedBox(height: TwineTokens.xs),
+                Text(
+                  'Encrypted to the other trader. The relay can see that these two keys are talking.',
+                  style: muted,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   String _npub(String hex) {
@@ -795,6 +1045,7 @@ class _TradePageState extends State<TradePage> {
     final paid = await showModalBottomSheet<_PaidInput>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       builder: (context) => _PaidSheet(
         amount: '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}'.trim(),
         needsReceipt: !hasProof,
@@ -900,13 +1151,14 @@ class _Parties extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final rows = <Widget>[];
     void add(String label, String hex) {
       final mine = hex.toLowerCase() == me.toLowerCase();
       final npub = encode(hex);
       rows.add(
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: TwineTokens.xs),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -914,15 +1166,25 @@ class _Parties extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(mine ? 'You · $label' : 'Them · $label'),
-                    SelectableText(npub),
+                    Text(
+                      mine ? 'You · $label' : 'Them · $label',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: TwineTokens.xxs),
+                    SelectableText(
+                      npub,
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+                    ),
                   ],
                 ),
               ),
               IconButton(
                 tooltip: 'Copy',
+                visualDensity: VisualDensity.compact,
                 onPressed: () => Clipboard.setData(ClipboardData(text: npub)),
-                icon: const Icon(Icons.copy),
+                icon: const Icon(Icons.copy, size: 20),
               ),
             ],
           ),
@@ -966,25 +1228,50 @@ class _AccountCard extends StatelessWidget {
     final theme = Theme.of(context);
     final text = details.detailsText;
     final title = side == TradeSide.seller ? 'Account sent' : 'Pay here';
+    final body = text.isEmpty ? 'No details.' : text;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: theme.textTheme.titleSmall),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: SelectableText(text.isEmpty ? 'No details.' : text),
-            ),
-            IconButton(
-              tooltip: 'Copy payment details',
-              onPressed: text.isEmpty
-                  ? null
-                  : () => Clipboard.setData(ClipboardData(text: text)),
-              icon: const Icon(Icons.copy),
-            ),
-          ],
+        Text(
+          title,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: TwineTokens.xs),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    TwineTokens.sm,
+                    10,
+                    TwineTokens.xxs,
+                    10,
+                  ),
+                  child: SelectableText(
+                    body,
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Copy payment details',
+                visualDensity: VisualDensity.compact,
+                onPressed: text.isEmpty
+                    ? null
+                    : () => Clipboard.setData(ClipboardData(text: text)),
+                icon: const Icon(Icons.copy, size: 20),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -999,14 +1286,30 @@ class _ReceiptCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final bytes = _receiptBytes(proof.image);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      height: 1.35,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Receipt', style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        if (proof.amount != null) Text(proof.amount!),
-        if (proof.bankReference != null) SelectableText(proof.bankReference!),
+        Text(
+          'Receipt',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (proof.amount != null) ...[
+          const SizedBox(height: TwineTokens.xxs),
+          Text(proof.amount!, style: theme.textTheme.bodyMedium),
+        ],
+        if (proof.bankReference != null) ...[
+          const SizedBox(height: 2),
+          SelectableText(proof.bankReference!, style: muted),
+        ],
+        const SizedBox(height: TwineTokens.xs),
         if (bytes != null)
           _ReceiptImage(bytes: bytes, onOpen: onOpen)
         else
@@ -1026,9 +1329,16 @@ class _ReceiptImage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.centerLeft,
-      child: InkWell(
-        onTap: () => onOpen(bytes),
-        child: Image.memory(bytes, height: 160, fit: BoxFit.contain),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => onOpen(bytes),
+          borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+            child: Image.memory(bytes, height: 160, fit: BoxFit.contain),
+          ),
+        ),
       ),
     );
   }
@@ -1043,15 +1353,25 @@ Uint8List? _receiptBytes(String? image) {
   }
 }
 
+bool _sameSpeaker(TradeNote previous, TradeNote line) {
+  if (previous.kind == TradeNoteKind.status ||
+      line.kind == TradeNoteKind.status) {
+    return false;
+  }
+  return previous.author?.toLowerCase() == line.author?.toLowerCase();
+}
+
 class _Bubble extends StatelessWidget {
   const _Bubble({
     required this.line,
     required this.mine,
+    required this.showName,
     required this.onOpenReceipt,
   });
 
   final TradeNote line;
   final bool mine;
+  final bool showName;
   final void Function(Uint8List bytes) onOpenReceipt;
 
   @override
@@ -1077,13 +1397,26 @@ class _Bubble extends StatelessWidget {
   Widget _event(ThemeData theme, String text) {
     if (text.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: TwineTokens.xxs),
       child: Center(
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(TwineTokens.radiusPill),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: TwineTokens.sm,
+              vertical: TwineTokens.xxs,
+            ),
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.3,
+              ),
+            ),
           ),
         ),
       ),
@@ -1092,20 +1425,19 @@ class _Bubble extends StatelessWidget {
 
   Widget _proof(BuildContext context, ThemeData theme) {
     final bytes = _receiptBytes(line.image);
+    final colors = _BubbleInk.of(theme, mine);
     final bubble = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(mine ? 'You' : 'Them', style: theme.textTheme.labelMedium),
-        const SizedBox(height: 4),
         if (bytes != null)
           _ReceiptImage(bytes: bytes, onOpen: onOpenReceipt)
         else
           const Text('The receipt could not be shown.'),
-        const SizedBox(height: 4),
-        Text(_when(line.at), style: theme.textTheme.labelSmall),
+        const SizedBox(height: TwineTokens.xxs),
+        Text(_when(line.at), style: _BubbleInk.time(theme, colors.meta)),
       ],
     );
-    return _align(context, theme, bubble);
+    return _align(context, theme, bubble, colors);
   }
 
   Widget _text(
@@ -1114,49 +1446,126 @@ class _Bubble extends StatelessWidget {
     required String body,
     String? label,
   }) {
+    final colors = _BubbleInk.of(theme, mine);
     final bubble = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(mine ? 'You' : 'Them', style: theme.textTheme.labelMedium),
         if (label != null) ...[
-          const SizedBox(height: 2),
-          Text(label, style: theme.textTheme.labelSmall),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: colors.meta,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: TwineTokens.xxs),
         ],
-        const SizedBox(height: 2),
-        SelectableText(body),
-        const SizedBox(height: 4),
-        Text(
-          _when(line.at),
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        SelectableText(
+          body,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colors.foreground,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: TwineTokens.xxs),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            _when(line.at),
+            style: _BubbleInk.time(theme, colors.meta),
           ),
         ),
       ],
     );
-    return _align(context, theme, bubble);
+    return _align(context, theme, bubble, colors);
   }
 
-  Widget _align(BuildContext context, ThemeData theme, Widget child) {
-    final scheme = theme.colorScheme;
+  Widget _align(
+    BuildContext context,
+    ThemeData theme,
+    Widget child,
+    _BubbleInk colors,
+  ) {
     final width = MediaQuery.sizeOf(context).width;
+    final tail = TwineTokens.radiusBubbleTail;
+    final round = TwineTokens.radiusMd;
+    final corner = showName ? tail : round;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: width * 0.8),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: mine
-                ? scheme.primaryContainer
-                : scheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-            child: child,
-          ),
+        constraints: BoxConstraints(maxWidth: width * 0.78),
+        child: Column(
+          crossAxisAlignment: mine
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            if (showName)
+              Padding(
+                padding: const EdgeInsets.only(bottom: TwineTokens.xxs),
+                child: Text(
+                  mine ? 'You' : 'Them',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.fill,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(mine ? round : corner),
+                  topRight: Radius.circular(mine ? corner : round),
+                  bottomLeft: Radius.circular(round),
+                  bottomRight: Radius.circular(round),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  TwineTokens.sm,
+                  TwineTokens.xs,
+                  TwineTokens.sm,
+                  TwineTokens.xs,
+                ),
+                child: child,
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+}
+
+class _BubbleInk {
+  const _BubbleInk({
+    required this.fill,
+    required this.foreground,
+    required this.meta,
+  });
+
+  final Color fill;
+  final Color foreground;
+  final Color meta;
+
+  static _BubbleInk of(ThemeData theme, bool mine) {
+    final scheme = theme.colorScheme;
+    if (mine) {
+      return _BubbleInk(
+        fill: scheme.primaryContainer,
+        foreground: scheme.onPrimaryContainer,
+        meta: scheme.onPrimaryContainer.withValues(alpha: 0.72),
+      );
+    }
+    return _BubbleInk(
+      fill: scheme.surfaceContainerHigh,
+      foreground: scheme.onSurface,
+      meta: scheme.onSurfaceVariant,
+    );
+  }
+
+  static TextStyle? time(ThemeData theme, Color color) {
+    return theme.textTheme.labelSmall?.copyWith(color: color, height: 1.2);
   }
 }
 
@@ -1195,82 +1604,82 @@ class _PaidSheetState extends State<_PaidSheet> {
     final receipt = _receipt;
     final ready = !widget.needsReceipt || receipt != null;
     return Padding(
-      padding: EdgeInsets.fromLTRB(24, 12, 24, 16 + bottom),
+      padding: EdgeInsets.fromLTRB(24, 4, 24, 16 + bottom),
       child: ListView(
         shrinkWrap: true,
         children: [
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.outlineVariant,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
+          Text(
+            widget.needsReceipt
+                ? 'Attach the receipt'
+                : 'Mark the payment as sent',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: TwineTokens.xs),
+          Text(
+            widget.needsReceipt
+                ? 'A photo of the ${widget.amount} payment. Twine shrinks it before it is sent.'
+                : 'The receipt is already on this trade.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
+          if (widget.needsReceipt) ...[
+            const SizedBox(height: TwineTokens.md),
+            if (receipt != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+                child: Image.memory(receipt, height: 180, fit: BoxFit.contain),
               ),
-              const SizedBox(height: 16),
-              Text(
-                widget.needsReceipt
-                    ? 'Attach the receipt'
-                    : 'Mark the payment as sent',
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.needsReceipt
-                    ? 'A photo of the ${widget.amount} payment. Twine shrinks it before it is sent.'
-                    : 'The receipt is already on this trade.',
-              ),
-              if (widget.needsReceipt) ...[
-                const SizedBox(height: 16),
-                if (receipt != null)
-                  Image.memory(receipt, height: 180, fit: BoxFit.contain),
-                if (_compressing) ...[
-                  const SizedBox(height: 12),
-                  const Text('Shrinking the photo…'),
-                ],
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _compressing
-                          ? null
-                          : () => _pick(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library_outlined),
-                      label: const Text('Photo library'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _compressing
-                          ? null
-                          : () => _pick(ImageSource.camera),
-                      icon: const Icon(Icons.photo_camera_outlined),
-                      label: const Text('Camera'),
-                    ),
-                  ],
-                ),
-              ],
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _compressing || !ready ? null : _submit,
-                child: const Text("I've paid"),
-              ),
+            if (_compressing) ...[
+              const SizedBox(height: TwineTokens.sm),
+              const Text('Shrinking the photo…'),
             ],
+            const SizedBox(height: TwineTokens.sm),
+            Wrap(
+              spacing: TwineTokens.xs,
+              runSpacing: TwineTokens.xs,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _compressing
+                      ? null
+                      : () => _pick(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Photo library'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _compressing
+                      ? null
+                      : () => _pick(ImageSource.camera),
+                  icon: const Icon(Icons.photo_camera_outlined),
+                  label: const Text('Camera'),
+                ),
+              ],
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: TwineTokens.xs),
+            Text(
+              _error!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.error,
+                height: 1.35,
+              ),
+            ),
+          ],
+          const SizedBox(height: TwineTokens.md),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(TwineTokens.control),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+              ),
+            ),
+            onPressed: _compressing || !ready ? null : _submit,
+            child: const Text("I've paid"),
           ),
         ],
       ),
@@ -1326,6 +1735,12 @@ class _PaidSheetState extends State<_PaidSheet> {
   }
 }
 
+bool _showPayment(TwineTrade trade) {
+  return trade.fiatAmount != null &&
+      trade.phase != TradePhase.waitingHold &&
+      trade.phase != TradePhase.waitingInvoice;
+}
+
 String _paymentLine(TradeSide? side, TwineTrade trade) {
   final amount = '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}'.trim();
   switch (side) {
@@ -1358,7 +1773,7 @@ Future<bool> _confirm(BuildContext context, String title, String body) async {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Back'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Confirm'),
           ),
@@ -1367,4 +1782,144 @@ Future<bool> _confirm(BuildContext context, String title, String body) async {
     },
   );
   return confirmed == true;
+}
+
+class _ActionDock extends StatelessWidget {
+  const _ActionDock({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return DecoratedBox(
+      decoration: TwineTokens.dock(scheme),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(
+          TwineTokens.md,
+          TwineTokens.sm,
+          TwineTokens.md,
+          TwineTokens.sm,
+        ),
+        child: DefaultTextStyle.merge(
+          style: TwineTokens.body(theme),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleMark extends StatelessWidget {
+  const _RoleMark({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(TwineTokens.radiusPill),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: TwineTokens.sm,
+          vertical: TwineTokens.xxs,
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSecondaryContainer,
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CopyLine extends StatelessWidget {
+  const _CopyLine({
+    required this.label,
+    required this.value,
+    required this.onCopy,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        SizedBox(
+          width: TwineTokens.labelColumn,
+          child: Text(label, style: TwineTokens.muted(theme)),
+        ),
+        Expanded(
+          child: SelectableText(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(height: 1.3),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Copy $label',
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+          onPressed: onCopy,
+          icon: const Icon(Icons.copy, size: 18),
+        ),
+      ],
+    );
+  }
+}
+
+class _ThreadEmpty extends StatelessWidget {
+  const _ThreadEmpty({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      height: 1.35,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxHeight < 20) return const SizedBox.shrink();
+        final text = Text(message, textAlign: TextAlign.center, style: style);
+        if (constraints.maxHeight < 88) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: TwineTokens.md),
+              child: text,
+            ),
+          );
+        }
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: TwineTokens.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 28, color: theme.colorScheme.outline),
+                const SizedBox(height: TwineTokens.xs),
+                text,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

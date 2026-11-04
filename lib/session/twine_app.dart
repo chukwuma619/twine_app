@@ -10,6 +10,7 @@ import 'package:twine_app/store/daemon_store.dart';
 import 'package:twine_app/update/update_binding.dart';
 import 'package:twine_app/update/update_controller.dart';
 
+import '../ui/twine_tokens.dart';
 import 'backup_page.dart';
 import 'daemon_page.dart';
 import 'login_page.dart';
@@ -96,13 +97,7 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Twine',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-        ),
-      ),
+      theme: TwineTokens.theme(),
       home: ListenableBuilder(
         listenable: _session,
         builder: (context, _) => _home(_session),

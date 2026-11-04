@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../ui/twine_tokens.dart';
+
 /// A refusal shown once at the top of the screen. It leaves on its own, and
 /// the close control dismisses it sooner. The bottom navigation stays usable.
 class DismissibleNotice extends StatefulWidget {
@@ -51,18 +53,28 @@ class _DismissibleNoticeState extends State<DismissibleNotice> {
     final theme = Theme.of(context);
     final color = theme.colorScheme.onErrorContainer;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(
+        TwineTokens.md,
+        TwineTokens.sm,
+        TwineTokens.md,
+        0,
+      ),
       child: Material(
         color: theme.colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: TwineTokens.smRadius,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+          padding: const EdgeInsets.fromLTRB(
+            TwineTokens.sm,
+            TwineTokens.xxs,
+            TwineTokens.xxs,
+            TwineTokens.xxs,
+          ),
           child: Row(
             children: [
               Expanded(
                 child: Text(
                   widget.message,
-                  style: theme.textTheme.bodyMedium?.copyWith(color: color),
+                  style: TwineTokens.body(theme).copyWith(color: color),
                 ),
               ),
               IconButton(

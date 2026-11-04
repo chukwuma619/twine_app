@@ -99,7 +99,6 @@ class _TakePageState extends State<TakePage> {
                         decoration: InputDecoration(
                           labelText: 'Fiat amount',
                           suffixText: order.fiatCurrency,
-                          border: const OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -115,7 +114,6 @@ class _TakePageState extends State<TakePage> {
                             labelText: 'Fiber invoice for the CKB',
                             helperText:
                                 'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash.',
-                            border: OutlineInputBorder(),
                           ),
                         ),
                         const SizedBox(height: 12),

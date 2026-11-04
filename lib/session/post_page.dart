@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../nostr/order.dart';
 import '../nostr/request.dart';
+import '../ui/twine_tokens.dart';
 
 class _CurrencyField extends StatelessWidget {
   const _CurrencyField({
@@ -17,19 +18,45 @@ class _CurrencyField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final currency = CurrencyService().findByCode(code);
     final label = currency == null
         ? code
         : '${currency.code} · ${currency.name}';
-    return InkWell(
-      onTap: enabled ? onPick : null,
-      child: InputDecorator(
-        decoration: const InputDecoration(
-          labelText: 'Currency',
-          border: OutlineInputBorder(),
-          suffixIcon: Icon(Icons.arrow_drop_down),
+    final foreground = enabled
+        ? scheme.onSurface
+        : scheme.onSurface.withValues(alpha: 0.38);
+    return Material(
+      color: scheme.surfaceContainerLow,
+      shape: const RoundedRectangleBorder(borderRadius: TwineTokens.smRadius),
+      child: InkWell(
+        onTap: enabled ? onPick : null,
+        borderRadius: TwineTokens.smRadius,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: TwineTokens.control),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: TwineTokens.md),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: foreground,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.expand_more,
+                  size: TwineTokens.iconMd,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
         ),
-        child: Text(label),
       ),
     );
   }
@@ -75,73 +102,124 @@ class _PostPageState extends State<PostPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(title: const Text('New post')),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'You lock CKB in your Fiber wallet when someone takes this.',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  _field(
-                    _available,
-                    'CKB available',
-                    number: true,
-                    helper: 'At least $minPostCkb CKB.',
-                  ),
-                  const SizedBox(height: 12),
-                  _CurrencyField(
-                    code: _currency,
-                    enabled: !_busy,
-                    onPick: _pickCurrency,
-                  ),
-                  const SizedBox(height: 12),
-                  _field(_price, 'Price per CKB', number: true),
-                  const SizedBox(height: 12),
-                  _field(
-                    _min,
-                    'Minimum',
-                    number: true,
-                    suffix: _currency.isEmpty ? null : _currency,
-                    helper: 'At least $minPostCkb CKB at this price.',
-                  ),
-                  const SizedBox(height: 12),
-                  _field(
-                    _max,
-                    'Maximum',
-                    number: true,
-                    suffix: _currency.isEmpty ? null : _currency,
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                      TwineTokens.md,
+                      TwineTokens.sm,
+                      TwineTokens.md,
+                      TwineTokens.lg,
                     ),
-                  ],
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    child: _busy
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Post'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Locks in your Fiber wallet when someone takes it.',
+                          style: TwineTokens.muted(theme),
+                        ),
+                        const SizedBox(height: TwineTokens.lg),
+                        TextField(
+                          controller: _price,
+                          enabled: !_busy,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          style: TwineTokens.price(theme),
+                          decoration: TwineTokens.field(
+                            theme,
+                            label: 'Price per CKB',
+                          ),
+                        ),
+                        const SizedBox(height: TwineTokens.xs),
+                        _CurrencyField(
+                          code: _currency,
+                          enabled: !_busy,
+                          onPick: _pickCurrency,
+                        ),
+                        const SizedBox(height: TwineTokens.lg),
+                        TextField(
+                          controller: _available,
+                          enabled: !_busy,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          decoration: TwineTokens.field(
+                            theme,
+                            label: 'CKB available',
+                            suffix: 'CKB',
+                          ),
+                        ),
+                        const SizedBox(height: TwineTokens.lg),
+                        Text('Each trade', style: TwineTokens.section(theme)),
+                        const SizedBox(height: TwineTokens.xs),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: _limit(_min, 'Minimum')),
+                            const SizedBox(width: TwineTokens.sm),
+                            Expanded(child: _limit(_max, 'Maximum')),
+                          ],
+                        ),
+                        const SizedBox(height: TwineTokens.xs),
+                        Text(
+                          'At least $minPostCkb CKB.',
+                          style: TwineTokens.muted(theme),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+                DecoratedBox(
+                  decoration: TwineTokens.dock(scheme),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      TwineTokens.md,
+                      TwineTokens.sm,
+                      TwineTokens.md,
+                      TwineTokens.sm,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_error != null) ...[
+                          Text(_error!, style: TwineTokens.error(theme)),
+                          const SizedBox(height: TwineTokens.sm),
+                        ],
+                        FilledButton(
+                          style: TwineTokens.filled,
+                          onPressed: _busy ? null : _submit,
+                          child: _busy
+                              ? SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: scheme.onPrimary,
+                                  ),
+                                )
+                              : const Text('Post'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -149,26 +227,17 @@ class _PostPageState extends State<PostPage> {
     );
   }
 
-  Widget _field(
-    TextEditingController controller,
-    String label, {
-    bool number = false,
-    String? helper,
-    String? suffix,
-  }) {
+  Widget _limit(TextEditingController controller, String label) {
     return TextField(
       controller: controller,
       enabled: !_busy,
-      keyboardType: number
-          ? const TextInputType.numberWithOptions(decimal: true)
-          : TextInputType.text,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
       autocorrect: false,
       enableSuggestions: false,
-      decoration: InputDecoration(
-        labelText: label,
-        helperText: helper,
-        suffixText: suffix,
-        border: const OutlineInputBorder(),
+      decoration: TwineTokens.field(
+        Theme.of(context),
+        label: label,
+        suffix: _currency.isEmpty ? null : _currency,
       ),
     );
   }
@@ -195,28 +264,8 @@ class _PostPageState extends State<PostPage> {
       setState(() => _error = invalid);
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Sell CKB?'),
-          content: const Text(
-            'You lock CKB in your Fiber wallet when someone takes this.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Back'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Confirm'),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !mounted) return;
+    final confirmed = await _confirmOffer();
+    if (!confirmed || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -231,5 +280,37 @@ class _PostPageState extends State<PostPage> {
       _busy = false;
       _error = error;
     });
+  }
+
+  Future<bool> _confirmOffer() async {
+    final currency = _currency;
+    final offered = _available.text.trim();
+    final price = _price.text.trim();
+    final low = _min.text.trim();
+    final high = _max.text.trim();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Post this offer?'),
+          content: Text(
+            '$offered CKB at $price $currency per CKB.\n'
+            'Trades from $low to $high $currency.\n\n'
+            'You lock the CKB in your Fiber wallet when someone takes it.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Back'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed == true;
   }
 }

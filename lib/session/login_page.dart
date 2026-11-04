@@ -72,7 +72,6 @@ class _LoginPageState extends State<LoginPage> {
                     decoration: const InputDecoration(
                       labelText: 'nsec',
                       helperText: 'Paste an nsec or a 64-character hex secret.',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   if (widget.error != null) ...[

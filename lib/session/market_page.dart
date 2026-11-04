@@ -7,6 +7,7 @@ import '../market/chat.dart';
 import '../market/role.dart';
 import '../market/steps.dart';
 import '../nostr/order.dart';
+import '../ui/twine_tokens.dart';
 import 'fiber_guide.dart';
 import 'market.dart';
 import 'notice_bar.dart';
@@ -230,14 +231,24 @@ class _MarketPageState extends State<MarketPage> {
                     _updateBanner(),
                     _noticeBanner(),
                     if (posting)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            setState(() => _showCanceled = !_showCanceled);
-                          },
-                          child: Text(
-                            _showCanceled ? 'Hide canceled' : 'Show canceled',
+                      Padding(
+                        padding: const EdgeInsets.only(right: TwineTokens.xs),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                            onPressed: () {
+                              setState(() => _showCanceled = !_showCanceled);
+                            },
+                            child: Text(
+                              _showCanceled ? 'Hide canceled' : 'Show canceled',
+                            ),
                           ),
                         ),
                       ),
@@ -346,17 +357,22 @@ class _Status extends StatelessWidget {
     }
     if (lines.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(
+        TwineTokens.md,
+        TwineTokens.sm,
+        TwineTokens.md,
+        0,
+      ),
       child: Card(
         color: relayError != null ? theme.colorScheme.errorContainer : null,
         margin: EdgeInsets.zero,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(TwineTokens.sm),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (var i = 0; i < lines.length; i++) ...[
-                if (i > 0) const SizedBox(height: 8),
+                if (i > 0) const SizedBox(height: TwineTokens.xs),
                 lines[i],
               ],
             ],
@@ -394,9 +410,15 @@ class _Posts extends StatelessWidget {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      padding: const EdgeInsets.fromLTRB(
+        TwineTokens.md,
+        TwineTokens.sm,
+        TwineTokens.md,
+        96,
+      ),
       itemCount: orders.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: TwineTokens.sm),
       itemBuilder: (context, index) {
         return _PostCard(
           market: market,
@@ -426,9 +448,7 @@ class _PostCard extends StatelessWidget {
     final pending = order.orderId.startsWith('local-');
     final open = market.book.openTradeFor(order.orderId);
     final listed = order.status == PostStatus.open;
-    final muted = theme.textTheme.bodyMedium?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    final muted = TwineTokens.muted(theme);
     final Widget? action;
     if (open != null) {
       action = FilledButton.tonal(
@@ -449,81 +469,80 @@ class _PostCard extends StatelessWidget {
     } else {
       action = null;
     }
+    final chips = <Widget>[
+      if (mine)
+        Chip(
+          label: Text(pending ? 'Publishing' : 'Yours'),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      if (!listed)
+        const Chip(
+          label: Text('Canceled'),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      if (listed && !order.hasCkb)
+        const Chip(
+          label: Text('Fully taken'),
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+    ];
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(TwineTokens.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Offers ${order.availableCkb} CKB',
-                        style: theme.textTheme.titleSmall,
-                      ),
-                      Text(mine ? 'Your post' : 'Available', style: muted),
-                      Text(
                         '${order.pricePerCkb} ${order.fiatCurrency}',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TwineTokens.price(theme),
                       ),
                       Text('per CKB', style: muted),
+                      const SizedBox(height: TwineTokens.xs),
+                      Text(
+                        '${order.availableCkb} CKB',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                if (action != null) action,
+                if (action != null) ...[
+                  const SizedBox(width: TwineTokens.sm),
+                  action,
+                ],
               ],
             ),
-            if (mine || !listed) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  if (mine)
-                    Chip(
-                      label: Text(pending ? 'Publishing' : 'Yours'),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  if (!listed)
-                    const Chip(
-                      label: Text('Canceled'),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  if (listed && !order.hasCkb)
-                    const Chip(
-                      label: Text('Fully taken'),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                ],
-              ),
+            const SizedBox(height: TwineTokens.sm),
+            Text(
+              '${order.min}–${order.max} ${order.fiatCurrency}',
+              style: muted,
+            ),
+            if (order.hasReserved) ...[
+              const SizedBox(height: TwineTokens.xxs),
+              Text('${order.reservedCkb} CKB in an open trade', style: muted),
             ],
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 8),
-            _Fact(label: 'Available', value: '${order.availableCkb} CKB'),
-            if (order.hasReserved)
-              _Fact(
-                label: 'Reserved',
-                value: '${order.reservedCkb} CKB in an open trade',
-              ),
-            _Fact(
-              label: 'Limits',
-              value: '${order.min}–${order.max} ${order.fiatCurrency}',
+            const SizedBox(height: TwineTokens.xxs),
+            Text(
+              '${_holdLabel(order.holdHours)} locked on Fiber',
+              style: muted,
             ),
-            _Fact(
-              label: 'Fiber hold',
-              value: '${_holdLabel(order.holdHours)} locked on Fiber',
-            ),
+            if (chips.isNotEmpty) ...[
+              const SizedBox(height: TwineTokens.sm),
+              Wrap(spacing: TwineTokens.xs, children: chips),
+            ],
           ],
         ),
       ),
@@ -558,36 +577,6 @@ class _PostCard extends StatelessWidget {
     );
     if (!confirmed) return;
     await market.cancelOrder(order.orderId);
-  }
-}
-
-class _Fact extends StatelessWidget {
-  const _Fact({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 88,
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Expanded(child: Text(value, textAlign: TextAlign.end)),
-        ],
-      ),
-    );
   }
 }
 
@@ -650,9 +639,15 @@ class _Trades extends StatelessWidget {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      padding: const EdgeInsets.fromLTRB(
+        TwineTokens.md,
+        TwineTokens.sm,
+        TwineTokens.md,
+        TwineTokens.lg,
+      ),
       itemCount: trades.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) =>
+          const SizedBox(height: TwineTokens.sm),
       itemBuilder: (context, index) {
         final trade = trades[index];
         final order = market.book.order(trade.orderId);
@@ -662,19 +657,11 @@ class _Trades extends StatelessWidget {
             ? trade.id
             : '${trade.fiatAmount} ${trade.fiatCurrency ?? order?.fiatCurrency ?? ''}';
         final preview = _lastLine(market, trade.id);
+        final theme = Theme.of(context);
         return Card(
           margin: EdgeInsets.zero,
-          child: ListTile(
-            title: Text(title),
-            subtitle: Text(
-              preview == null ? detail : '$detail\n${preview.text}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: preview != null && preview.incoming
-                  ? const TextStyle(fontWeight: FontWeight.w600)
-                  : null,
-            ),
-            trailing: const Icon(Icons.chevron_right),
+          child: InkWell(
+            borderRadius: TwineTokens.smRadius,
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
@@ -686,6 +673,53 @@ class _Trades extends StatelessWidget {
                 ),
               );
             },
+            child: Padding(
+              padding: const EdgeInsets.all(TwineTokens.md),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: TwineTokens.xxs),
+                        Text(
+                          detail,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TwineTokens.muted(theme),
+                        ),
+                        if (preview != null) ...[
+                          const SizedBox(height: TwineTokens.xxs),
+                          Text(
+                            preview.text,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: preview.incoming
+                                ? theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.3,
+                                  )
+                                : TwineTokens.body(theme),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: TwineTokens.xs),
+                  Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -707,8 +741,8 @@ class _Empty extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 40, color: theme.colorScheme.outline),
-          const SizedBox(height: 12),
-          Text(message, style: theme.textTheme.bodyLarge),
+          const SizedBox(height: TwineTokens.sm),
+          Text(message, style: TwineTokens.body(theme)),
         ],
       ),
     );
