@@ -137,9 +137,18 @@ class _TradePageState extends State<TradePage> {
         final lines = _lines(trade.id);
         _pin(lines.length + (outcome == null ? 0 : 1));
         final timing = _timing(trade, side);
-        final step = _step(
+        final reading = _reading(
           trade: trade,
           side: side,
+          actions: actions,
+          details: details,
+          proof: proof,
+          peer: peer,
+          shareAccount: shareAccount,
+          waitingFiat: waitingFiat,
+        );
+        final controls = _controls(
+          trade: trade,
           actions: actions,
           details: details,
           proof: proof,
@@ -177,12 +186,15 @@ class _TradePageState extends State<TradePage> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final height = constraints.maxHeight;
-                      final summaryMax = height * 0.34 < 148
-                          ? height * 0.34
-                          : 148.0;
-                      final dockCap = height * 0.46 < 240
-                          ? height * 0.46
+                      final summaryMax = height * 0.28 < 140
+                          ? height * 0.28
+                          : 140.0;
+                      final infoMax = height * 0.36 < 240
+                          ? height * 0.36
                           : 240.0;
+                      final dockCap = height * 0.28 < 168
+                          ? height * 0.28
+                          : 168.0;
                       return Column(
                         children: [
                           ConstrainedBox(
@@ -197,6 +209,8 @@ class _TradePageState extends State<TradePage> {
                               ),
                             ),
                           ),
+                          if (reading != null && infoMax > 0)
+                            _ReadPanel(maxHeight: infoMax, child: reading),
                           Expanded(
                             child: _conversation(
                               theme,
@@ -205,17 +219,17 @@ class _TradePageState extends State<TradePage> {
                               outcome: outcome,
                             ),
                           ),
-                          if (step != null && dockCap > 0)
+                          if (controls != null && dockCap > 0)
                             ConstrainedBox(
                               constraints: BoxConstraints(maxHeight: dockCap),
-                              child: _ActionDock(child: step),
+                              child: _ActionDock(child: controls),
                             ),
                         ],
                       );
                     },
                   ),
                 ),
-                if (compose) _composer(trade, separated: step == null),
+                if (compose) _composer(trade, separated: controls == null),
               ],
             ),
           ),
@@ -264,16 +278,18 @@ class _TradePageState extends State<TradePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (ckb != null)
-                        Text(ckb, style: TwineTokens.title(theme)),
                       if (showPayment) ...[
-                        if (ckb != null)
-                          const SizedBox(height: TwineTokens.xxs),
                         Text(
                           _paymentLine(side, trade),
-                          style: TwineTokens.body(theme),
+                          style: TwineTokens.price(theme),
                         ),
-                      ] else if (orderCurrency != null && ckb == null)
+                        if (ckb != null) ...[
+                          const SizedBox(height: TwineTokens.xxs),
+                          Text(ckb, style: muted),
+                        ],
+                      ] else if (ckb != null)
+                        Text(ckb, style: TwineTokens.title(theme))
+                      else if (orderCurrency != null && ckb == null)
                         Text(
                           orderCurrency,
                           style: theme.textTheme.titleMedium?.copyWith(
@@ -386,13 +402,14 @@ class _TradePageState extends State<TradePage> {
                 widget.market.accountPubkey.toLowerCase(),
             showName: !grouped,
             onOpenReceipt: _openReceipt,
+            onCopy: _copy,
           ),
         );
       },
     );
   }
 
-  Widget? _step({
+  Widget? _reading({
     required TwineTrade trade,
     required TradeSide? side,
     required TradeActions actions,
@@ -404,10 +421,6 @@ class _TradePageState extends State<TradePage> {
   }) {
     final children = <Widget>[];
     final theme = Theme.of(context);
-    final muted = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-      height: 1.35,
-    );
     void add(Widget child, {double gap = TwineTokens.sm}) {
       if (children.isNotEmpty) children.add(SizedBox(height: gap));
       children.add(child);
@@ -415,15 +428,19 @@ class _TradePageState extends State<TradePage> {
 
     final accountVisible = details != null && _holdLocked(trade.phase);
     if (accountVisible) {
-      add(_AccountCard(details: details, side: side));
+      add(
+        _AccountCard(
+          details: details,
+          title: side == TradeSide.seller ? 'Account sent' : 'Pay here',
+          onCopy: _copy,
+        ),
+      );
     } else if (shareAccount && peer != null) {
       add(
         const Text(
           'The CKB is locked. Send the payment details the buyer should use.',
         ),
       );
-      add(_detailsField());
-      add(_primary('Send', _Work.share, () => _share(trade)));
     } else if (shareAccount) {
       add(const Text('Waiting to learn who the buyer is.'));
     } else if (waitingFiat) {
@@ -452,15 +469,11 @@ class _TradePageState extends State<TradePage> {
     }
     if (actions.payHold) {
       add(
-        const Text(
-          'A buyer took this. Pay this invoice in your Fiber wallet. You cannot cancel after it locks.',
+        _InvoiceCard(
+          invoice: trade.holdInvoice!,
+          onCopy: () => _copy(trade.holdInvoice!),
+          onShowQr: () => _openInvoice(trade.holdInvoice!),
         ),
-      );
-      add(_invoiceQr(trade.holdInvoice!), gap: TwineTokens.sm);
-      add(_invoiceCopy(trade.holdInvoice!), gap: TwineTokens.xs);
-      add(
-        Text('Waiting for the operator node to report the lock.', style: muted),
-        gap: TwineTokens.xs,
       );
     } else if (side == TradeSide.buyer &&
         trade.phase == TradePhase.waitingHold) {
@@ -492,6 +505,32 @@ class _TradePageState extends State<TradePage> {
     }
     if (trade.phase == TradePhase.disputed) {
       add(Text(_disputeLine(trade)));
+    }
+    if (children.isEmpty) return null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    );
+  }
+
+  Widget? _controls({
+    required TwineTrade trade,
+    required TradeActions actions,
+    required TradeNote? details,
+    required TradeNote? proof,
+    required String? peer,
+    required bool shareAccount,
+    required bool waitingFiat,
+  }) {
+    final children = <Widget>[];
+    void add(Widget child, {double gap = TwineTokens.sm}) {
+      if (children.isNotEmpty) children.add(SizedBox(height: gap));
+      children.add(child);
+    }
+
+    if (shareAccount && peer != null) {
+      add(_detailsField());
+      add(_primary('Send', _Work.share, () => _share(trade)));
     }
     if (actions.submitInvoice) {
       add(_invoiceField(trade));
@@ -546,58 +585,55 @@ class _TradePageState extends State<TradePage> {
     );
   }
 
-  Widget _invoiceQr(String invoice) {
-    return Center(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(TwineTokens.sm),
-          child: QrImageView(
-            data: invoice,
-            size: 168,
-            backgroundColor: Colors.white,
+  void _openInvoice(String invoice) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final bottom = MediaQuery.viewPaddingOf(context).bottom;
+        final width = MediaQuery.sizeOf(context).width;
+        final qr = width < 360 ? 200.0 : 240.0;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            TwineTokens.md,
+            0,
+            TwineTokens.md,
+            TwineTokens.lg + bottom,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _invoiceCopy(String invoice) {
-    final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                TwineTokens.sm,
-                10,
-                TwineTokens.xxs,
-                10,
-              ),
-              child: SelectableText(
-                invoice,
-                style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
-              ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Fiber invoice', style: TwineTokens.title(theme)),
+                const SizedBox(height: TwineTokens.xs),
+                Text(
+                  'Scan this in your Fiber wallet, or copy the invoice.',
+                  style: TwineTokens.muted(theme),
+                ),
+                const SizedBox(height: TwineTokens.md),
+                Center(
+                  child: _InvoiceQr(invoice: invoice, size: qr),
+                ),
+                const SizedBox(height: TwineTokens.md),
+                SelectableText(
+                  invoice,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontFamily: 'monospace',
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: TwineTokens.md),
+                FilledButton(
+                  onPressed: () => _copy(invoice),
+                  child: const Text('Copy invoice'),
+                ),
+              ],
             ),
           ),
-          IconButton(
-            tooltip: 'Copy invoice',
-            visualDensity: VisualDensity.compact,
-            onPressed: () => _copy(invoice),
-            icon: const Icon(Icons.copy, size: 20),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1217,59 +1253,109 @@ bool _holdLocked(TradePhase phase) {
 }
 
 class _AccountCard extends StatelessWidget {
-  const _AccountCard({required this.details, required this.side});
+  const _AccountCard({
+    required this.details,
+    required this.title,
+    required this.onCopy,
+    this.kicker,
+    this.when,
+  });
 
   final TradeNote details;
-  final TradeSide? side;
+  final String title;
+  final void Function(String value) onCopy;
+  final String? kicker;
+  final String? when;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final fields = _payFields(details);
     final text = details.detailsText;
-    final title = side == TradeSide.seller ? 'Account sent' : 'Pay here';
-    final body = text.isEmpty ? 'No details.' : text;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          title,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
+        if (kicker != null) ...[
+          Text(
+            kicker!,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(height: TwineTokens.xs),
+          const SizedBox(height: TwineTokens.xxs),
+        ],
         DecoratedBox(
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
             border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    TwineTokens.sm,
-                    10,
-                    TwineTokens.xxs,
-                    10,
-                  ),
-                  child: SelectableText(
-                    body,
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
-                  ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              TwineTokens.sm,
+              TwineTokens.sm,
+              TwineTokens.xxs,
+              TwineTokens.xs,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Copy payment details',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: text.isEmpty ? null : () => onCopy(text),
+                      icon: const Icon(Icons.copy, size: TwineTokens.iconSm),
+                    ),
+                  ],
                 ),
-              ),
-              IconButton(
-                tooltip: 'Copy payment details',
-                visualDensity: VisualDensity.compact,
-                onPressed: text.isEmpty
-                    ? null
-                    : () => Clipboard.setData(ClipboardData(text: text)),
-                icon: const Icon(Icons.copy, size: 20),
-              ),
-            ],
+                if (fields.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: TwineTokens.xs),
+                    child: Text('No details.', style: TwineTokens.muted(theme)),
+                  )
+                else
+                  for (var i = 0; i < fields.length; i++) ...[
+                    if (i > 0)
+                      Divider(
+                        height: 1,
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                    _ValueRow(
+                      label: fields[i].label,
+                      value: fields[i].value,
+                      emphasize: _looksLikeAccount(fields[i].value),
+                      onCopy: () => onCopy(fields[i].value),
+                    ),
+                  ],
+                if (when != null)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        right: TwineTokens.xs,
+                        bottom: TwineTokens.xxs,
+                      ),
+                      child: Text(
+                        when!,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ],
@@ -1381,12 +1467,14 @@ class _Bubble extends StatelessWidget {
     required this.mine,
     required this.showName,
     required this.onOpenReceipt,
+    required this.onCopy,
   });
 
   final TradeNote line;
   final bool mine;
   final bool showName;
   final void Function(Uint8List bytes) onOpenReceipt;
+  final void Function(String value) onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -1395,11 +1483,12 @@ class _Bubble extends StatelessWidget {
       case TradeNoteKind.status:
         return _event(theme, line.text ?? '');
       case TradeNoteKind.paymentDetails:
-        return _text(
-          context,
-          theme,
-          body: line.detailsText,
-          label: 'Payment details',
+        return _AccountCard(
+          details: line,
+          title: 'Payment details',
+          kicker: showName ? (mine ? 'You' : 'Them') : null,
+          when: _when(line.at),
+          onCopy: onCopy,
         );
       case TradeNoteKind.paymentProof:
         return _proof(context, theme);
@@ -1475,10 +1564,10 @@ class _Bubble extends StatelessWidget {
           const SizedBox(height: TwineTokens.xxs),
         ],
         SelectableText(
-          body,
+          _softBreak(body),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: colors.foreground,
-            height: 1.35,
+            height: 1.4,
           ),
         ),
         const SizedBox(height: TwineTokens.xxs),
@@ -1807,6 +1896,268 @@ Future<bool> _confirm(BuildContext context, String title, String body) async {
     },
   );
   return confirmed == true;
+}
+
+class _ReadPanel extends StatelessWidget {
+  const _ReadPanel({required this.maxHeight, required this.child});
+
+  final double maxHeight;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLow,
+          border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            TwineTokens.md,
+            TwineTokens.sm,
+            TwineTokens.md,
+            TwineTokens.sm,
+          ),
+          child: DefaultTextStyle.merge(
+            style: TwineTokens.body(theme),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InvoiceCard extends StatelessWidget {
+  const _InvoiceCard({
+    required this.invoice,
+    required this.onCopy,
+    required this.onShowQr,
+  });
+
+  final String invoice;
+  final VoidCallback onCopy;
+  final VoidCallback onShowQr;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          TwineTokens.sm,
+          TwineTokens.sm,
+          TwineTokens.sm,
+          TwineTokens.xs,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.qr_code_2,
+                  size: TwineTokens.iconMd,
+                  color: scheme.onSurface,
+                ),
+                const SizedBox(width: TwineTokens.xs),
+                Expanded(
+                  child: Text(
+                    'Fiber invoice',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: TwineTokens.xs),
+            const Text(
+              'A buyer took this. Pay this invoice in your Fiber wallet. You cannot cancel after it locks.',
+            ),
+            const SizedBox(height: TwineTokens.sm),
+            _ValueRow(
+              value: _invoicePreview(invoice),
+              mono: true,
+              onCopy: onCopy,
+              copyTooltip: 'Copy invoice',
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onShowQr,
+                icon: const Icon(Icons.qr_code_2, size: TwineTokens.iconSm),
+                label: const Text('Show QR'),
+              ),
+            ),
+            Text(
+              'Waiting for the operator node to report the lock.',
+              style: TwineTokens.muted(theme),
+            ),
+            const SizedBox(height: TwineTokens.xs),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InvoiceQr extends StatelessWidget {
+  const _InvoiceQr({required this.invoice, required this.size});
+
+  final String invoice;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(TwineTokens.radiusSm),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(TwineTokens.sm),
+        child: QrImageView(
+          data: invoice,
+          size: size,
+          backgroundColor: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+class _ValueRow extends StatelessWidget {
+  const _ValueRow({
+    required this.value,
+    required this.onCopy,
+    this.label,
+    this.mono = false,
+    this.emphasize = false,
+    this.copyTooltip = 'Copy',
+  });
+
+  final String? label;
+  final String value;
+  final VoidCallback onCopy;
+  final bool mono;
+  final bool emphasize;
+  final String copyTooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final valueStyle = emphasize
+        ? theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
+            height: 1.3,
+          )
+        : theme.textTheme.bodyLarge?.copyWith(
+            fontFamily: mono ? 'monospace' : null,
+            fontWeight: FontWeight.w500,
+            height: 1.35,
+          );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: TwineTokens.xxs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (label != null) ...[
+            SizedBox(
+              width: TwineTokens.labelColumn,
+              child: Text(label!, style: TwineTokens.muted(theme)),
+            ),
+            const SizedBox(width: TwineTokens.xs),
+          ],
+          Expanded(child: SelectableText(value, style: valueStyle)),
+          IconButton(
+            tooltip: copyTooltip,
+            visualDensity: VisualDensity.compact,
+            onPressed: onCopy,
+            icon: Icon(
+              Icons.copy,
+              size: TwineTokens.iconSm,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PayField {
+  const _PayField({required this.value, this.label});
+
+  final String? label;
+  final String value;
+}
+
+List<_PayField> _payFields(TradeNote details) {
+  final written = details.text?.trim();
+  if (written != null && written.isNotEmpty) {
+    return [
+      for (final line in written.split('\n'))
+        if (line.trim().isNotEmpty) _PayField(value: line.trim()),
+    ];
+  }
+  final fields = <_PayField>[
+    if (_filled(details.accountName))
+      _PayField(label: 'Name', value: details.accountName!.trim()),
+    if (_filled(details.accountNumber))
+      _PayField(label: 'Account', value: details.accountNumber!.trim()),
+    if (_filled(details.note))
+      _PayField(label: 'Note', value: details.note!.trim()),
+  ];
+  if (fields.isNotEmpty) return fields;
+  final fallback = details.detailsText.trim();
+  if (fallback.isEmpty) return const [];
+  return [_PayField(value: fallback)];
+}
+
+bool _filled(String? value) => value != null && value.trim().isNotEmpty;
+
+bool _looksLikeAccount(String value) {
+  final compact = value.replaceAll(RegExp(r'[\s-]'), '');
+  return compact.length >= 6 && RegExp(r'^\d+$').hasMatch(compact);
+}
+
+String _invoicePreview(String invoice) {
+  final value = invoice.trim();
+  if (value.length <= 36) return value;
+  return '${value.substring(0, 14)}…${value.substring(value.length - 10)}';
+}
+
+/// Lets a long invoice or account number wrap inside a chat bubble.
+String _softBreak(String value) {
+  final buffer = StringBuffer();
+  var run = 0;
+  for (final unit in value.runes) {
+    final char = String.fromCharCode(unit);
+    buffer.write(char);
+    if (char == ' ' || char == '\n' || char == '\t') {
+      run = 0;
+      continue;
+    }
+    run += 1;
+    if (run >= 18) {
+      buffer.write('\u200b');
+      run = 0;
+    }
+  }
+  return buffer.toString();
 }
 
 class _ActionDock extends StatelessWidget {
