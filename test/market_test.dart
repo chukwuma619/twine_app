@@ -708,9 +708,7 @@ void main() {
     expect(find.text('No messages yet.'), findsNothing);
   });
 
-  testWidgets('the trade list filters status and side, newest first', (
-    tester,
-  ) async {
+  testWidgets('the trade list filters by status, newest first', (tester) async {
     final market = _market(
       pubkey: 'buyer',
       trades: [
@@ -760,6 +758,8 @@ void main() {
     expect(find.text('Closed 1'), findsOneWidget);
     expect(find.text('All 3'), findsOneWidget);
     expect(find.text('Newest'), findsOneWidget);
+    expect(find.text('Buy'), findsNothing);
+    expect(find.text('Sell'), findsNothing);
     expect(find.text('Pay the seller'), findsOneWidget);
     expect(find.text('2500 NGN'), findsOneWidget);
     expect(find.text('Settled'), findsNothing);
@@ -781,17 +781,7 @@ void main() {
     expect(find.text('3000 NGN'), findsOneWidget);
     expect(find.text('Pay the seller'), findsNothing);
     expect(find.text('Canceled'), findsNothing);
-
-    await tester.tap(find.byKey(const ValueKey('trade-side-sell')));
-    await tester.pumpAndSettle();
-    expect(find.text('No sell trades that are settled.'), findsOneWidget);
-
-    await tester.tap(find.byKey(const ValueKey('trade-status-all')));
-    await tester.pumpAndSettle();
-    expect(find.text('Canceled'), findsOneWidget);
-    expect(find.text('Pay the seller'), findsNothing);
-    expect(find.text('3000 NGN'), findsNothing);
-    expect(find.text('All 1'), findsOneWidget);
+    expect(find.text('Buy'), findsNothing);
   });
 }
 

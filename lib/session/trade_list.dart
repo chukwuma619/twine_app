@@ -12,8 +12,7 @@ import '../ui/twine_tokens.dart';
 import 'market.dart';
 import 'trade_page.dart';
 
-const _buy = Color(0xFF067647);
-const _sell = Color(0xFFB42318);
+const _settled = Color(0xFF067647);
 
 const _months = [
   '',
@@ -33,13 +32,11 @@ const _months = [
 
 enum _StatusFilter { active, settled, closed, all }
 
-enum _SideFilter { any, buy, sell }
-
 enum _TimeOrder { newest, oldest }
 
 enum _Bucket { active, settled, closed }
 
-/// The account's trades, filtered by status and side, in time order.
+/// The account's trades, filtered by status, in time order.
 class TradeList extends StatefulWidget {
   const TradeList({super.key, required this.market, this.solverAvailable});
 
@@ -52,7 +49,6 @@ class TradeList extends StatefulWidget {
 
 class _TradeListState extends State<TradeList> {
   _StatusFilter _status = _StatusFilter.active;
-  _SideFilter _side = _SideFilter.any;
   _TimeOrder _order = _TimeOrder.newest;
 
   @override
@@ -68,14 +64,10 @@ class _TradeListState extends State<TradeList> {
       );
     }
 
-    final sided = [
-      for (final row in rows)
-        if (_matchesSide(row.side, _side)) row,
-    ];
     var active = 0;
     var settled = 0;
     var closed = 0;
-    for (final row in sided) {
+    for (final row in rows) {
       switch (_bucket(row.trade.phase)) {
         case _Bucket.active:
           active++;
@@ -87,7 +79,7 @@ class _TradeListState extends State<TradeList> {
     }
     final shown =
         [
-          for (final row in sided)
+          for (final row in rows)
             if (_matchesStatus(row.trade.phase, _status)) row,
         ]..sort((a, b) {
           final newest = compareTradesByTime(a.trade, b.trade);
@@ -100,13 +92,11 @@ class _TradeListState extends State<TradeList> {
       children: [
         _Filters(
           status: _status,
-          side: _side,
           order: _order,
           active: active,
           settled: settled,
           closed: closed,
           onStatus: (next) => setState(() => _status = next),
-          onSide: (next) => setState(() => _side = next),
           onOrder: () {
             setState(() {
               _order = _order == _TimeOrder.newest
@@ -118,7 +108,7 @@ class _TradeListState extends State<TradeList> {
         Expanded(
           child: shown.isEmpty
               ? _Empty(
-                  message: _emptyMessage(_status, _side),
+                  message: _emptyMessage(_status),
                   icon: Icons.swap_horiz_outlined,
                 )
               : ListView.separated(
@@ -193,24 +183,20 @@ class _Row {
 class _Filters extends StatelessWidget {
   const _Filters({
     required this.status,
-    required this.side,
     required this.order,
     required this.active,
     required this.settled,
     required this.closed,
     required this.onStatus,
-    required this.onSide,
     required this.onOrder,
   });
 
   final _StatusFilter status;
-  final _SideFilter side;
   final _TimeOrder order;
   final int active;
   final int settled;
   final int closed;
   final ValueChanged<_StatusFilter> onStatus;
-  final ValueChanged<_SideFilter> onSide;
   final VoidCallback onOrder;
 
   @override
@@ -224,91 +210,60 @@ class _Filters extends StatelessWidget {
         TwineTokens.md,
         TwineTokens.xs,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Row(
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _Pill(
-                  key: const ValueKey('trade-status-active'),
-                  label: _countLabel('Active', active),
-                  selected: status == _StatusFilter.active,
-                  onTap: () => onStatus(_StatusFilter.active),
-                ),
-                _Pill(
-                  key: const ValueKey('trade-status-settled'),
-                  label: _countLabel('Settled', settled),
-                  selected: status == _StatusFilter.settled,
-                  onTap: () => onStatus(_StatusFilter.settled),
-                ),
-                _Pill(
-                  key: const ValueKey('trade-status-closed'),
-                  label: _countLabel('Closed', closed),
-                  selected: status == _StatusFilter.closed,
-                  onTap: () => onStatus(_StatusFilter.closed),
-                ),
-                _Pill(
-                  key: const ValueKey('trade-status-all'),
-                  label: _countLabel('All', active + settled + closed),
-                  selected: status == _StatusFilter.all,
-                  onTap: () => onStatus(_StatusFilter.all),
-                ),
-              ],
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _Pill(
+                    key: const ValueKey('trade-status-active'),
+                    label: _countLabel('Active', active),
+                    selected: status == _StatusFilter.active,
+                    onTap: () => onStatus(_StatusFilter.active),
+                  ),
+                  _Pill(
+                    key: const ValueKey('trade-status-settled'),
+                    label: _countLabel('Settled', settled),
+                    selected: status == _StatusFilter.settled,
+                    onTap: () => onStatus(_StatusFilter.settled),
+                  ),
+                  _Pill(
+                    key: const ValueKey('trade-status-closed'),
+                    label: _countLabel('Closed', closed),
+                    selected: status == _StatusFilter.closed,
+                    onTap: () => onStatus(_StatusFilter.closed),
+                  ),
+                  _Pill(
+                    key: const ValueKey('trade-status-all'),
+                    label: _countLabel('All', active + settled + closed),
+                    selected: status == _StatusFilter.all,
+                    onTap: () => onStatus(_StatusFilter.all),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: TwineTokens.xs),
-          Row(
-            children: [
-              _Pill(
-                key: const ValueKey('trade-side-buy'),
-                label: 'Buy',
-                selected: side == _SideFilter.buy,
-                accent: _buy,
-                onTap: () {
-                  onSide(
-                    side == _SideFilter.buy ? _SideFilter.any : _SideFilter.buy,
-                  );
-                },
-              ),
-              _Pill(
-                key: const ValueKey('trade-side-sell'),
-                label: 'Sell',
-                selected: side == _SideFilter.sell,
-                accent: _sell,
-                onTap: () {
-                  onSide(
-                    side == _SideFilter.sell
-                        ? _SideFilter.any
-                        : _SideFilter.sell,
-                  );
-                },
-              ),
-              const Spacer(),
-              TextButton(
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  foregroundColor: scheme.onSurface,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: TwineTokens.xs,
-                  ),
+          TextButton(
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: scheme.onSurface,
+              padding: const EdgeInsets.symmetric(horizontal: TwineTokens.xs),
+            ),
+            onPressed: onOrder,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  newest ? Icons.arrow_downward : Icons.arrow_upward,
+                  size: TwineTokens.iconSm,
                 ),
-                onPressed: onOrder,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      newest ? Icons.arrow_downward : Icons.arrow_upward,
-                      size: TwineTokens.iconSm,
-                    ),
-                    const SizedBox(width: TwineTokens.xxs),
-                    Text(newest ? 'Newest' : 'Oldest'),
-                  ],
-                ),
-              ),
-            ],
+                const SizedBox(width: TwineTokens.xxs),
+                Text(newest ? 'Newest' : 'Oldest'),
+              ],
+            ),
           ),
         ],
       ),
@@ -322,24 +277,21 @@ class _Pill extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
-    this.accent,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final tint = accent;
     final background = selected
-        ? (tint?.withValues(alpha: 0.14) ?? scheme.secondaryContainer)
+        ? scheme.secondaryContainer
         : scheme.surfaceContainerHighest;
     final foreground = selected
-        ? (tint ?? scheme.onSecondaryContainer)
+        ? scheme.onSecondaryContainer
         : scheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.only(right: TwineTokens.xs),
@@ -425,10 +377,6 @@ class _TradeTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  if (row.side != null) ...[
-                    _SideMark(side: row.side!),
-                    const SizedBox(width: TwineTokens.xs),
-                  ],
                   Expanded(
                     child: Text(
                       headline,
@@ -505,36 +453,6 @@ class _TradeTile extends StatelessWidget {
               ],
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SideMark extends StatelessWidget {
-  const _SideMark({required this.side});
-
-  final TradeSide side;
-
-  @override
-  Widget build(BuildContext context) {
-    final buying = side == TradeSide.buyer;
-    final color = buying ? _buy : _sell;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: TwineTokens.xs,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        buying ? 'Buy' : 'Sell',
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w700,
-          height: 1.1,
         ),
       ),
     );
@@ -654,40 +572,22 @@ bool _matchesStatus(TradePhase phase, _StatusFilter filter) {
   }
 }
 
-bool _matchesSide(TradeSide? side, _SideFilter filter) {
-  switch (filter) {
-    case _SideFilter.any:
-      return true;
-    case _SideFilter.buy:
-      return side == TradeSide.buyer;
-    case _SideFilter.sell:
-      return side == TradeSide.seller;
-  }
-}
-
 String _countLabel(String name, int count) {
   if (count == 0) return name;
   return '$name $count';
 }
 
-String _emptyMessage(_StatusFilter status, _SideFilter side) {
-  final sideWord = switch (side) {
-    _SideFilter.any => null,
-    _SideFilter.buy => 'buy',
-    _SideFilter.sell => 'sell',
-  };
-  final statusWord = switch (status) {
-    _StatusFilter.active => 'active',
-    _StatusFilter.settled => 'settled',
-    _StatusFilter.closed => 'closed',
-    _StatusFilter.all => null,
-  };
-  if (sideWord != null && statusWord != null) {
-    return 'No $sideWord trades that are $statusWord.';
+String _emptyMessage(_StatusFilter status) {
+  switch (status) {
+    case _StatusFilter.active:
+      return 'No active trades.';
+    case _StatusFilter.settled:
+      return 'No settled trades.';
+    case _StatusFilter.closed:
+      return 'No closed trades.';
+    case _StatusFilter.all:
+      return 'No trades yet.';
   }
-  if (sideWord != null) return 'No $sideWord trades.';
-  if (statusWord != null) return 'No $statusWord trades.';
-  return 'No trades yet.';
 }
 
 String? _ckbLabel(TwineTrade trade, TwineOrder? order) {
@@ -740,7 +640,7 @@ Color _statusColor(ColorScheme scheme, TradePhase phase, bool yourMove) {
     case TradePhase.disputed:
       return scheme.error;
     case TradePhase.settled:
-      return _buy;
+      return _settled;
     case TradePhase.waitingInvoice:
     case TradePhase.waitingHold:
     case TradePhase.waitingFiat:
