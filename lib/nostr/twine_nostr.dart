@@ -233,6 +233,9 @@ class TwineNostr {
     final signer = account;
     final target = daemon;
     if (signer == null || target == null || !relaysOpen) return false;
+    final chatAccount = _chatAccount;
+    final chatAuthors = _chatAuthors;
+    final chatTrades = _chatTrades;
     final results = await Future.wait<bool>([
       _fetchInto(
         NostrFilter(kinds: const [kindOrder], authors: [target.publicKey]),
@@ -264,6 +267,38 @@ class TwineNostr {
           }
         },
       ),
+      _fetchInto(
+        NostrFilter(
+          kinds: const [kindFiberNode],
+          authors: [target.publicKey],
+          additionalFilters: const {
+            '#d': [fiberNodeTag],
+          },
+        ),
+        (event) {
+          final announcement = openFiberAnnouncement(
+            daemonPublicKey: target.publicKey,
+            event: event,
+          );
+          if (announcement != null && !_fiberNodes.isClosed) {
+            _fiberNodes.add(announcement);
+          }
+        },
+      ),
+      if (chatAccount != null &&
+          chatAuthors.isNotEmpty &&
+          chatTrades.isNotEmpty)
+        _fetchInto(
+          NostrFilter(
+            kinds: const [kindChat],
+            authors: chatAuthors,
+            p: [chatAccount],
+            additionalFilters: {'#t': chatTrades},
+          ),
+          (event) {
+            if (!_chats.isClosed) _chats.add(event);
+          },
+        ),
     ]);
     return results.any((answered) => answered);
   }

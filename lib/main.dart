@@ -4,6 +4,7 @@ import 'package:twine_app/session/twine_app.dart';
 import 'package:twine_app/store/account_store.dart';
 import 'package:twine_app/store/book_store.dart';
 import 'package:twine_app/store/daemon_store.dart';
+import 'package:twine_app/ui/twine_tokens.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +74,8 @@ class _StorageFailureApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      theme: TwineTokens.theme(),
+      darkTheme: TwineTokens.darkTheme(),
       home: Scaffold(
         body: SafeArea(
           child: Center(

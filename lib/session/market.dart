@@ -76,9 +76,9 @@ class TwineMarket extends ChangeNotifier {
   }
 
   Future<String?> take(TakeDraft draft) async {
-    final invalid = draft.validate();
-    if (invalid != null) return invalid;
     final order = book.order(draft.orderId);
+    final invalid = draft.validate(order: order);
+    if (invalid != null) return invalid;
     if (order != null &&
         order.makerNostrPubkey.toLowerCase() == accountPubkey.toLowerCase()) {
       return 'You cannot take your own post.';

@@ -38,10 +38,16 @@ enum _Bucket { active, settled, closed }
 
 /// The account's trades, filtered by status, in time order.
 class TradeList extends StatefulWidget {
-  const TradeList({super.key, required this.market, this.solverAvailable});
+  const TradeList({
+    super.key,
+    required this.market,
+    this.solverAvailable,
+    this.onRefresh,
+  });
 
   final TwineMarket market;
   final bool? solverAvailable;
+  final Future<void> Function()? onRefresh;
 
   @override
   State<TradeList> createState() => _TradeListState();
@@ -111,36 +117,45 @@ class _TradeListState extends State<TradeList> {
                   message: _emptyMessage(_status),
                   icon: Icons.swap_horiz_outlined,
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.only(bottom: TwineTokens.lg),
-                  itemCount: shown.length,
-                  separatorBuilder: (context, index) {
-                    return Divider(
-                      height: 1,
-                      thickness: 1,
-                      indent: TwineTokens.md,
-                      endIndent: TwineTokens.md,
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    );
-                  },
-                  itemBuilder: (context, index) {
-                    final row = shown[index];
-                    return _TradeTile(
-                      row: row,
-                      now: now,
-                      yourMove: _yourMove(
-                        row.trade,
-                        row.side,
-                        widget.solverAvailable,
-                      ),
-                      preview: _lastLine(market, row.trade.id),
-                      onTap: () => _open(context, row.trade.id),
-                    );
-                  },
+              : _wrapRefresh(
+                  ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: TwineTokens.lg),
+                    itemCount: shown.length,
+                    separatorBuilder: (context, index) {
+                      return Divider(
+                        height: 1,
+                        thickness: 1,
+                        indent: TwineTokens.md,
+                        endIndent: TwineTokens.md,
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      );
+                    },
+                    itemBuilder: (context, index) {
+                      final row = shown[index];
+                      return _TradeTile(
+                        row: row,
+                        now: now,
+                        yourMove: _yourMove(
+                          row.trade,
+                          row.side,
+                          widget.solverAvailable,
+                        ),
+                        preview: _lastLine(market, row.trade.id),
+                        onTap: () => _open(context, row.trade.id),
+                      );
+                    },
+                  ),
                 ),
         ),
       ],
     );
+  }
+
+  Widget _wrapRefresh(Widget list) {
+    final refresh = widget.onRefresh;
+    if (refresh == null) return list;
+    return RefreshIndicator(onRefresh: refresh, child: list);
   }
 
   void _open(BuildContext context, String tradeId) {

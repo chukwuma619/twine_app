@@ -87,6 +87,7 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
     return MaterialApp(
       title: 'Twine',
       theme: TwineTokens.theme(),
+      darkTheme: TwineTokens.darkTheme(),
       home: ListenableBuilder(
         listenable: _session,
         builder: (context, _) => _home(_session),
@@ -133,6 +134,7 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
     }
     return MarketPage(
       market: market,
+      onRefresh: () => session.catchUp(force: true),
       showFiberGuide: session.showFiberGuide,
       onFiberGuideDismissed: session.dismissFiberGuide,
       fiberNode: session.fiberNode,

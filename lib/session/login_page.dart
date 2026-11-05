@@ -21,6 +21,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _secret = TextEditingController();
+  bool _obscure = true;
 
   @override
   void dispose() {
@@ -68,10 +69,19 @@ class _LoginPageState extends State<LoginPage> {
                     enabled: !widget.busy,
                     autocorrect: false,
                     enableSuggestions: false,
-                    obscureText: true,
-                    decoration: const InputDecoration(
+                    obscureText: _obscure,
+                    decoration: InputDecoration(
                       labelText: 'nsec',
                       helperText: 'Paste an nsec or a 64-character hex secret.',
+                      suffixIcon: IconButton(
+                        tooltip: _obscure ? 'Show key' : 'Hide key',
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                        icon: Icon(
+                          _obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
                     ),
                   ),
                   if (widget.error != null) ...[

@@ -19,6 +19,7 @@ class MarketPage extends StatefulWidget {
     super.key,
     required this.market,
     required this.account,
+    this.onRefresh,
     this.fiberNode,
     this.fiberAddresses = const [],
     this.solverAvailable,
@@ -33,6 +34,7 @@ class MarketPage extends StatefulWidget {
 
   final TwineMarket market;
   final Widget account;
+  final Future<void> Function()? onRefresh;
   final String? fiberNode;
   final List<String> fiberAddresses;
   final bool? solverAvailable;
@@ -255,10 +257,12 @@ class _MarketPageState extends State<MarketPage> {
                               market: market,
                               showCanceled: _showCanceled,
                               solverAvailable: widget.solverAvailable,
+                              onRefresh: widget.onRefresh,
                             )
                           : TradeList(
                               market: market,
                               solverAvailable: widget.solverAvailable,
+                              onRefresh: widget.onRefresh,
                             ),
                     ),
                   ],
@@ -375,11 +379,13 @@ class _Posts extends StatelessWidget {
     required this.market,
     required this.showCanceled,
     this.solverAvailable,
+    this.onRefresh,
   });
 
   final TwineMarket market;
   final bool showCanceled;
   final bool? solverAvailable;
+  final Future<void> Function()? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -390,30 +396,35 @@ class _Posts extends StatelessWidget {
       ]))
         if (showCanceled || order.status != PostStatus.canceled) order,
     ];
+    final Widget child;
     if (orders.isEmpty) {
-      return const _Empty(
+      child = const _Empty(
         message: 'No posts yet.',
         icon: Icons.list_alt_outlined,
       );
+    } else {
+      child = ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(
+          TwineTokens.md,
+          TwineTokens.sm,
+          TwineTokens.md,
+          96,
+        ),
+        itemCount: orders.length,
+        separatorBuilder: (context, index) =>
+            const SizedBox(height: TwineTokens.sm),
+        itemBuilder: (context, index) {
+          return _PostCard(
+            market: market,
+            order: orders[index],
+            solverAvailable: solverAvailable,
+          );
+        },
+      );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(
-        TwineTokens.md,
-        TwineTokens.sm,
-        TwineTokens.md,
-        96,
-      ),
-      itemCount: orders.length,
-      separatorBuilder: (context, index) =>
-          const SizedBox(height: TwineTokens.sm),
-      itemBuilder: (context, index) {
-        return _PostCard(
-          market: market,
-          order: orders[index],
-          solverAvailable: solverAvailable,
-        );
-      },
-    );
+    if (onRefresh == null || orders.isEmpty) return child;
+    return RefreshIndicator(onRefresh: onRefresh!, child: child);
   }
 }
 
@@ -438,7 +449,7 @@ class _PostCard extends StatelessWidget {
     final canTake = listed && !mine && order.hasCkb;
     final muted = TwineTokens.muted(theme);
     final Widget? action;
-    if (open != null && !canTake) {
+    if (open != null) {
       action = FilledButton.tonal(
         onPressed: () => _openTrade(context, open.id),
         child: const Text('Trade'),

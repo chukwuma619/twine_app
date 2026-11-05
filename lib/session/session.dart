@@ -276,7 +276,6 @@ class TwineSession extends ChangeNotifier {
     }
     if (_disposed) return;
     nostr.account = parsed;
-    final current = daemon;
     account = parsed;
     showBackup = true;
     busy = false;

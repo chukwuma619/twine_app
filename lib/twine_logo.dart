@@ -5,18 +5,24 @@ class TwineLogo extends StatelessWidget {
   const TwineLogo({
     super.key,
     this.size = 24,
-    this.color = const Color(0xFF3C245C),
+    this.color,
   });
 
   final double size;
-  final Color color;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final resolved =
+        color ??
+        (theme.brightness == Brightness.dark
+            ? theme.colorScheme.primary
+            : const Color(0xFF3C245C));
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(painter: _TwineLogoPainter(color)),
+      child: CustomPaint(painter: _TwineLogoPainter(resolved)),
     );
   }
 }

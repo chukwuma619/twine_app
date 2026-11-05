@@ -102,4 +102,43 @@ void main() {
     expect(invoiceError('payout', holdInvoice: 'hold-invoice'), isNull);
     expect(myTradesRequest().action, actionMyTrades);
   });
+
+  test('a take checks the order min, max, and remaining CKB', () {
+    final order = TwineOrder(
+      orderId: 'order-1',
+      makerNostrPubkey: 'a' * 64,
+      side: OrderSide.sell,
+      availableCkb: '150',
+      fiatCurrency: 'NGN',
+      pricePerCkb: '1500',
+      min: '150000',
+      max: '300000',
+      holdHours: 24,
+      updatedAt: DateTime.utc(2026),
+    );
+
+    const belowMin = TakeDraft(orderId: 'order-1', fiatAmount: '100000');
+    expect(
+      belowMin.validate(order: order),
+      'Enter between 150000 and 300000 NGN.',
+    );
+
+    const aboveMax = TakeDraft(orderId: 'order-1', fiatAmount: '350000');
+    expect(
+      aboveMax.validate(order: order),
+      'Enter between 150000 and 300000 NGN.',
+    );
+
+    const exceedsAvailable = TakeDraft(
+      orderId: 'order-1',
+      fiatAmount: '250000',
+    );
+    expect(
+      exceedsAvailable.validate(order: order),
+      'Only 150 CKB is available on this post.',
+    );
+
+    const withinBounds = TakeDraft(orderId: 'order-1', fiatAmount: '200000');
+    expect(withinBounds.validate(order: order), isNull);
+  });
 }

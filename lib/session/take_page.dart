@@ -4,6 +4,7 @@ import '../market/amount.dart';
 import '../market/role.dart';
 import '../nostr/order.dart';
 import '../nostr/request.dart';
+import '../ui/twine_tokens.dart';
 import 'market.dart';
 
 class TakePage extends StatefulWidget {
@@ -57,91 +58,144 @@ class _TakePageState extends State<TakePage> {
           );
         }
         final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        final muted = TwineTokens.muted(theme);
         final role = tradeSide(order, widget.market.accountPubkey);
         final title = role == TradeSide.seller ? 'Sell CKB' : 'Buy CKB';
         final estimate = aboutCkb(_amount.text, order.pricePerCkb);
         return Scaffold(
+          resizeToAvoidBottomInset: true,
           appBar: AppBar(title: Text(title)),
           body: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        role == TradeSide.seller
-                            ? 'You lock CKB in your Fiber wallet.'
-                            : 'You pay by mobile transfer after the seller locks.',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text('${order.availableCkb} CKB'),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${order.min}–${order.max} ${order.fiatCurrency} at ${order.pricePerCkb} ${order.fiatCurrency} per CKB',
-                      ),
-                      if (estimate != null) ...[
-                        const SizedBox(height: 8),
-                        Text('About $estimate CKB'),
-                      ],
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _amount,
-                        enabled: !_busy,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(
+                          TwineTokens.md,
+                          TwineTokens.sm,
+                          TwineTokens.md,
+                          TwineTokens.lg,
                         ),
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        decoration: InputDecoration(
-                          labelText: 'Fiat amount',
-                          suffixText: order.fiatCurrency,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (role == TradeSide.buyer) ...[
-                        TextField(
-                          controller: _invoice,
-                          enabled: !_busy,
-                          minLines: 1,
-                          maxLines: 4,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          decoration: const InputDecoration(
-                            labelText: 'Fiber invoice for the CKB',
-                            helperText:
-                                'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash.',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      if (_error != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          _error!,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.error,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: _busy ? null : () => _submit(order, role),
-                        child: _busy
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              role == TradeSide.seller
+                                  ? 'You lock CKB in your Fiber wallet.'
+                                  : 'You pay by mobile transfer after the seller locks.',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: TwineTokens.sm),
+                            Card(
+                              color: scheme.surfaceContainerLow,
+                              child: Padding(
+                                padding: const EdgeInsets.all(TwineTokens.md),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${order.availableCkb} CKB',
+                                      style: TwineTokens.price(theme),
+                                    ),
+                                    const SizedBox(height: TwineTokens.xxs),
+                                    Text(
+                                      '${order.min}–${order.max} ${order.fiatCurrency} at ${order.pricePerCkb} ${order.fiatCurrency} per CKB',
+                                      style: muted,
+                                    ),
+                                    if (estimate != null) ...[
+                                      const SizedBox(height: TwineTokens.xs),
+                                      Text(
+                                        'About $estimate CKB',
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                              color: scheme.primary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                              )
-                            : const Text('Take'),
+                              ),
+                            ),
+                            const SizedBox(height: TwineTokens.lg),
+                            TextField(
+                              controller: _amount,
+                              enabled: !_busy,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              decoration: TwineTokens.field(
+                                theme,
+                                label: 'Fiat amount',
+                                suffix: order.fiatCurrency,
+                              ),
+                            ),
+                            if (role == TradeSide.buyer) ...[
+                              const SizedBox(height: TwineTokens.sm),
+                              TextField(
+                                controller: _invoice,
+                                enabled: !_busy,
+                                minLines: 1,
+                                maxLines: 4,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                decoration: const InputDecoration(
+                                  labelText: 'Fiber invoice for the CKB',
+                                  helperText:
+                                      'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash.',
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                    DecoratedBox(
+                      decoration: TwineTokens.dock(scheme),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          TwineTokens.md,
+                          TwineTokens.sm,
+                          TwineTokens.md,
+                          TwineTokens.sm,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_error != null) ...[
+                              Text(_error!, style: TwineTokens.error(theme)),
+                              const SizedBox(height: TwineTokens.sm),
+                            ],
+                            FilledButton(
+                              style: TwineTokens.filled,
+                              onPressed: _busy
+                                  ? null
+                                  : () => _submit(order, role),
+                              child: _busy
+                                  ? SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: scheme.onPrimary,
+                                      ),
+                                    )
+                                  : const Text('Take'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -158,7 +212,7 @@ class _TakePageState extends State<TakePage> {
       invoice: role == TradeSide.buyer ? _invoice.text : null,
       requireInvoice: role == TradeSide.buyer,
     );
-    final invalid = draft.validate();
+    final invalid = draft.validate(order: order);
     if (invalid != null) {
       setState(() => _error = invalid);
       return;
@@ -181,7 +235,7 @@ class _TakePageState extends State<TakePage> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Back'),
             ),
-            TextButton(
+            FilledButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Confirm'),
             ),

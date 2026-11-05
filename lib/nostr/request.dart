@@ -81,10 +81,29 @@ class TakeDraft {
   final String? invoice;
   final bool requireInvoice;
 
-  String? validate() {
+  String? validate({TwineOrder? order}) {
     if (orderId.trim().isEmpty) return 'That post is missing an id.';
     final amount = _amount(fiatAmount, 'the fiat amount');
     if (amount != null) return amount;
+    if (order != null) {
+      final fiat = double.tryParse(fiatAmount.trim());
+      final min = double.tryParse(order.min.trim());
+      final max = double.tryParse(order.max.trim());
+      final price = double.tryParse(order.pricePerCkb.trim());
+      final available = double.tryParse(order.availableCkb.trim());
+      if (fiat != null && min != null && max != null) {
+        if (fiat < min || fiat > max) {
+          return 'Enter between ${order.min} and ${order.max} ${order.fiatCurrency}.';
+        }
+      }
+      if (fiat != null &&
+          price != null &&
+          price > 0 &&
+          available != null &&
+          (fiat / price) > available + 1e-9) {
+        return 'Only ${order.availableCkb} CKB is available on this post.';
+      }
+    }
     if (requireInvoice) {
       final payout = invoiceError(invoice ?? '');
       if (payout != null) return payout;

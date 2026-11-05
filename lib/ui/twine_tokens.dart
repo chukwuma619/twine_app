@@ -129,9 +129,16 @@ abstract final class TwineTokens {
     );
   }
 
-  static ThemeData theme() {
-    final scheme = ColorScheme.fromSeed(seedColor: ink);
-    final base = ThemeData(colorScheme: scheme, useMaterial3: true);
+  static ThemeData theme([Brightness brightness = Brightness.light]) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: ink,
+      brightness: brightness,
+    );
+    final base = ThemeData(
+      colorScheme: scheme,
+      useMaterial3: true,
+      brightness: brightness,
+    );
     const quiet = OutlineInputBorder(
       borderRadius: smRadius,
       borderSide: BorderSide.none,
@@ -186,4 +193,6 @@ abstract final class TwineTokens {
       ),
     );
   }
+
+  static ThemeData darkTheme() => theme(Brightness.dark);
 }

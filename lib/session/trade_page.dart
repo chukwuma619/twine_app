@@ -43,7 +43,6 @@ class _TradePageState extends State<TradePage> {
   final _details = TextEditingController();
   final _chat = TextEditingController();
   final _thread = ScrollController();
-  Timer? _tick;
   String? _error;
   String? _banner;
   bool _lifting = false;
@@ -56,14 +55,10 @@ class _TradePageState extends State<TradePage> {
   void initState() {
     super.initState();
     _chat.addListener(_onDraft);
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
   }
 
   @override
   void dispose() {
-    _tick?.cancel();
     _chat.removeListener(_onDraft);
     _invoice.dispose();
     _details.dispose();
@@ -79,13 +74,30 @@ class _TradePageState extends State<TradePage> {
     setState(() => _nearLimit = near);
   }
 
-  KeyEventResult _trackShift(FocusNode node, KeyEvent event) {
+  KeyEventResult _onComposerKey(
+    FocusNode node,
+    KeyEvent event,
+    TwineTrade trade,
+  ) {
     final key = event.logicalKey;
-    if (key != LogicalKeyboardKey.shiftLeft &&
-        key != LogicalKeyboardKey.shiftRight) {
+    if (key == LogicalKeyboardKey.shiftLeft ||
+        key == LogicalKeyboardKey.shiftRight) {
+      _shiftHeld = event is! KeyUpEvent;
       return KeyEventResult.ignored;
     }
-    _shiftHeld = event is! KeyUpEvent;
+    if ((key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.numpadEnter) &&
+        event is KeyDownEvent) {
+      final shift =
+          _shiftHeld || HardwareKeyboard.instance.isShiftPressed;
+      if (!shift) {
+        final over = _chat.text.length > maxChatText;
+        if (!_blocked && _chat.text.trim().isNotEmpty && !over) {
+          _send(trade);
+        }
+        return KeyEventResult.handled;
+      }
+    }
     return KeyEventResult.ignored;
   }
 
@@ -136,7 +148,6 @@ class _TradePageState extends State<TradePage> {
             trade.phase != TradePhase.refunding;
         final lines = _lines(trade.id);
         _pin(lines.length + (outcome == null ? 0 : 1));
-        final timing = _timing(trade, side);
         final reading = _reading(
           trade: trade,
           side: side,
@@ -170,7 +181,6 @@ class _TradePageState extends State<TradePage> {
                 onPressed: () => _openDetails(
                   trade: trade,
                   side: side,
-                  timing: timing,
                   orderCurrency: order?.fiatCurrency,
                 ),
                 icon: const Icon(Icons.info_outline),
@@ -186,15 +196,17 @@ class _TradePageState extends State<TradePage> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final height = constraints.maxHeight;
+                      final keyboardOpen =
+                          MediaQuery.viewInsetsOf(context).bottom > 0;
                       final summaryMax = height * 0.28 < 140
                           ? height * 0.28
                           : 140.0;
-                      final infoMax = height * 0.36 < 240
-                          ? height * 0.36
-                          : 240.0;
-                      final dockCap = height * 0.28 < 168
-                          ? height * 0.28
-                          : 168.0;
+                      final infoMax = keyboardOpen
+                          ? (height * 0.22 < 120 ? height * 0.22 : 120.0)
+                          : (height * 0.36 < 240 ? height * 0.36 : 240.0);
+                      final dockCap = keyboardOpen
+                          ? (height * 0.22 < 120 ? height * 0.22 : 120.0)
+                          : (height * 0.28 < 168 ? height * 0.28 : 168.0);
                       return Column(
                         children: [
                           ConstrainedBox(
@@ -205,7 +217,6 @@ class _TradePageState extends State<TradePage> {
                                 trade: trade,
                                 orderCurrency: order?.fiatCurrency,
                                 side: side,
-                                timing: timing,
                               ),
                             ),
                           ),
@@ -242,7 +253,6 @@ class _TradePageState extends State<TradePage> {
     required ThemeData theme,
     required TwineTrade trade,
     required TradeSide? side,
-    required List<String> timing,
     String? orderCurrency,
   }) {
     final scheme = theme.colorScheme;
@@ -256,7 +266,6 @@ class _TradePageState extends State<TradePage> {
       TradeSide.seller => 'Seller',
       null => null,
     };
-    final deadline = timing.isEmpty ? null : timing.first;
     return DecoratedBox(
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
@@ -325,21 +334,7 @@ class _TradePageState extends State<TradePage> {
                 Text('Put the reference on the payment.', style: muted),
               ],
             ],
-            if (deadline != null) ...[
-              const SizedBox(height: TwineTokens.xs),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.schedule,
-                    size: TwineTokens.iconSm,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: TwineTokens.xs),
-                  Expanded(child: Text(deadline, style: muted)),
-                ],
-              ),
-            ],
+            _DeadlineTicker(trade: trade, side: side, style: muted),
           ],
         ),
       ),
@@ -706,7 +701,8 @@ class _TradePageState extends State<TradePage> {
               children: [
                 Expanded(
                   child: Focus(
-                    onKeyEvent: _trackShift,
+                    onKeyEvent: (node, event) =>
+                        _onComposerKey(node, event, trade),
                     child: TextField(
                       controller: _chat,
                       enabled: !blocked,
@@ -716,8 +712,8 @@ class _TradePageState extends State<TradePage> {
                       textInputAction: TextInputAction.send,
                       onSubmitted: canSend ? (_) => _send(trade) : null,
                       onChanged: (value) {
-                        if (_shiftHeld || !value.contains('\n')) return;
-                        final text = value.replaceAll('\n', '');
+                        if (_shiftHeld || !value.endsWith('\n')) return;
+                        final text = value.substring(0, value.length - 1);
                         _chat.value = TextEditingValue(
                           text: text,
                           selection: TextSelection.collapsed(
@@ -813,59 +809,12 @@ class _TradePageState extends State<TradePage> {
     );
   }
 
-  List<String> _timing(TwineTrade trade, TradeSide? side) {
-    final now = DateTime.now().toUtc();
-    final lines = <String>[];
-    if (trade.phase == TradePhase.waitingInvoice) {
-      final due = trade.invoiceBy;
-      if (due != null) {
-        final left = remainingLabel(due, now);
-        lines.add(
-          side == TradeSide.buyer
-              ? 'Send the payout invoice. $left'
-              : 'Waiting for the payout invoice. $left',
-        );
-      } else {
-        lines.add('The payout invoice is due within an hour.');
-      }
-    } else if (trade.phase == TradePhase.waitingHold) {
-      if (side == TradeSide.seller) {
-        if (trade.lockBy != null) {
-          lines.add(remainingLabel(trade.lockBy!, now));
-        } else {
-          lines.add('Pay the hold invoice within an hour.');
-        }
-      }
-    } else if (!trade.phase.terminal && trade.phase != TradePhase.refunding) {
-      if (side == TradeSide.buyer && trade.phase == TradePhase.waitingFiat) {
-        if (trade.payBy != null) {
-          lines.add(remainingLabel(trade.payBy!, now));
-        } else {
-          lines.add('Pay before the hold’s release deadline.');
-        }
-      }
-      if (trade.releaseBy != null) {
-        lines.add('Release window: ${remainingLabel(trade.releaseBy!, now)}');
-      } else {
-        lines.add('Release at least 30 minutes before the hold ends.');
-      }
-      if (trade.holdEndsAt != null) {
-        lines.add(
-          'The hold returns the CKB to the seller ${remainingLabel(trade.holdEndsAt!, now)}.',
-        );
-      } else {
-        lines.add('The hold returns the CKB to the seller when it ends.');
-      }
-    }
-    return lines;
-  }
-
   void _openDetails({
     required TwineTrade trade,
     required TradeSide? side,
-    required List<String> timing,
     String? orderCurrency,
   }) {
+    final timing = _timing(trade, side, DateTime.now().toUtc());
     final amount = trade.amountShannons == null
         ? null
         : '${shannonsToCkb(trade.amountShannons!)} CKB';
@@ -1444,10 +1393,19 @@ class _ReceiptImage extends StatelessWidget {
   }
 }
 
+final Map<String, Uint8List> _receiptByteCache = <String, Uint8List>{};
+
 Uint8List? _receiptBytes(String? image) {
   if (image == null) return null;
+  final cached = _receiptByteCache[image];
+  if (cached != null) return cached;
   try {
-    return base64Decode(image);
+    final decoded = base64Decode(image);
+    if (_receiptByteCache.length >= 32) {
+      _receiptByteCache.remove(_receiptByteCache.keys.first);
+    }
+    _receiptByteCache[image] = decoded;
+    return decoded;
   } catch (_) {
     return null;
   }
@@ -2321,6 +2279,122 @@ class _ThreadEmpty extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+List<String> _timing(TwineTrade trade, TradeSide? side, DateTime now) {
+  final lines = <String>[];
+  if (trade.phase == TradePhase.waitingInvoice) {
+    final due = trade.invoiceBy;
+    if (due != null) {
+      final left = remainingLabel(due, now);
+      lines.add(
+        side == TradeSide.buyer
+            ? 'Send the payout invoice. $left'
+            : 'Waiting for the payout invoice. $left',
+      );
+    } else {
+      lines.add('The payout invoice is due within an hour.');
+    }
+  } else if (trade.phase == TradePhase.waitingHold) {
+    if (side == TradeSide.seller) {
+      if (trade.lockBy != null) {
+        lines.add(remainingLabel(trade.lockBy!, now));
+      } else {
+        lines.add('Pay the hold invoice within an hour.');
+      }
+    }
+  } else if (!trade.phase.terminal && trade.phase != TradePhase.refunding) {
+    if (side == TradeSide.buyer && trade.phase == TradePhase.waitingFiat) {
+      if (trade.payBy != null) {
+        lines.add(remainingLabel(trade.payBy!, now));
+      } else {
+        lines.add('Pay before the hold’s release deadline.');
+      }
+    }
+    if (trade.releaseBy != null) {
+      lines.add('Release window: ${remainingLabel(trade.releaseBy!, now)}');
+    } else {
+      lines.add('Release at least 30 minutes before the hold ends.');
+    }
+    if (trade.holdEndsAt != null) {
+      lines.add(
+        'The hold returns the CKB to the seller ${remainingLabel(trade.holdEndsAt!, now)}.',
+      );
+    } else {
+      lines.add('The hold returns the CKB to the seller when it ends.');
+    }
+  }
+  return lines;
+}
+
+class _DeadlineTicker extends StatefulWidget {
+  const _DeadlineTicker({
+    required this.trade,
+    required this.side,
+    required this.style,
+  });
+
+  final TwineTrade trade;
+  final TradeSide? side;
+  final TextStyle? style;
+
+  @override
+  State<_DeadlineTicker> createState() => _DeadlineTickerState();
+}
+
+class _DeadlineTickerState extends State<_DeadlineTicker> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DeadlineTicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncTimer();
+  }
+
+  void _syncTimer() {
+    if (widget.trade.phase.terminal) {
+      _tick?.cancel();
+      _tick = null;
+      return;
+    }
+    _tick ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final timing = _timing(widget.trade, widget.side, DateTime.now().toUtc());
+    if (timing.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: TwineTokens.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.schedule,
+            size: TwineTokens.iconSm,
+            color: scheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: TwineTokens.xs),
+          Expanded(child: Text(timing.first, style: widget.style)),
+        ],
+      ),
     );
   }
 }
