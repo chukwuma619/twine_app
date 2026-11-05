@@ -5,6 +5,19 @@ import 'chat.dart';
 import 'phase.dart';
 import 'trade.dart';
 
+/// Newest update first. The same timestamp stays in id order.
+int compareTradesByTime(TwineTrade a, TwineTrade b) {
+  final time = b.updatedAt.compareTo(a.updatedAt);
+  if (time != 0) return time;
+  return a.id.compareTo(b.id);
+}
+
+List<TwineTrade> _newestFirst(List<TwineTrade>? trades) {
+  final next = [...?trades];
+  next.sort(compareTradesByTime);
+  return next;
+}
+
 class TwineBook {
   TwineBook({
     List<TwineOrder>? orders,
@@ -14,7 +27,7 @@ class TwineBook {
     this.fiberAddr,
     this.notice,
   }) : orders = [...?orders],
-       trades = [...?trades],
+       trades = _newestFirst(trades),
        notes = [...?notes];
 
   final List<TwineOrder> orders;

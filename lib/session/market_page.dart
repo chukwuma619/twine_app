@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:twine_app/twine_logo.dart';
 
-import '../market/chat.dart';
 import '../market/role.dart';
-import '../market/steps.dart';
 import '../nostr/order.dart';
 import '../ui/twine_tokens.dart';
 import 'fiber_guide.dart';
@@ -11,6 +9,7 @@ import 'market.dart';
 import 'notice_bar.dart';
 import 'post_page.dart';
 import 'take_page.dart';
+import 'trade_list.dart';
 import 'trade_page.dart';
 
 enum _Section { post, trade, account }
@@ -257,7 +256,7 @@ class _MarketPageState extends State<MarketPage> {
                               showCanceled: _showCanceled,
                               solverAvailable: widget.solverAvailable,
                             )
-                          : _Trades(
+                          : TradeList(
                               market: market,
                               solverAvailable: widget.solverAvailable,
                             ),
@@ -571,149 +570,6 @@ class _PostCard extends StatelessWidget {
 
 String _holdLabel(int hours) {
   return hours == 1 ? '1 hour' : '$hours hours';
-}
-
-class _LinePreview {
-  const _LinePreview(this.text, {required this.incoming});
-
-  final String text;
-  final bool incoming;
-}
-
-_LinePreview? _lastLine(TwineMarket market, String tradeId) {
-  final notes = market.book.thread(tradeId);
-  for (var i = notes.length - 1; i >= 0; i--) {
-    final note = notes[i];
-    final incoming =
-        note.author?.toLowerCase() != market.accountPubkey.toLowerCase();
-    final preview = _preview(note, incoming);
-    if (preview != null) return preview;
-  }
-  return null;
-}
-
-_LinePreview? _preview(TradeNote note, bool incoming) {
-  switch (note.kind) {
-    case TradeNoteKind.text:
-      final text = note.text?.trim();
-      if (text == null || text.isEmpty) return null;
-      return _LinePreview(
-        '${incoming ? 'Them' : 'You'}: $text',
-        incoming: incoming,
-      );
-    case TradeNoteKind.paymentDetails:
-      return _LinePreview('Payment details', incoming: incoming);
-    case TradeNoteKind.paymentProof:
-      return _LinePreview('Receipt', incoming: incoming);
-    case TradeNoteKind.status:
-      final text = note.text?.trim();
-      if (text == null || text.isEmpty) return null;
-      return _LinePreview(text, incoming: false);
-  }
-}
-
-class _Trades extends StatelessWidget {
-  const _Trades({required this.market, this.solverAvailable});
-
-  final TwineMarket market;
-  final bool? solverAvailable;
-
-  @override
-  Widget build(BuildContext context) {
-    final trades = market.book.trades;
-    if (trades.isEmpty) {
-      return const _Empty(
-        message: 'No trades yet.',
-        icon: Icons.swap_horiz_outlined,
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(
-        TwineTokens.md,
-        TwineTokens.sm,
-        TwineTokens.md,
-        TwineTokens.lg,
-      ),
-      itemCount: trades.length,
-      separatorBuilder: (context, index) =>
-          const SizedBox(height: TwineTokens.sm),
-      itemBuilder: (context, index) {
-        final trade = trades[index];
-        final order = market.book.order(trade.orderId);
-        final side = sideOn(trade, market.accountPubkey, order);
-        final title = tradeTitle(trade.phase, side);
-        final detail = trade.fiatAmount == null
-            ? trade.id
-            : '${trade.fiatAmount} ${trade.fiatCurrency ?? order?.fiatCurrency ?? ''}';
-        final preview = _lastLine(market, trade.id);
-        final theme = Theme.of(context);
-        return Card(
-          margin: EdgeInsets.zero,
-          child: InkWell(
-            borderRadius: TwineTokens.smRadius,
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (context) => TradePage(
-                    market: market,
-                    tradeId: trade.id,
-                    solverAvailable: solverAvailable,
-                  ),
-                ),
-              );
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(TwineTokens.md),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: TwineTokens.xxs),
-                        Text(
-                          detail,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TwineTokens.muted(theme),
-                        ),
-                        if (preview != null) ...[
-                          const SizedBox(height: TwineTokens.xxs),
-                          Text(
-                            preview.text,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: preview.incoming
-                                ? theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.3,
-                                  )
-                                : TwineTokens.body(theme),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: TwineTokens.xs),
-                  Icon(
-                    Icons.chevron_right,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 
 class _Empty extends StatelessWidget {

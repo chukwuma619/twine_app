@@ -115,6 +115,7 @@ void main() {
 
     expect(find.text('No trades yet.'), findsOneWidget);
     expect(find.text('Buy'), findsNothing);
+    expect(find.byKey(const ValueKey('trade-status-active')), findsNothing);
   });
 
   testWidgets('a canceled post cannot be taken or canceled again', (
@@ -706,6 +707,99 @@ void main() {
     expect(find.text('Message'), findsOneWidget);
     expect(find.text('No messages yet.'), findsNothing);
   });
+
+  testWidgets('the trade list filters status and side, newest first', (
+    tester,
+  ) async {
+    final market = _market(
+      pubkey: 'buyer',
+      trades: [
+        TwineTrade(
+          id: 'old',
+          orderId: 'order-old',
+          phase: TradePhase.settled,
+          updatedAt: DateTime.utc(2026, 10, 1),
+          amountShannons: '200000000',
+          fiatAmount: '3000',
+          fiatCurrency: 'NGN',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+        ),
+        TwineTrade(
+          id: 'new',
+          orderId: 'order-new',
+          phase: TradePhase.canceled,
+          updatedAt: DateTime.utc(2026, 10, 8),
+          sellerNostr: 'buyer',
+          buyerNostr: 'seller',
+        ),
+        TwineTrade(
+          id: 'mid',
+          orderId: 'order-mid',
+          phase: TradePhase.waitingFiat,
+          updatedAt: DateTime.utc(2026, 10, 5),
+          amountShannons: '100000000',
+          fiatAmount: '2500',
+          fiatCurrency: 'NGN',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MarketPage(market: market, account: const SizedBox.shrink()),
+      ),
+    );
+    await tester.tap(find.text('Trade'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Active 1'), findsOneWidget);
+    expect(find.text('Settled 1'), findsOneWidget);
+    expect(find.text('Closed 1'), findsOneWidget);
+    expect(find.text('All 3'), findsOneWidget);
+    expect(find.text('Newest'), findsOneWidget);
+    expect(find.text('Pay the seller'), findsOneWidget);
+    expect(find.text('2500 NGN'), findsOneWidget);
+    expect(find.text('Settled'), findsNothing);
+    expect(find.text('Canceled'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('trade-status-all')));
+    await tester.pumpAndSettle();
+    _expectAbove(tester, 'Canceled', 'Pay the seller');
+    _expectAbove(tester, 'Pay the seller', 'Settled');
+
+    await tester.tap(find.text('Newest'));
+    await tester.pumpAndSettle();
+    expect(find.text('Oldest'), findsOneWidget);
+    _expectAbove(tester, 'Settled', 'Pay the seller');
+    _expectAbove(tester, 'Pay the seller', 'Canceled');
+
+    await tester.tap(find.byKey(const ValueKey('trade-status-settled')));
+    await tester.pumpAndSettle();
+    expect(find.text('3000 NGN'), findsOneWidget);
+    expect(find.text('Pay the seller'), findsNothing);
+    expect(find.text('Canceled'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('trade-side-sell')));
+    await tester.pumpAndSettle();
+    expect(find.text('No sell trades that are settled.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('trade-status-all')));
+    await tester.pumpAndSettle();
+    expect(find.text('Canceled'), findsOneWidget);
+    expect(find.text('Pay the seller'), findsNothing);
+    expect(find.text('3000 NGN'), findsNothing);
+    expect(find.text('All 1'), findsOneWidget);
+  });
+}
+
+void _expectAbove(WidgetTester tester, String above, String below) {
+  expect(
+    tester.getTopLeft(find.text(above)).dy,
+    lessThan(tester.getTopLeft(find.text(below)).dy),
+  );
 }
 
 TwineMarket _market({
