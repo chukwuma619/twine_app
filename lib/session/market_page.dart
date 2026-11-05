@@ -436,14 +436,15 @@ class _PostCard extends StatelessWidget {
     final pending = order.orderId.startsWith('local-');
     final open = market.book.openTradeFor(order.orderId);
     final listed = order.status == PostStatus.open;
+    final canTake = listed && !mine && order.hasCkb;
     final muted = TwineTokens.muted(theme);
     final Widget? action;
-    if (open != null) {
+    if (open != null && !canTake) {
       action = FilledButton.tonal(
         onPressed: () => _openTrade(context, open.id),
         child: const Text('Trade'),
       );
-    } else if (listed && !mine && order.hasCkb) {
+    } else if (canTake) {
       action = FilledButton(
         onPressed: market.sending ? null : () => _openTake(context),
         child: const Text('Take'),
@@ -520,7 +521,7 @@ class _PostCard extends StatelessWidget {
             ),
             if (order.hasReserved) ...[
               const SizedBox(height: TwineTokens.xxs),
-              Text('${order.reservedCkb} CKB in an open trade', style: muted),
+              Text('${order.reservedCkb} CKB reserved', style: muted),
             ],
             const SizedBox(height: TwineTokens.xxs),
             Text(
