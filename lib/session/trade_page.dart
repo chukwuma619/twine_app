@@ -606,7 +606,7 @@ class _TradePageState extends State<TradePage> {
     }
     if (actions.dispute) {
       add(
-        _quiet('Dispute', _Work.dispute, () => _dispute(trade)),
+        _quiet('Dispute (coming soon)', _Work.dispute, null),
         gap: TwineTokens.xs,
       );
     }
@@ -705,7 +705,7 @@ class _TradePageState extends State<TradePage> {
     );
   }
 
-  Widget _quiet(String label, _Work work, VoidCallback onPressed) {
+  Widget _quiet(String label, _Work work, VoidCallback? onPressed) {
     final theme = Theme.of(context);
     return TextButton(
       style: TextButton.styleFrom(
@@ -1211,23 +1211,6 @@ class _TradePageState extends State<TradePage> {
     );
     if (!confirmed || !mounted) return;
     await _run(_Work.release, () => widget.market.release(trade.id));
-  }
-
-  Future<void> _dispute(TwineTrade trade) async {
-    if (_busy != null || widget.market.sending) return;
-    final confirmed = await _confirm(
-      context,
-      'Open a dispute?',
-      '${_disputeLine(trade)} You can still release if a payout invoice is stored.',
-    );
-    if (!confirmed || !mounted) return;
-    final invoice = _invoice.text.trim();
-    await _run(_Work.dispute, () {
-      return widget.market.dispute(
-        trade.id,
-        invoice: invoice.isEmpty ? null : invoice,
-      );
-    });
   }
 
   Future<void> _cancel(TwineTrade trade) async {

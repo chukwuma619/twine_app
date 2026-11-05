@@ -289,6 +289,10 @@ void main() {
     expect(find.textContaining('0123456789'), findsNWidgets(2));
     expect(find.textContaining('Ada Lovelace'), findsNWidgets(2));
     expect(find.text("I've paid"), findsOneWidget);
+    final dispute = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Dispute (coming soon)'),
+    );
+    expect(dispute.onPressed, isNull);
 
     await tester.ensureVisible(find.text("I've paid"));
     await tester.tap(find.text("I've paid"));
