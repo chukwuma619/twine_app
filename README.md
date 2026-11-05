@@ -80,7 +80,7 @@ The official daemon offered by a new install:
 
 | | |
 | --- | --- |
-| Public key | `npub1ut3m5psw93jleu6pjlpm0klkcynngzm4cnva9hzhvpps3699p7msgk9zss` |
+| Public key | `npub1r9wcxf7d2c0nchphcvmuwhl4hr64x43fmgws83gc27rhw29986vse3dsh6` |
 | Relays | `wss://relay.backr.site`|
 
 After that the app opens those relays and loads the book for this account and this daemon.

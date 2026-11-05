@@ -2,7 +2,7 @@ import 'package:dart_nostr/dart_nostr.dart';
 
 /// The daemon a new install offers. A person can replace it before connecting.
 const officialDaemonNpub =
-    'npub1ut3m5psw93jleu6pjlpm0klkcynngzm4cnva9hzhvpps3699p7msgk9zss';
+    'npub1r9wcxf7d2c0nchphcvmuwhl4hr64x43fmgws83gc27rhw29986vse3dsh6';
 
 const officialDaemonRelays = ['wss://relay.backr.site'];
 
