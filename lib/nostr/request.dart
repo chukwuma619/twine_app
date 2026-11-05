@@ -4,12 +4,11 @@ import '../constant.dart';
 import 'envelope.dart';
 import 'order.dart';
 
-/// Smallest trade a sell post can allow, in CKB.
+/// Smallest trade a post can allow, in CKB.
 const minPostCkb = 100;
 
 class NewOrderDraft {
   const NewOrderDraft({
-    required this.side,
     required this.availableCkb,
     required this.fiatCurrency,
     required this.pricePerCkb,
@@ -17,7 +16,6 @@ class NewOrderDraft {
     required this.max,
   });
 
-  final OrderSide side;
   final String availableCkb;
   final String fiatCurrency;
   final String pricePerCkb;
@@ -61,7 +59,7 @@ class NewOrderDraft {
     return TwineEnvelope(
       action: actionNewOrder,
       payload: {
-        'side': side.wire,
+        'side': 'sell',
         'available_ckb': availableCkb.trim(),
         'fiat_currency': fiatCurrency.trim(),
         'price_per_ckb': pricePerCkb.trim(),

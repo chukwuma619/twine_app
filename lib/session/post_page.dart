@@ -2,7 +2,6 @@ import 'package:currency_picker/currency_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../market/amount.dart';
-import '../nostr/order.dart';
 import '../nostr/request.dart';
 import '../ui/twine_tokens.dart';
 
@@ -190,37 +189,9 @@ class _PostPageState extends State<PostPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          children: [
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: scheme.secondaryContainer,
-                                borderRadius: BorderRadius.circular(
-                                  TwineTokens.radiusPill,
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: TwineTokens.xs,
-                                  vertical: TwineTokens.xxs,
-                                ),
-                                child: Text(
-                                  'Sell CKB',
-                                  style: theme.textTheme.labelMedium?.copyWith(
-                                    color: scheme.onSecondaryContainer,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: TwineTokens.xs),
-                            Expanded(
-                              child: Text(
-                                'Locks in your Fiber wallet when someone takes it.',
-                                style: muted,
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Locks in your Fiber wallet when someone takes it.',
+                          style: muted,
                         ),
                         const SizedBox(height: TwineTokens.lg),
                         Text('Offer', style: TwineTokens.section(theme)),
@@ -414,7 +385,6 @@ class _PostPageState extends State<PostPage> {
 
   Future<void> _submit() async {
     final draft = NewOrderDraft(
-      side: OrderSide.sell,
       availableCkb: _available.text,
       fiatCurrency: _currency,
       pricePerCkb: _price.text,
@@ -435,7 +405,7 @@ class _PostPageState extends State<PostPage> {
     final error = await widget.onSubmit(draft);
     if (!mounted) return;
     if (error == null) {
-      Navigator.of(context).pop(OrderSide.sell);
+      Navigator.of(context).pop();
       return;
     }
     setState(() {

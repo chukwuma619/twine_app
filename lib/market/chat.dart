@@ -40,11 +40,7 @@ class TradeNote {
     required this.kind,
     this.author,
     this.text,
-    this.accountName,
-    this.accountNumber,
-    this.note,
     this.amount,
-    this.bankReference,
     this.image,
   });
 
@@ -54,29 +50,13 @@ class TradeNote {
   final TradeNoteKind kind;
   final String? author;
   final String? text;
-  final String? accountName;
-  final String? accountNumber;
-  final String? note;
   final String? amount;
-  final String? bankReference;
 
   /// Compressed receipt, base64.
   final String? image;
 
-  /// What the buyer should pay. A new message is one block of text.
-  /// Older messages stored a name, a number, and a note.
-  String get detailsText {
-    final written = text?.trim();
-    if (written != null && written.isNotEmpty) return written;
-    final lines = <String>[
-      if (accountName != null && accountName!.trim().isNotEmpty)
-        accountName!.trim(),
-      if (accountNumber != null && accountNumber!.trim().isNotEmpty)
-        accountNumber!.trim(),
-      if (note != null && note!.trim().isNotEmpty) note!.trim(),
-    ];
-    return lines.join('\n');
-  }
+  /// What the buyer should pay, as the seller wrote it.
+  String get detailsText => text?.trim() ?? '';
 
   Map<String, Object?> toJson() {
     return {
@@ -86,11 +66,7 @@ class TradeNote {
       'kind': kind.wire,
       'author': author,
       'text': text,
-      'account_name': accountName,
-      'account_number': accountNumber,
-      'note': note,
       'amount': amount,
-      'bank_reference': bankReference,
       'image': image,
     };
   }
@@ -112,11 +88,7 @@ class TradeNote {
       kind: kind,
       author: _optional(map, 'author'),
       text: _optional(map, 'text'),
-      accountName: _optional(map, 'account_name'),
-      accountNumber: _optional(map, 'account_number'),
-      note: _optional(map, 'note'),
       amount: _optional(map, 'amount'),
-      bankReference: _optional(map, 'bank_reference'),
       image: _optional(map, 'image'),
     );
   }

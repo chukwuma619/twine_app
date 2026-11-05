@@ -48,18 +48,24 @@ class _TradePageState extends State<TradePage> {
   bool _lifting = false;
   bool _nearLimit = false;
   bool _shiftHeld = false;
+  bool _editingDetails = false;
   _Work? _busy;
   int _pinned = -1;
+  double _lastBottomInset = 0;
 
   @override
   void initState() {
     super.initState();
     _chat.addListener(_onDraft);
+    _invoice.addListener(_clearError);
+    _details.addListener(_clearError);
   }
 
   @override
   void dispose() {
     _chat.removeListener(_onDraft);
+    _invoice.removeListener(_clearError);
+    _details.removeListener(_clearError);
     _invoice.dispose();
     _details.dispose();
     _chat.dispose();
@@ -67,11 +73,20 @@ class _TradePageState extends State<TradePage> {
     super.dispose();
   }
 
+  void _clearError() {
+    if (_error == null || !mounted) return;
+    setState(() => _error = null);
+  }
+
   void _onDraft() {
     final near = _chat.text.length >= 800;
-    if (!near && !_nearLimit) return;
+    final clearErr = _error != null;
+    if (!near && !_nearLimit && !clearErr) return;
     if (!mounted) return;
-    setState(() => _nearLimit = near);
+    setState(() {
+      _nearLimit = near;
+      _error = null;
+    });
   }
 
   KeyEventResult _onComposerKey(
@@ -137,17 +152,27 @@ class _TradePageState extends State<TradePage> {
         final notice = _banner ?? stored ?? _error;
         final waitingFiat =
             side == TradeSide.buyer && trade.phase == TradePhase.waitingFiat;
-        final shareAccount =
+        final shareDetails =
             side == TradeSide.seller &&
             trade.phase == TradePhase.waitingFiat &&
-            details == null;
+            (details == null || _editingDetails);
+        final canEditDetails =
+            side == TradeSide.seller &&
+            trade.phase == TradePhase.waitingFiat &&
+            details != null &&
+            !_editingDetails &&
+            peer != null;
         final outcome = tradeOutcome(trade.phase);
         final compose =
             peer != null &&
             !trade.phase.terminal &&
             trade.phase != TradePhase.refunding;
         final lines = _lines(trade.id);
-        _pin(lines.length + (outcome == null ? 0 : 1));
+        final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+        _pin(
+          lines.length + (outcome == null ? 0 : 1),
+          bottomInset: bottomInset,
+        );
         final reading = _reading(
           trade: trade,
           side: side,
@@ -155,7 +180,7 @@ class _TradePageState extends State<TradePage> {
           details: details,
           proof: proof,
           peer: peer,
-          shareAccount: shareAccount,
+          shareDetails: shareDetails,
           waitingFiat: waitingFiat,
         );
         final controls = _controls(
@@ -164,7 +189,8 @@ class _TradePageState extends State<TradePage> {
           details: details,
           proof: proof,
           peer: peer,
-          shareAccount: shareAccount,
+          shareDetails: shareDetails,
+          canEditDetails: canEditDetails,
           waitingFiat: waitingFiat,
         );
         return Scaffold(
@@ -240,7 +266,12 @@ class _TradePageState extends State<TradePage> {
                     },
                   ),
                 ),
-                if (compose) _composer(trade, separated: controls == null),
+                if (compose)
+                  _composer(
+                    trade,
+                    side: side,
+                    separated: controls == null,
+                  ),
               ],
             ),
           ),
@@ -411,7 +442,7 @@ class _TradePageState extends State<TradePage> {
     required TradeNote? details,
     required TradeNote? proof,
     required String? peer,
-    required bool shareAccount,
+    required bool shareDetails,
     required bool waitingFiat,
   }) {
     final children = <Widget>[];
@@ -421,27 +452,27 @@ class _TradePageState extends State<TradePage> {
       children.add(child);
     }
 
-    final accountVisible = details != null && _holdLocked(trade.phase);
-    if (accountVisible) {
+    final detailsVisible = details != null && _holdLocked(trade.phase);
+    if (detailsVisible) {
       add(
-        _AccountCard(
+        _DetailsCard(
           details: details,
-          title: side == TradeSide.seller ? 'Account sent' : 'Pay here',
+          title: side == TradeSide.seller ? 'Details sent' : 'Pay here',
           onCopy: _copy,
         ),
       );
-    } else if (shareAccount && peer != null) {
+    } else if (shareDetails && peer != null) {
       add(
         const Text(
           'The CKB is locked. Send the payment details the buyer should use.',
         ),
       );
-    } else if (shareAccount) {
+    } else if (shareDetails) {
       add(const Text('Waiting to learn who the buyer is.'));
     } else if (waitingFiat) {
       add(
         const Text(
-          'The CKB is locked. Waiting for the seller to share the account you should pay.',
+          'The CKB is locked. Waiting for the seller to share the payment details.',
         ),
       );
     }
@@ -474,7 +505,7 @@ class _TradePageState extends State<TradePage> {
         trade.phase == TradePhase.waitingHold) {
       add(
         const Text(
-          'When the seller locks the CKB, they send the account you should pay.',
+          'When the seller locks the CKB, they send the payment details.',
         ),
       );
     } else if (side == null && trade.phase == TradePhase.waitingHold) {
@@ -514,7 +545,8 @@ class _TradePageState extends State<TradePage> {
     required TradeNote? details,
     required TradeNote? proof,
     required String? peer,
-    required bool shareAccount,
+    required bool shareDetails,
+    required bool canEditDetails,
     required bool waitingFiat,
   }) {
     final children = <Widget>[];
@@ -523,9 +555,35 @@ class _TradePageState extends State<TradePage> {
       children.add(child);
     }
 
-    if (shareAccount && peer != null) {
+    if (shareDetails && peer != null) {
       add(_detailsField());
       add(_primary('Send', _Work.share, () => _share(trade)));
+      if (_editingDetails) {
+        add(
+          TextButton(
+            onPressed: _blocked
+                ? null
+                : () => setState(() => _editingDetails = false),
+            child: const Text('Keep current details'),
+          ),
+          gap: TwineTokens.xxs,
+        );
+      }
+    } else if (canEditDetails && details != null) {
+      add(
+        TextButton(
+          onPressed: _blocked
+              ? null
+              : () {
+                  setState(() {
+                    _details.text = details.detailsText;
+                    _editingDetails = true;
+                  });
+                },
+          child: const Text('Update payment details'),
+        ),
+        gap: TwineTokens.xs,
+      );
     }
     if (actions.submitInvoice) {
       add(_invoiceField(trade));
@@ -566,16 +624,18 @@ class _TradePageState extends State<TradePage> {
   }
 
   Widget _detailsField() {
+    final theme = Theme.of(context);
     return TextField(
       controller: _details,
       enabled: !_blocked,
       minLines: 3,
       maxLines: 6,
       textCapitalization: TextCapitalization.sentences,
-      decoration: const InputDecoration(
-        labelText: 'Payment details',
+      decoration: TwineTokens.field(
+        theme,
+        label: 'Payment details',
         alignLabelWithHint: true,
-        hintText: 'Bank, account name, account number',
+        hint: 'How the buyer should pay',
       ),
     );
   }
@@ -658,6 +718,7 @@ class _TradePageState extends State<TradePage> {
   }
 
   Widget _invoiceField(TwineTrade trade) {
+    final theme = Theme.of(context);
     return TextField(
       controller: _invoice,
       enabled: !_blocked,
@@ -665,17 +726,39 @@ class _TradePageState extends State<TradePage> {
       maxLines: 4,
       autocorrect: false,
       enableSuggestions: false,
-      decoration: InputDecoration(
-        labelText: 'Fiber invoice for the CKB',
-        helperText: _invoiceHelp(trade),
+      decoration: TwineTokens.field(
+        theme,
+        label: 'Fiber invoice for the CKB',
+        helper: _invoiceHelp(trade),
+      ).copyWith(
+        suffixIcon: IconButton(
+          tooltip: 'Paste invoice',
+          onPressed: _blocked ? null : _pasteInvoice,
+          icon: const Icon(Icons.content_paste, size: TwineTokens.iconSm),
+        ),
       ),
     );
   }
 
-  Widget _composer(TwineTrade trade, {required bool separated}) {
+  Future<void> _pasteInvoice() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim();
+    if (text == null || text.isEmpty || !mounted) return;
+    _invoice.text = text;
+  }
+
+  Widget _composer(
+    TwineTrade trade, {
+    required TradeSide? side,
+    required bool separated,
+  }) {
     final blocked = _blocked;
     final over = _chat.text.length > maxChatText;
     final canSend = !blocked && _chat.text.trim().isNotEmpty && !over;
+    final canAttachReceipt =
+        side == TradeSide.buyer &&
+        (trade.phase == TradePhase.fiatSent ||
+            trade.phase == TradePhase.disputed);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final radius = BorderRadius.circular(TwineTokens.radiusComposer);
@@ -699,6 +782,14 @@ class _TradePageState extends State<TradePage> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
+                if (canAttachReceipt) ...[
+                  IconButton(
+                    tooltip: 'Attach receipt',
+                    onPressed: blocked ? null : () => _attachReceipt(trade),
+                    icon: const Icon(Icons.receipt_long_outlined),
+                  ),
+                  const SizedBox(width: TwineTokens.xxs),
+                ],
                 Expanded(
                   child: Focus(
                     onKeyEvent: (node, event) =>
@@ -854,6 +945,10 @@ class _TradePageState extends State<TradePage> {
                   Text(orderCurrency),
                 ],
                 const SizedBox(height: TwineTokens.md),
+                Text('Steps', style: TwineTokens.section(theme)),
+                const SizedBox(height: TwineTokens.xs),
+                _PhaseSteps(phase: trade.phase),
+                const SizedBox(height: TwineTokens.md),
                 Text('Reference', style: TwineTokens.section(theme)),
                 const SizedBox(height: TwineTokens.xxs),
                 Row(
@@ -888,6 +983,7 @@ class _TradePageState extends State<TradePage> {
                   seller: trade.sellerNostr,
                   buyer: trade.buyerNostr,
                   encode: _npub,
+                  onCopy: _copy,
                 ),
                 const SizedBox(height: TwineTokens.xs),
                 Text(
@@ -927,14 +1023,19 @@ class _TradePageState extends State<TradePage> {
     return widget.market.book.thread(tradeId);
   }
 
-  void _pin(int count) {
-    if (count == _pinned) return;
+  void _pin(int count, {double bottomInset = 0}) {
+    final initial = _pinned == -1;
+    final countChanged = count != _pinned;
+    final keyboardOpened = bottomInset > _lastBottomInset;
     _pinned = count;
+    _lastBottomInset = bottomInset;
+    if (!countChanged && !keyboardOpened) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_thread.hasClients) return;
       final position = _thread.position;
       if (!position.hasContentDimensions) return;
       if (position.maxScrollExtent <= 0) return;
+      if (!initial && position.extentAfter > 160 && !keyboardOpened) return;
       _thread.jumpTo(position.maxScrollExtent);
     });
   }
@@ -962,7 +1063,8 @@ class _TradePageState extends State<TradePage> {
   }
 
   Future<void> _copy(String value) async {
-    await Clipboard.setData(ClipboardData(text: value));
+    final clean = value.replaceAll('\u200b', '');
+    await Clipboard.setData(ClipboardData(text: clean));
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
@@ -1016,10 +1118,17 @@ class _TradePageState extends State<TradePage> {
     });
   }
 
-  Future<void> _share(TwineTrade trade) {
-    return _run(_Work.share, () {
-      return widget.market.shareAccount(trade.id, details: _details.text);
+  Future<void> _share(TwineTrade trade) async {
+    await _run(_Work.share, () {
+      return widget.market.shareDetails(trade.id, details: _details.text);
     });
+    if (!mounted) return;
+    if (_error == null) {
+      setState(() {
+        _details.clear();
+        _editingDetails = false;
+      });
+    }
   }
 
   Future<void> _paid(TwineTrade trade, bool hasProof) async {
@@ -1042,11 +1151,33 @@ class _TradePageState extends State<TradePage> {
     );
   }
 
-  Future<void> _submitInvoice(TwineTrade trade) {
-    return _run(
+  Future<void> _attachReceipt(TwineTrade trade) async {
+    if (_busy != null || widget.market.sending) return;
+    final paid = await showModalBottomSheet<_PaidInput>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _PaidSheet(
+        amount: '${trade.fiatAmount ?? ''} ${trade.fiatCurrency ?? ''}'.trim(),
+        needsReceipt: true,
+        submitLabel: 'Send receipt',
+      ),
+    );
+    final image = paid?.image;
+    if (image == null || !mounted) return;
+    await _run(
+      _Work.paid,
+      () => widget.market.sendReceipt(trade.id, image),
+    );
+  }
+
+  Future<void> _submitInvoice(TwineTrade trade) async {
+    await _run(
       _Work.invoice,
       () => widget.market.submitPayoutInvoice(trade.id, _invoice.text),
     );
+    if (!mounted) return;
+    if (_error == null) _invoice.clear();
   }
 
   Future<void> _send(TwineTrade trade) async {
@@ -1057,11 +1188,13 @@ class _TradePageState extends State<TradePage> {
     if (_error == null) _chat.clear();
   }
 
-  Future<void> _fiat(TwineTrade trade) {
-    return _run(
+  Future<void> _fiat(TwineTrade trade) async {
+    await _run(
       _Work.invoice,
       () => widget.market.fiatSent(trade.id, _invoice.text),
     );
+    if (!mounted) return;
+    if (_error == null) _invoice.clear();
   }
 
   Future<void> _release(TwineTrade trade) async {
@@ -1120,10 +1253,85 @@ String _sideLine(TradeSide? side) {
   }
 }
 
+class _PhaseSteps extends StatelessWidget {
+  const _PhaseSteps({required this.phase});
+
+  final TradePhase phase;
+
+  static const _steps = <String>[
+    'Payout invoice',
+    'Lock CKB',
+    'Fiat payment',
+    'Release CKB',
+  ];
+
+  int get _activeIndex {
+    switch (phase) {
+      case TradePhase.waitingInvoice:
+        return 0;
+      case TradePhase.waitingHold:
+        return 1;
+      case TradePhase.waitingFiat:
+        return 2;
+      case TradePhase.fiatSent:
+      case TradePhase.releasing:
+      case TradePhase.awaitingInvoice:
+      case TradePhase.disputed:
+        return 3;
+      case TradePhase.settled:
+        return 4;
+      case TradePhase.refunding:
+      case TradePhase.canceled:
+      case TradePhase.expired:
+        return -1;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final active = _activeIndex;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < _steps.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: TwineTokens.xxs),
+            child: Row(
+              children: [
+                Icon(
+                  active > i
+                      ? Icons.check_circle
+                      : (active == i
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked),
+                  size: TwineTokens.iconSm,
+                  color: active >= i ? scheme.primary : scheme.outline,
+                ),
+                const SizedBox(width: TwineTokens.xs),
+                Text(
+                  _steps[i],
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: active == i ? FontWeight.w600 : FontWeight.w400,
+                    color: active >= i
+                        ? scheme.onSurface
+                        : scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _Parties extends StatelessWidget {
   const _Parties({
     required this.me,
     required this.encode,
+    required this.onCopy,
     this.seller,
     this.buyer,
   });
@@ -1132,6 +1340,7 @@ class _Parties extends StatelessWidget {
   final String? seller;
   final String? buyer;
   final String Function(String hex) encode;
+  final void Function(String value) onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -1167,7 +1376,7 @@ class _Parties extends StatelessWidget {
               IconButton(
                 tooltip: 'Copy',
                 visualDensity: VisualDensity.compact,
-                onPressed: () => Clipboard.setData(ClipboardData(text: npub)),
+                onPressed: () => onCopy(npub),
                 icon: const Icon(Icons.copy, size: 20),
               ),
             ],
@@ -1201,8 +1410,8 @@ bool _holdLocked(TradePhase phase) {
   }
 }
 
-class _AccountCard extends StatelessWidget {
-  const _AccountCard({
+class _DetailsCard extends StatelessWidget {
+  const _DetailsCard({
     required this.details,
     required this.title,
     required this.onCopy,
@@ -1281,9 +1490,7 @@ class _AccountCard extends StatelessWidget {
                         color: theme.colorScheme.outlineVariant,
                       ),
                     _ValueRow(
-                      label: fields[i].label,
                       value: fields[i].value,
-                      emphasize: _looksLikeAccount(fields[i].value),
                       onCopy: () => onCopy(fields[i].value),
                     ),
                   ],
@@ -1322,10 +1529,6 @@ class _ReceiptCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bytes = _receiptBytes(proof.image);
-    final muted = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-      height: 1.35,
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1338,10 +1541,6 @@ class _ReceiptCard extends StatelessWidget {
         if (proof.amount != null) ...[
           const SizedBox(height: TwineTokens.xxs),
           Text(proof.amount!, style: theme.textTheme.bodyMedium),
-        ],
-        if (proof.bankReference != null) ...[
-          const SizedBox(height: 2),
-          SelectableText(proof.bankReference!, style: muted),
         ],
         const SizedBox(height: TwineTokens.xs),
         if (bytes != null)
@@ -1441,7 +1640,7 @@ class _Bubble extends StatelessWidget {
       case TradeNoteKind.status:
         return _event(theme, line.text ?? '');
       case TradeNoteKind.paymentDetails:
-        return _AccountCard(
+        return _DetailsCard(
           details: line,
           title: 'Payment details',
           kicker: showName ? (mine ? 'You' : 'Them') : null,
@@ -1508,35 +1707,39 @@ class _Bubble extends StatelessWidget {
     String? label,
   }) {
     final colors = _BubbleInk.of(theme, mine);
-    final bubble = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (label != null) ...[
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: colors.meta,
-              fontWeight: FontWeight.w600,
+    final bubble = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: body.isEmpty ? null : () => onCopy(body),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (label != null) ...[
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colors.meta,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: TwineTokens.xxs),
+          ],
+          SelectableText(
+            _softBreak(body),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.foreground,
+              height: 1.4,
             ),
           ),
           const SizedBox(height: TwineTokens.xxs),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              _when(line.at),
+              style: _BubbleInk.time(theme, colors.meta),
+            ),
+          ),
         ],
-        SelectableText(
-          _softBreak(body),
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colors.foreground,
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: TwineTokens.xxs),
-        Align(
-          alignment: Alignment.centerRight,
-          child: Text(
-            _when(line.at),
-            style: _BubbleInk.time(theme, colors.meta),
-          ),
-        ),
-      ],
+      ),
     );
     return _align(context, theme, bubble, colors);
   }
@@ -1636,11 +1839,34 @@ class _BubbleInk {
   }
 }
 
+const _shortMonths = <String>[
+  '',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
 String _when(DateTime at) {
   final local = at.toLocal();
+  final now = DateTime.now().toLocal();
   final hour = local.hour.toString().padLeft(2, '0');
   final minute = local.minute.toString().padLeft(2, '0');
-  return '$hour:$minute';
+  final sameDay =
+      local.year == now.year &&
+      local.month == now.month &&
+      local.day == now.day;
+  if (sameDay) return '$hour:$minute';
+  final month = _shortMonths[local.month];
+  return '${local.day} $month, $hour:$minute';
 }
 
 class _PaidInput {
@@ -1650,10 +1876,15 @@ class _PaidInput {
 }
 
 class _PaidSheet extends StatefulWidget {
-  const _PaidSheet({required this.amount, required this.needsReceipt});
+  const _PaidSheet({
+    required this.amount,
+    required this.needsReceipt,
+    this.submitLabel = "I've paid",
+  });
 
   final String amount;
   final bool needsReceipt;
+  final String submitLabel;
 
   @override
   State<_PaidSheet> createState() => _PaidSheetState();
@@ -1751,7 +1982,7 @@ class _PaidSheetState extends State<_PaidSheet> {
               ),
             ),
             onPressed: _compressing || !ready ? null : _submit,
-            child: const Text("I've paid"),
+            child: Text(widget.submitLabel),
           ),
         ],
       ),
@@ -1999,46 +2230,29 @@ class _ValueRow extends StatelessWidget {
   const _ValueRow({
     required this.value,
     required this.onCopy,
-    this.label,
     this.mono = false,
-    this.emphasize = false,
     this.copyTooltip = 'Copy',
   });
 
-  final String? label;
   final String value;
   final VoidCallback onCopy;
   final bool mono;
-  final bool emphasize;
   final String copyTooltip;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final valueStyle = emphasize
-        ? theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-            height: 1.3,
-          )
-        : theme.textTheme.bodyLarge?.copyWith(
-            fontFamily: mono ? 'monospace' : null,
-            fontWeight: FontWeight.w500,
-            height: 1.35,
-          );
+    final valueStyle = theme.textTheme.bodyLarge?.copyWith(
+      fontFamily: mono ? 'monospace' : null,
+      fontWeight: FontWeight.w500,
+      height: 1.35,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: TwineTokens.xxs),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (label != null) ...[
-            SizedBox(
-              width: TwineTokens.labelColumn,
-              child: Text(label!, style: TwineTokens.muted(theme)),
-            ),
-            const SizedBox(width: TwineTokens.xs),
-          ],
           Expanded(child: SelectableText(value, style: valueStyle)),
           IconButton(
             tooltip: copyTooltip,
@@ -2057,39 +2271,18 @@ class _ValueRow extends StatelessWidget {
 }
 
 class _PayField {
-  const _PayField({required this.value, this.label});
+  const _PayField({required this.value});
 
-  final String? label;
   final String value;
 }
 
 List<_PayField> _payFields(TradeNote details) {
-  final written = details.text?.trim();
-  if (written != null && written.isNotEmpty) {
-    return [
-      for (final line in written.split('\n'))
-        if (line.trim().isNotEmpty) _PayField(value: line.trim()),
-    ];
-  }
-  final fields = <_PayField>[
-    if (_filled(details.accountName))
-      _PayField(label: 'Name', value: details.accountName!.trim()),
-    if (_filled(details.accountNumber))
-      _PayField(label: 'Account', value: details.accountNumber!.trim()),
-    if (_filled(details.note))
-      _PayField(label: 'Note', value: details.note!.trim()),
+  final written = details.detailsText;
+  if (written.isEmpty) return const [];
+  return [
+    for (final line in written.split('\n'))
+      if (line.trim().isNotEmpty) _PayField(value: line.trim()),
   ];
-  if (fields.isNotEmpty) return fields;
-  final fallback = details.detailsText.trim();
-  if (fallback.isEmpty) return const [];
-  return [_PayField(value: fallback)];
-}
-
-bool _filled(String? value) => value != null && value.trim().isNotEmpty;
-
-bool _looksLikeAccount(String value) {
-  final compact = value.replaceAll(RegExp(r'[\s-]'), '');
-  return compact.length >= 6 && RegExp(r'^\d+$').hasMatch(compact);
 }
 
 String _invoicePreview(String invoice) {
@@ -2098,7 +2291,7 @@ String _invoicePreview(String invoice) {
   return '${value.substring(0, 14)}…${value.substring(value.length - 10)}';
 }
 
-/// Lets a long invoice or account number wrap inside a chat bubble.
+/// Lets a long invoice wrap inside a chat bubble.
 String _softBreak(String value) {
   final buffer = StringBuffer();
   var run = 0;

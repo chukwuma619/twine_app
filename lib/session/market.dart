@@ -147,7 +147,7 @@ class TwineMarket extends ChangeNotifier {
     );
   }
 
-  Future<String?> shareAccount(
+  Future<String?> shareDetails(
     String tradeId, {
     required String details,
   }) async {
@@ -160,9 +160,6 @@ class TwineMarket extends ChangeNotifier {
     if (trade.phase != TradePhase.waitingFiat) {
       return 'Send the payment details after the CKB is locked.';
     }
-    if (book.paymentDetails(tradeId) != null) {
-      return 'The payment details are already on this trade.';
-    }
     final text = details.trim();
     if (text.isEmpty) return 'Write the payment details.';
     if (text.length > maxChatText) return 'That message is too long.';
@@ -171,6 +168,35 @@ class TwineMarket extends ChangeNotifier {
         tradeId: tradeId,
         kind: TradeNoteKind.paymentDetails,
         text: text,
+      ),
+    );
+  }
+
+  /// Sends a payment receipt photo to the trade thread.
+  Future<String?> sendReceipt(String tradeId, String image) async {
+    final trade = book.trade(tradeId);
+    if (trade == null) return 'That trade is not on this device yet.';
+    if (trade.phase.terminal) return 'This trade is finished.';
+    final order = trade.orderId.isEmpty ? null : book.order(trade.orderId);
+    if (sideOn(trade, accountPubkey, order) != TradeSide.buyer) {
+      return 'The buyer sends the payment receipt.';
+    }
+    final receipt = image.trim();
+    if (receipt.isEmpty) return 'Attach the receipt.';
+    final List<int> raw;
+    try {
+      raw = base64Decode(receipt);
+    } catch (_) {
+      return 'That receipt could not be read.';
+    }
+    if (raw.length > maxReceiptBytes) {
+      return 'That picture is still too large.';
+    }
+    return _sendChat(
+      ChatBody(
+        tradeId: tradeId,
+        kind: TradeNoteKind.paymentProof,
+        image: receipt,
       ),
     );
   }
@@ -189,7 +215,7 @@ class TwineMarket extends ChangeNotifier {
       return 'The buyer marks the payment as sent.';
     }
     if (book.paymentDetails(tradeId) == null) {
-      return 'Wait for the seller to share the account.';
+      return 'Wait for the seller to share the payment details.';
     }
     if (book.paymentProof(tradeId) == null) {
       final receipt = image?.trim();
@@ -404,7 +430,7 @@ class TwineMarket extends ChangeNotifier {
     book.applyOrder(order);
     if (!known &&
         order.makerNostrPubkey.toLowerCase() == accountPubkey.toLowerCase()) {
-      pending.removeWhere((item) => item.side == order.side);
+      pending.clear();
     }
     _clearAwaitingPost();
     notifyListeners();
@@ -436,8 +462,7 @@ class TwineMarket extends ChangeNotifier {
 
   TwineOrder _pendingOrder(NewOrderDraft draft) {
     return TwineOrder(
-      orderId: 'local-${pending.length}-${draft.side.wire}',
-      side: draft.side,
+      orderId: 'local-${pending.length}',
       makerNostrPubkey: accountPubkey,
       availableCkb: draft.availableCkb.trim(),
       fiatCurrency: draft.fiatCurrency.trim(),

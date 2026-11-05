@@ -19,7 +19,6 @@ void main() {
       event: event,
     );
     expect(order?.orderId, 'order-1');
-    expect(order?.side, OrderSide.sell);
     expect(order?.availableCkb, '10');
     expect(order?.fiatCurrency, 'NGN');
     expect(order?.holdHours, 36);
@@ -58,6 +57,12 @@ void main() {
       TwineOrder.open(daemonPublicKey: daemon.publicKey, event: event),
       isNull,
     );
+
+    final buy = _orderEvent(daemon, 'order-1', side: 'buy');
+    expect(
+      TwineOrder.open(daemonPublicKey: daemon.publicKey, event: buy),
+      isNull,
+    );
   });
 }
 
@@ -66,13 +71,14 @@ NostrEvent _orderEvent(
   String orderId, {
   String? tag,
   String? status,
+  String side = 'sell',
 }) {
   return NostrEvent.fromPartialData(
     kind: kindOrder,
     content: jsonEncode({
       'order_id': orderId,
       'status': ?status,
-      'side': 'sell',
+      'side': side,
       'maker_nostr_pubkey': 'maker',
       'maker_fiber_pubkey': 'fiber',
       'available_ckb': '10',

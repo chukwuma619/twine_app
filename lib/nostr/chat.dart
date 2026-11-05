@@ -13,22 +13,14 @@ class ChatBody {
     required this.tradeId,
     required this.kind,
     this.text,
-    this.accountName,
-    this.accountNumber,
-    this.note,
     this.amount,
-    this.bankReference,
     this.image,
   });
 
   final String tradeId;
   final TradeNoteKind kind;
   final String? text;
-  final String? accountName;
-  final String? accountNumber;
-  final String? note;
   final String? amount;
-  final String? bankReference;
   final String? image;
 
   String encode() {
@@ -37,11 +29,7 @@ class ChatBody {
       'trade_id': tradeId,
       'type': kind.wire,
       'text': text,
-      'account_name': accountName,
-      'account_number': accountNumber,
-      'note': note,
       'amount': amount,
-      'bank_reference': bankReference,
       'image': image,
     });
   }
@@ -64,11 +52,7 @@ class ChatBody {
       tradeId: tradeId,
       kind: kind,
       text: _optional(map, 'text'),
-      accountName: _optional(map, 'account_name'),
-      accountNumber: _optional(map, 'account_number'),
-      note: _optional(map, 'note'),
       amount: _optional(map, 'amount'),
-      bankReference: _optional(map, 'bank_reference'),
       image: _optional(map, 'image'),
     );
   }
@@ -85,11 +69,7 @@ class ChatBody {
       kind: kind,
       author: author,
       text: text,
-      accountName: accountName,
-      accountNumber: accountNumber,
-      note: note,
       amount: amount,
-      bankReference: bankReference,
       image: image,
     );
   }

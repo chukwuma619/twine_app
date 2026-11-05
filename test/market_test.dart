@@ -12,7 +12,6 @@ import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/session/market.dart';
 import 'package:twine_app/session/market_page.dart';
 import 'package:twine_app/session/post_page.dart';
-import 'package:twine_app/session/take_page.dart';
 import 'package:twine_app/session/trade_page.dart';
 import 'package:twine_app/store/book_store.dart';
 
@@ -61,8 +60,6 @@ void main() {
     expect(find.text('Take'), findsOneWidget);
     expect(find.text('Yours'), findsOneWidget);
     expect(find.text('Cancel post'), findsOneWidget);
-    expect(find.text('Buy'), findsNothing);
-    expect(find.text('Sell'), findsNothing);
 
     await tester.tap(find.text('Take'));
     await tester.pumpAndSettle();
@@ -88,34 +85,6 @@ void main() {
     expect(find.text('10 CKB'), findsOneWidget);
     expect(find.text('Publishing'), findsOneWidget);
     expect(find.text('Cancel post'), findsNothing);
-  });
-
-  testWidgets('a buy post is hidden from the list', (tester) async {
-    final market = _market(
-      pubkey: 'taker',
-      orders: [
-        _order(available: '10'),
-        _order(id: 'buy-1', side: OrderSide.buy, available: '20'),
-      ],
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: MarketPage(market: market, account: const SizedBox.shrink()),
-      ),
-    );
-
-    expect(find.text('10 CKB'), findsOneWidget);
-    expect(find.text('20 CKB'), findsNothing);
-    expect(find.text('Buy'), findsNothing);
-    expect(find.text('Sell'), findsNothing);
-
-    await tester.tap(find.text('Trade'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('No trades yet.'), findsOneWidget);
-    expect(find.text('Buy'), findsNothing);
-    expect(find.byKey(const ValueKey('trade-status-active')), findsNothing);
   });
 
   testWidgets('a canceled post cannot be taken or canceled again', (
@@ -215,7 +184,7 @@ void main() {
     expect(find.text('Waiting for the seller'), findsOneWidget);
     expect(
       find.text(
-        'When the seller locks the CKB, they send the account you should pay.',
+        'When the seller locks the CKB, they send the payment details.',
       ),
       findsOneWidget,
     );
@@ -272,7 +241,7 @@ void main() {
     expect(find.text('Pay the seller'), findsOneWidget);
     expect(
       find.text(
-        'The CKB is locked. Waiting for the seller to share the account you should pay.',
+        'The CKB is locked. Waiting for the seller to share the payment details.',
       ),
       findsOneWidget,
     );
@@ -389,7 +358,6 @@ void main() {
     await tester.tap(find.text('Confirm'));
     await tester.pumpAndSettle();
 
-    expect(sent?.side, OrderSide.sell);
     expect(sent?.fiatCurrency, 'NGN');
     expect(sent?.min, '150000');
     expect(sent?.max, '300000');
@@ -565,30 +533,6 @@ void main() {
     expect(trade?.phase, TradePhase.waitingHold);
     expect(trade?.buyerNostr, 'buyer');
     expect(market.lastRelayAt, isNotNull);
-  });
-
-  testWidgets('taking a buy post confirms the seller role', (tester) async {
-    final market = _market(
-      pubkey: 'taker',
-      orders: [_order(id: 'buy-1', side: OrderSide.buy)],
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: TakePage(market: market, orderId: 'buy-1'),
-      ),
-    );
-
-    expect(find.text('Sell CKB'), findsOneWidget);
-    expect(find.text('You lock CKB in your Fiber wallet.'), findsOneWidget);
-    await tester.enterText(_field('Fiat amount'), '1500');
-    await tester.pump();
-    expect(find.text('About 1.00 CKB'), findsOneWidget);
-    await tester.ensureVisible(find.text('Take'));
-    await tester.tap(find.text('Take'));
-    await tester.pumpAndSettle();
-    expect(find.text('Sell CKB?'), findsOneWidget);
-    expect(find.textContaining('About 1.00 CKB'), findsWidgets);
   });
 
   testWidgets('the post form is ready without a payment catalog', (
@@ -771,8 +715,6 @@ void main() {
     expect(find.text('Closed 1'), findsOneWidget);
     expect(find.text('All 3'), findsOneWidget);
     expect(find.text('Newest'), findsOneWidget);
-    expect(find.text('Buy'), findsNothing);
-    expect(find.text('Sell'), findsNothing);
     expect(find.text('Pay the seller'), findsOneWidget);
     expect(find.text('2500 NGN'), findsOneWidget);
     expect(find.text('Settled'), findsNothing);
@@ -794,7 +736,84 @@ void main() {
     expect(find.text('3000 NGN'), findsOneWidget);
     expect(find.text('Pay the seller'), findsNothing);
     expect(find.text('Canceled'), findsNothing);
-    expect(find.text('Buy'), findsNothing);
+  });
+
+  testWidgets('seller can reopen payment details and buyer can attach receipt in fiatSent', (
+    tester,
+  ) async {
+    final order = _order(maker: 'seller');
+    final sellerMarket = _market(
+      pubkey: 'seller',
+      orders: [order],
+      trades: [
+        TwineTrade(
+          id: 'trade-1',
+          orderId: order.orderId,
+          phase: TradePhase.waitingFiat,
+          updatedAt: DateTime.utc(2026, 10, 6),
+          fiatAmount: '2500',
+          fiatCurrency: 'NGN',
+          reference: 'trade-1',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+        ),
+      ],
+    );
+    sellerMarket.book.addNote(
+      TradeNote(
+        id: 'note-1',
+        tradeId: 'trade-1',
+        at: DateTime.utc(2026, 10, 6),
+        kind: TradeNoteKind.paymentDetails,
+        author: 'seller',
+        text: 'GTBank\n0123456789',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TradePage(market: sellerMarket, tradeId: 'trade-1'),
+      ),
+    );
+
+    expect(find.text('Update payment details'), findsOneWidget);
+    await tester.tap(find.text('Update payment details'));
+    await tester.pump();
+    expect(_field('Payment details'), findsOneWidget);
+    expect(find.text('Keep current details'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Trade details'));
+    await tester.pumpAndSettle();
+    expect(find.text('Steps'), findsOneWidget);
+    expect(find.text('Fiat payment'), findsOneWidget);
+    Navigator.of(tester.element(find.text('Steps'))).pop();
+    await tester.pumpAndSettle();
+
+    final buyerMarket = _market(
+      pubkey: 'buyer',
+      orders: [order],
+      trades: [
+        TwineTrade(
+          id: 'trade-1',
+          orderId: order.orderId,
+          phase: TradePhase.fiatSent,
+          updatedAt: DateTime.utc(2026, 10, 6),
+          fiatAmount: '2500',
+          fiatCurrency: 'NGN',
+          reference: 'trade-1',
+          sellerNostr: 'seller',
+          buyerNostr: 'buyer',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TradePage(market: buyerMarket, tradeId: 'trade-1'),
+      ),
+    );
+
+    expect(find.byTooltip('Attach receipt'), findsOneWidget);
   });
 }
 
@@ -822,13 +841,11 @@ TwineMarket _market({
 TwineOrder _order({
   String id = 'order-1',
   String maker = 'maker',
-  OrderSide side = OrderSide.sell,
   PostStatus status = PostStatus.open,
   String available = '10',
 }) {
   return TwineOrder(
     orderId: id,
-    side: side,
     makerNostrPubkey: maker,
     makerFiberPubkey: 'fiber',
     availableCkb: available,

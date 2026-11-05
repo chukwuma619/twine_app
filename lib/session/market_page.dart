@@ -281,13 +281,6 @@ class _MarketPageState extends State<MarketPage> {
   }
 }
 
-List<TwineOrder> _listedPosts(List<TwineOrder> orders) {
-  return [
-    for (final order in orders)
-      if (order.side == OrderSide.sell) order,
-  ];
-}
-
 class _LivePost extends StatelessWidget {
   const _LivePost({required this.market});
 
@@ -390,10 +383,7 @@ class _Posts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final orders = [
-      for (final order in _listedPosts([
-        ...market.pending,
-        ...market.book.orders,
-      ]))
+      for (final order in [...market.pending, ...market.book.orders])
         if (showCanceled || order.status != PostStatus.canceled) order,
     ];
     final Widget child;

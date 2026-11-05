@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../market/amount.dart';
-import '../market/role.dart';
 import '../nostr/order.dart';
 import '../nostr/request.dart';
 import '../ui/twine_tokens.dart';
@@ -60,12 +59,10 @@ class _TakePageState extends State<TakePage> {
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
         final muted = TwineTokens.muted(theme);
-        final role = tradeSide(order, widget.market.accountPubkey);
-        final title = role == TradeSide.seller ? 'Sell CKB' : 'Buy CKB';
         final estimate = aboutCkb(_amount.text, order.pricePerCkb);
         return Scaffold(
           resizeToAvoidBottomInset: true,
-          appBar: AppBar(title: Text(title)),
+          appBar: AppBar(title: const Text('Buy CKB')),
           body: SafeArea(
             child: Align(
               alignment: Alignment.topCenter,
@@ -86,9 +83,7 @@ class _TakePageState extends State<TakePage> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              role == TradeSide.seller
-                                  ? 'You lock CKB in your Fiber wallet.'
-                                  : 'You pay by mobile transfer after the seller locks.',
+                              'You pay by mobile transfer after the seller locks.',
                               style: theme.textTheme.titleMedium,
                             ),
                             const SizedBox(height: TwineTokens.sm),
@@ -139,22 +134,20 @@ class _TakePageState extends State<TakePage> {
                                 suffix: order.fiatCurrency,
                               ),
                             ),
-                            if (role == TradeSide.buyer) ...[
-                              const SizedBox(height: TwineTokens.sm),
-                              TextField(
-                                controller: _invoice,
-                                enabled: !_busy,
-                                minLines: 1,
-                                maxLines: 4,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                decoration: const InputDecoration(
-                                  labelText: 'Fiber invoice for the CKB',
-                                  helperText:
-                                      'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash.',
-                                ),
+                            const SizedBox(height: TwineTokens.sm),
+                            TextField(
+                              controller: _invoice,
+                              enabled: !_busy,
+                              minLines: 1,
+                              maxLines: 4,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              decoration: const InputDecoration(
+                                labelText: 'Fiber invoice for the CKB',
+                                helperText:
+                                    'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash.',
                               ),
-                            ],
+                            ),
                           ],
                         ),
                       ),
@@ -179,7 +172,7 @@ class _TakePageState extends State<TakePage> {
                               style: TwineTokens.filled,
                               onPressed: _busy
                                   ? null
-                                  : () => _submit(order, role),
+                                  : () => _submit(order),
                               child: _busy
                                   ? SizedBox(
                                       height: 18,
@@ -205,12 +198,12 @@ class _TakePageState extends State<TakePage> {
     );
   }
 
-  Future<void> _submit(TwineOrder order, TradeSide role) async {
+  Future<void> _submit(TwineOrder order) async {
     final draft = TakeDraft(
       orderId: order.orderId,
       fiatAmount: _amount.text,
-      invoice: role == TradeSide.buyer ? _invoice.text : null,
-      requireInvoice: role == TradeSide.buyer,
+      invoice: _invoice.text,
+      requireInvoice: true,
     );
     final invalid = draft.validate(order: order);
     if (invalid != null) {
@@ -218,9 +211,7 @@ class _TakePageState extends State<TakePage> {
       return;
     }
     final estimate = aboutCkb(_amount.text, order.pricePerCkb);
-    final roleLine = role == TradeSide.seller
-        ? 'You lock CKB in your Fiber wallet.'
-        : 'You pay by mobile transfer after the seller locks.';
+    const roleLine = 'You pay by mobile transfer after the seller locks.';
     final confirmBody = estimate == null
         ? roleLine
         : '$roleLine About $estimate CKB at this price.';
@@ -228,7 +219,7 @@ class _TakePageState extends State<TakePage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(role == TradeSide.seller ? 'Sell CKB?' : 'Buy CKB?'),
+          title: const Text('Buy CKB?'),
           content: Text(confirmBody),
           actions: [
             TextButton(

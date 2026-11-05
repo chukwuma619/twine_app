@@ -223,7 +223,6 @@ TwineMarket _market({
 }) {
   final order = TwineOrder(
     orderId: 'order-1',
-    side: OrderSide.sell,
     makerNostrPubkey: seller,
     makerFiberPubkey: 'fiber',
     availableCkb: '10',

@@ -29,14 +29,9 @@ String? counterparty(TwineTrade trade, String pubkey) {
   return null;
 }
 
+/// The poster sells CKB. The person who takes the post buys it.
 TradeSide tradeSide(TwineOrder order, String pubkey) {
-  final maker = isMaker(order, pubkey);
-  switch (order.side) {
-    case OrderSide.sell:
-      return maker ? TradeSide.seller : TradeSide.buyer;
-    case OrderSide.buy:
-      return maker ? TradeSide.buyer : TradeSide.seller;
-  }
+  return isMaker(order, pubkey) ? TradeSide.seller : TradeSide.buyer;
 }
 
 class TradeActions {

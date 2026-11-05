@@ -4,9 +4,8 @@ import 'package:twine_app/nostr/order.dart';
 import 'package:twine_app/nostr/request.dart';
 
 void main() {
-  test('a post names the side and the amounts', () {
+  test('a post names the amounts', () {
     const draft = NewOrderDraft(
-      side: OrderSide.sell,
       availableCkb: '200',
       fiatCurrency: 'NGN',
       pricePerCkb: '1500',
@@ -29,7 +28,6 @@ void main() {
 
   test('a post accepts any currency in the picker', () {
     const euro = NewOrderDraft(
-      side: OrderSide.sell,
       availableCkb: '200',
       fiatCurrency: 'EUR',
       pricePerCkb: '1500',
@@ -41,7 +39,6 @@ void main() {
     expect(payload['fiat_currency'], 'EUR');
 
     const unknown = NewOrderDraft(
-      side: OrderSide.sell,
       availableCkb: '200',
       fiatCurrency: 'NOTACOIN',
       pricePerCkb: '1500',
@@ -53,7 +50,6 @@ void main() {
 
   test('a post whose smallest trade is under 100 CKB is refused', () {
     const draft = NewOrderDraft(
-      side: OrderSide.sell,
       availableCkb: '120',
       fiatCurrency: 'NGN',
       pricePerCkb: '1500',
@@ -65,7 +61,6 @@ void main() {
 
   test('a post whose maximum exceeds the offered CKB is refused', () {
     const draft = NewOrderDraft(
-      side: OrderSide.sell,
       availableCkb: '100',
       fiatCurrency: 'NGN',
       pricePerCkb: '1500',
@@ -77,7 +72,6 @@ void main() {
 
   test('a post with the minimum above the maximum is refused', () {
     const draft = NewOrderDraft(
-      side: OrderSide.buy,
       availableCkb: '1',
       fiatCurrency: 'USD',
       pricePerCkb: '1',
@@ -119,7 +113,6 @@ void main() {
     final order = TwineOrder(
       orderId: 'order-1',
       makerNostrPubkey: 'a' * 64,
-      side: OrderSide.sell,
       availableCkb: '150',
       fiatCurrency: 'NGN',
       pricePerCkb: '1500',

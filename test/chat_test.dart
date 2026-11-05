@@ -16,8 +16,7 @@ void main() {
       body: const ChatBody(
         tradeId: 'trade-1',
         kind: TradeNoteKind.paymentDetails,
-        accountName: 'Ada',
-        accountNumber: '0123456789',
+        text: 'Ada\n0123456789',
       ),
       createdAt: DateTime.utc(2026, 10, 6),
     );
@@ -28,15 +27,14 @@ void main() {
       event: event,
     );
     expect(opened?.tradeId, 'trade-1');
-    expect(opened?.accountName, 'Ada');
-    expect(opened?.accountNumber, '0123456789');
+    expect(opened?.text, 'Ada\n0123456789');
 
     final key = nip44ConversationKeyHex(seller.privateKey, buyer.publicKey);
     final plain = nip44DecryptWithConversationKey(
       conversationKeyHex: key,
       payload: event.content!,
     );
-    expect(ChatBody.tryDecode(plain)?.accountNumber, '0123456789');
+    expect(ChatBody.tryDecode(plain)?.text, 'Ada\n0123456789');
     expect(
       openChat(
         recipient: buyer,

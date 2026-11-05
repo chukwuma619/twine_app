@@ -30,44 +30,9 @@ enum PostStatus {
   }
 }
 
-enum OrderSide {
-  sell,
-  buy;
-
-  String get wire {
-    switch (this) {
-      case OrderSide.sell:
-        return 'sell';
-      case OrderSide.buy:
-        return 'buy';
-    }
-  }
-
-  String get label {
-    switch (this) {
-      case OrderSide.sell:
-        return 'Sell';
-      case OrderSide.buy:
-        return 'Buy';
-    }
-  }
-
-  static OrderSide? parse(String value) {
-    switch (value) {
-      case 'sell':
-        return OrderSide.sell;
-      case 'buy':
-        return OrderSide.buy;
-      default:
-        return null;
-    }
-  }
-}
-
 class TwineOrder {
   const TwineOrder({
     required this.orderId,
-    required this.side,
     required this.makerNostrPubkey,
     this.makerFiberPubkey,
     required this.availableCkb,
@@ -82,7 +47,6 @@ class TwineOrder {
   });
 
   final String orderId;
-  final OrderSide side;
   final String makerNostrPubkey;
   final String? makerFiberPubkey;
   final String availableCkb;
@@ -104,7 +68,6 @@ class TwineOrder {
   TwineOrder copyWith({PostStatus? status, String? reservedCkb}) {
     return TwineOrder(
       orderId: orderId,
-      side: side,
       makerNostrPubkey: makerNostrPubkey,
       makerFiberPubkey: makerFiberPubkey,
       availableCkb: availableCkb,
@@ -152,7 +115,7 @@ class TwineOrder {
     final map = _map(value);
     if (map == null) return null;
     final orderId = _text(map, 'order_id');
-    final side = OrderSide.parse(_text(map, 'side') ?? '');
+    final side = _text(map, 'side');
     final makerNostr = _text(map, 'maker_nostr_pubkey');
     final available = _text(map, 'available_ckb');
     final currency = _text(map, 'fiat_currency');
@@ -163,8 +126,8 @@ class TwineOrder {
     final status = map.containsKey('status')
         ? PostStatus.parse(_text(map, 'status') ?? '')
         : PostStatus.open;
+    if (side != null && side != 'sell') return null;
     if (orderId == null ||
-        side == null ||
         makerNostr == null ||
         available == null ||
         currency == null ||
@@ -177,7 +140,6 @@ class TwineOrder {
     }
     return TwineOrder(
       orderId: orderId,
-      side: side,
       makerNostrPubkey: makerNostr,
       makerFiberPubkey: _text(map, 'maker_fiber_pubkey'),
       availableCkb: available,
@@ -195,7 +157,6 @@ class TwineOrder {
   Map<String, Object?> toJson() {
     return {
       'order_id': orderId,
-      'side': side.wire,
       'maker_nostr_pubkey': makerNostrPubkey,
       if (makerFiberPubkey != null) 'maker_fiber_pubkey': makerFiberPubkey,
       'available_ckb': availableCkb,

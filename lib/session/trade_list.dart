@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../market/amount.dart';
@@ -56,6 +58,21 @@ class TradeList extends StatefulWidget {
 class _TradeListState extends State<TradeList> {
   _StatusFilter _status = _StatusFilter.active;
   _TimeOrder _order = _TimeOrder.newest;
+  Timer? _clock;
+
+  @override
+  void initState() {
+    super.initState();
+    _clock = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +150,8 @@ class _TradeListState extends State<TradeList> {
                     },
                     itemBuilder: (context, index) {
                       final row = shown[index];
+                      final hasPaymentDetails =
+                          market.book.paymentDetails(row.trade.id) != null;
                       return _TradeTile(
                         row: row,
                         now: now,
@@ -140,6 +159,7 @@ class _TradeListState extends State<TradeList> {
                           row.trade,
                           row.side,
                           widget.solverAvailable,
+                          hasPaymentDetails: hasPaymentDetails,
                         ),
                         preview: _lastLine(market, row.trade.id),
                         onTap: () => _open(context, row.trade.id),
@@ -364,7 +384,7 @@ class _TradeTile extends StatelessWidget {
     final headline = ckb ?? fiat ?? title;
     final trailing = ckb != null ? fiat : null;
     final status = hasAmount ? title : null;
-    final peer = _peer(trade, row.market.accountPubkey);
+    final peer = _peer(trade, row.market);
     final when = _when(trade.updatedAt, now);
     final statusColor = _statusColor(scheme, trade.phase, yourMove);
 
@@ -542,7 +562,17 @@ _LinePreview? _preview(TradeNote note, bool incoming) {
   }
 }
 
-bool _yourMove(TwineTrade trade, TradeSide? side, bool? solverAvailable) {
+bool _yourMove(
+  TwineTrade trade,
+  TradeSide? side,
+  bool? solverAvailable, {
+  required bool hasPaymentDetails,
+}) {
+  if (trade.phase == TradePhase.waitingFiat) {
+    if (side == TradeSide.seller) return !hasPaymentDetails;
+    if (side == TradeSide.buyer) return hasPaymentDetails;
+    return false;
+  }
   final actions = TradeActions.of(
     phase: trade.phase,
     side: side,
@@ -624,10 +654,17 @@ String? _fiatLabel(TwineTrade trade, TwineOrder? order) {
   return '$amount $currency';
 }
 
-String? _peer(TwineTrade trade, String pubkey) {
-  final peer = counterparty(trade, pubkey);
+String? _peer(TwineTrade trade, TwineMarket market) {
+  final peer = counterparty(trade, market.accountPubkey);
   if (peer == null) return null;
-  return 'With ${_shortKey(peer)}';
+  final clean = peer.trim().toLowerCase();
+  var display = peer.trim();
+  if (RegExp(r'^[0-9a-f]{64}$').hasMatch(clean)) {
+    try {
+      display = market.nostr.nostr.bech32.encodePublicKeyToNpub(clean);
+    } catch (_) {}
+  }
+  return 'With ${_shortKey(display)}';
 }
 
 String _shortKey(String value) {

@@ -19,12 +19,11 @@ void main() {
     expect(shannonsToCkb('1'), '0.00000001');
   });
 
-  test('a sell post makes the poster the seller and the taker the buyer', () {
-    final order = _order(side: OrderSide.sell);
+  test('a post makes the poster the seller and the taker the buyer', () {
+    final order = _order();
     expect(tradeSide(order, 'maker'), TradeSide.seller);
     expect(tradeSide(order, 'taker'), TradeSide.buyer);
     expect(isMaker(order, 'MAKER'), isTrue);
-    expect(tradeSide(_order(side: OrderSide.buy), 'maker'), TradeSide.buyer);
   });
 
   test(
@@ -306,14 +305,12 @@ void main() {
 }
 
 TwineOrder _order({
-  OrderSide side = OrderSide.sell,
   String available = '10',
   DateTime? at,
   PostStatus status = PostStatus.open,
 }) {
   return TwineOrder(
     orderId: 'order-1',
-    side: side,
     makerNostrPubkey: 'maker',
     makerFiberPubkey: 'fiber',
     availableCkb: available,
