@@ -368,10 +368,21 @@ void main() {
     expect(find.text('Enter how much CKB this post covers.'), findsOneWidget);
     expect(sent, isNull);
 
-    await tester.enterText(_field('CKB available'), '100');
+    await tester.enterText(_field('CKB available'), '200');
+    await tester.pump();
+    expect(find.text('Enter how much CKB this post covers.'), findsNothing);
+
     await tester.enterText(_field('Price per CKB'), '1500');
-    await tester.enterText(_field('Minimum'), '150000');
-    await tester.enterText(_field('Maximum'), '300000');
+    await tester.pump();
+    expect(find.text('Total offer value: 300000 NGN'), findsOneWidget);
+    expect(find.text('At least 100 CKB (150000 NGN).'), findsOneWidget);
+
+    await tester.tap(find.text('Min 100 CKB'));
+    await tester.tap(find.text('Full amount'));
+    await tester.pump();
+    expect(find.text('≈ 100 CKB'), findsOneWidget);
+    expect(find.text('≈ 200 CKB'), findsOneWidget);
+
     await tester.ensureVisible(find.text('Post'));
     await tester.tap(find.text('Post'));
     await tester.pumpAndSettle();
@@ -380,6 +391,8 @@ void main() {
 
     expect(sent?.side, OrderSide.sell);
     expect(sent?.fiatCurrency, 'NGN');
+    expect(sent?.min, '150000');
+    expect(sent?.max, '300000');
     expect(find.text('Open'), findsOneWidget);
   });
 

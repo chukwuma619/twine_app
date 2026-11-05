@@ -95,6 +95,7 @@ abstract final class TwineTokens {
     required String label,
     String? suffix,
     String? hint,
+    String? helper,
     bool alignLabelWithHint = false,
   }) {
     final scheme = theme.colorScheme;
@@ -107,6 +108,7 @@ abstract final class TwineTokens {
       labelText: label,
       suffixText: suffix,
       hintText: hint,
+      helperText: helper,
       alignLabelWithHint: alignLabelWithHint,
       filled: true,
       fillColor: scheme.surfaceContainerHighest,

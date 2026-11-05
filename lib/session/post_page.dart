@@ -1,6 +1,7 @@
 import 'package:currency_picker/currency_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../market/amount.dart';
 import '../nostr/order.dart';
 import '../nostr/request.dart';
 import '../ui/twine_tokens.dart';
@@ -36,16 +37,32 @@ class _CurrencyField extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: TwineTokens.control),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: TwineTokens.md),
+            padding: const EdgeInsets.symmetric(
+              horizontal: TwineTokens.md,
+              vertical: TwineTokens.xs,
+            ),
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    label,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: foreground,
-                      height: 1.2,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Fiat currency',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        label,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: foreground,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 Icon(
@@ -83,26 +100,74 @@ class _PostPageState extends State<PostPage> {
   @override
   void initState() {
     super.initState();
-    _available = TextEditingController();
-    _price = TextEditingController();
-    _min = TextEditingController();
-    _max = TextEditingController();
+    _available = TextEditingController()..addListener(_onChanged);
+    _price = TextEditingController()..addListener(_onChanged);
+    _min = TextEditingController()..addListener(_onChanged);
+    _max = TextEditingController()..addListener(_onChanged);
     _currency = 'NGN';
+  }
+
+  void _onChanged() {
+    if (!mounted) return;
+    setState(() {
+      _error = null;
+    });
   }
 
   @override
   void dispose() {
-    _available.dispose();
-    _price.dispose();
-    _min.dispose();
-    _max.dispose();
+    _available
+      ..removeListener(_onChanged)
+      ..dispose();
+    _price
+      ..removeListener(_onChanged)
+      ..dispose();
+    _min
+      ..removeListener(_onChanged)
+      ..dispose();
+    _max
+      ..removeListener(_onChanged)
+      ..dispose();
     super.dispose();
+  }
+
+  String? get _minFiatFloor {
+    final price = double.tryParse(_price.text.trim());
+    if (price == null || price <= 0) return null;
+    return _formatFiat(minPostCkb * price);
+  }
+
+  String? get _maxFiatCeiling {
+    final price = double.tryParse(_price.text.trim());
+    final available = double.tryParse(_available.text.trim());
+    if (price == null || price <= 0 || available == null || available <= 0) {
+      return null;
+    }
+    return _formatFiat(available * price);
+  }
+
+  static String _formatFiat(double value) {
+    final rounded = value.toStringAsFixed(2);
+    if (rounded.endsWith('.00')) {
+      return rounded.substring(0, rounded.length - 3);
+    }
+    if (rounded.endsWith('0')) {
+      return rounded.substring(0, rounded.length - 1);
+    }
+    return rounded;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final muted = TwineTokens.muted(theme);
+    final suffixCurrency = _currency.isEmpty ? null : _currency;
+    final minFloor = _minFiatFloor;
+    final totalFiat = _maxFiatCeiling;
+    final minCkb = aboutCkb(_min.text, _price.text);
+    final maxCkb = aboutCkb(_max.text, _price.text);
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(title: const Text('New post')),
@@ -125,61 +190,146 @@ class _PostPageState extends State<PostPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'Locks in your Fiber wallet when someone takes it.',
-                          style: TwineTokens.muted(theme),
+                        Row(
+                          children: [
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: scheme.secondaryContainer,
+                                borderRadius: BorderRadius.circular(
+                                  TwineTokens.radiusPill,
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: TwineTokens.xs,
+                                  vertical: TwineTokens.xxs,
+                                ),
+                                child: Text(
+                                  'Sell CKB',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color: scheme.onSecondaryContainer,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: TwineTokens.xs),
+                            Expanded(
+                              child: Text(
+                                'Locks in your Fiber wallet when someone takes it.',
+                                style: muted,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: TwineTokens.lg),
-                        TextField(
-                          controller: _price,
-                          enabled: !_busy,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          style: TwineTokens.price(theme),
-                          decoration: TwineTokens.field(
-                            theme,
-                            label: 'Price per CKB',
-                          ),
-                        ),
+                        Text('Offer', style: TwineTokens.section(theme)),
                         const SizedBox(height: TwineTokens.xs),
                         _CurrencyField(
                           code: _currency,
                           enabled: !_busy,
                           onPick: _pickCurrency,
                         ),
-                        const SizedBox(height: TwineTokens.lg),
+                        const SizedBox(height: TwineTokens.sm),
+                        TextField(
+                          controller: _price,
+                          enabled: !_busy,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          style: TwineTokens.price(theme),
+                          decoration: TwineTokens.field(
+                            theme,
+                            label: 'Price per CKB',
+                            suffix: suffixCurrency,
+                          ),
+                        ),
+                        const SizedBox(height: TwineTokens.sm),
                         TextField(
                           controller: _available,
                           enabled: !_busy,
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
+                          textInputAction: TextInputAction.next,
                           autocorrect: false,
                           enableSuggestions: false,
                           decoration: TwineTokens.field(
                             theme,
                             label: 'CKB available',
                             suffix: 'CKB',
+                            helper: totalFiat == null
+                                ? 'At least $minPostCkb CKB.'
+                                : 'Total offer value: $totalFiat $_currency',
                           ),
                         ),
                         const SizedBox(height: TwineTokens.lg),
-                        Text('Each trade', style: TwineTokens.section(theme)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Each trade',
+                              style: TwineTokens.section(theme),
+                            ),
+                            if (minFloor != null || totalFiat != null)
+                              Wrap(
+                                spacing: TwineTokens.xs,
+                                children: [
+                                  if (minFloor != null)
+                                    ActionChip(
+                                      visualDensity: VisualDensity.compact,
+                                      label: const Text('Min $minPostCkb CKB'),
+                                      onPressed: _busy
+                                          ? null
+                                          : () => _min.text = minFloor,
+                                    ),
+                                  if (totalFiat != null)
+                                    ActionChip(
+                                      visualDensity: VisualDensity.compact,
+                                      label: const Text('Full amount'),
+                                      onPressed: _busy
+                                          ? null
+                                          : () => _max.text = totalFiat,
+                                    ),
+                                ],
+                              ),
+                          ],
+                        ),
                         const SizedBox(height: TwineTokens.xs),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: _limit(_min, 'Minimum')),
+                            Expanded(
+                              child: _limit(
+                                _min,
+                                'Minimum',
+                                helper: minCkb == null ? null : '≈ $minCkb CKB',
+                                action: TextInputAction.next,
+                              ),
+                            ),
                             const SizedBox(width: TwineTokens.sm),
-                            Expanded(child: _limit(_max, 'Maximum')),
+                            Expanded(
+                              child: _limit(
+                                _max,
+                                'Maximum',
+                                helper: maxCkb == null ? null : '≈ $maxCkb CKB',
+                                action: TextInputAction.done,
+                                onSubmitted: (_) {
+                                  if (!_busy) _submit();
+                                },
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: TwineTokens.xs),
                         Text(
-                          'At least $minPostCkb CKB.',
-                          style: TwineTokens.muted(theme),
+                          minFloor == null
+                              ? 'At least $minPostCkb CKB.'
+                              : 'At least $minPostCkb CKB ($minFloor $_currency).',
+                          style: muted,
                         ),
                       ],
                     ),
@@ -227,17 +377,26 @@ class _PostPageState extends State<PostPage> {
     );
   }
 
-  Widget _limit(TextEditingController controller, String label) {
+  Widget _limit(
+    TextEditingController controller,
+    String label, {
+    String? helper,
+    TextInputAction? action,
+    ValueChanged<String>? onSubmitted,
+  }) {
     return TextField(
       controller: controller,
       enabled: !_busy,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textInputAction: action,
+      onSubmitted: onSubmitted,
       autocorrect: false,
       enableSuggestions: false,
       decoration: TwineTokens.field(
         Theme.of(context),
         label: label,
         suffix: _currency.isEmpty ? null : _currency,
+        helper: helper,
       ),
     );
   }
@@ -246,7 +405,10 @@ class _PostPageState extends State<PostPage> {
     showCurrencyPicker(
       context: context,
       showDragHandle: true,
-      onSelect: (currency) => setState(() => _currency = currency.code),
+      onSelect: (currency) => setState(() {
+        _currency = currency.code;
+        _error = null;
+      }),
     );
   }
 

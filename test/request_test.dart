@@ -7,7 +7,7 @@ void main() {
   test('a post names the side and the amounts', () {
     const draft = NewOrderDraft(
       side: OrderSide.sell,
-      availableCkb: '100',
+      availableCkb: '200',
       fiatCurrency: 'NGN',
       pricePerCkb: '1500',
       min: '150000',
@@ -19,7 +19,7 @@ void main() {
     expect(envelope.action, actionNewOrder);
     expect(envelope.payload, {
       'side': 'sell',
-      'available_ckb': '100',
+      'available_ckb': '200',
       'fiat_currency': 'NGN',
       'price_per_ckb': '1500',
       'min': '150000',
@@ -30,7 +30,7 @@ void main() {
   test('a post accepts any currency in the picker', () {
     const euro = NewOrderDraft(
       side: OrderSide.sell,
-      availableCkb: '100',
+      availableCkb: '200',
       fiatCurrency: 'EUR',
       pricePerCkb: '1500',
       min: '150000',
@@ -42,7 +42,7 @@ void main() {
 
     const unknown = NewOrderDraft(
       side: OrderSide.sell,
-      availableCkb: '100',
+      availableCkb: '200',
       fiatCurrency: 'NOTACOIN',
       pricePerCkb: '1500',
       min: '150000',
@@ -61,6 +61,18 @@ void main() {
       max: '180000',
     );
     expect(draft.validate(), 'The minimum trade is 100 CKB.');
+  });
+
+  test('a post whose maximum exceeds the offered CKB is refused', () {
+    const draft = NewOrderDraft(
+      side: OrderSide.sell,
+      availableCkb: '100',
+      fiatCurrency: 'NGN',
+      pricePerCkb: '1500',
+      min: '150000',
+      max: '300000',
+    );
+    expect(draft.validate(), 'The maximum exceeds the CKB available.');
   });
 
   test('a post with the minimum above the maximum is refused', () {

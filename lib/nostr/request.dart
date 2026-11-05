@@ -46,6 +46,10 @@ class NewOrderDraft {
     if (offered < minimumCkb) {
       return 'Offer enough CKB to cover the minimum trade.';
     }
+    final maximumCkb = high / pricePerCkbValue;
+    if (maximumCkb > offered + 1e-9) {
+      return 'The maximum exceeds the CKB available.';
+    }
     final currency = fiatCurrency.trim();
     if (CurrencyService().findByCode(currency) == null) {
       return 'Pick a currency.';
