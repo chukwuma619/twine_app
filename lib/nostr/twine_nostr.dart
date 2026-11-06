@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:dart_nostr/dart_nostr.dart';
+import 'package:dart_nostr/nostr/instance/relays/relays.dart';
+import 'package:dart_nostr/nostr/model/debug_options.dart';
 
 import '../constant.dart';
 import 'account.dart';
@@ -9,35 +11,22 @@ import 'daemon.dart';
 import 'envelope.dart';
 import 'fiber_node.dart';
 import 'order.dart';
+import 'relay_transport.dart';
 import 'reply.dart';
 
-class RelayRecovery {
-  const RelayRecovery({required this.replace, required this.quietProbes});
-
-  final bool replace;
-  final int quietProbes;
-}
-
-/// Replace the sockets after resume, a closed socket, or two missed answers.
-RelayRecovery planRelayRecovery({
+/// A resume always dials. A probe that got an answer keeps the socket.
+/// One miss dials again once the last successful dial has had time to answer.
+///
+/// Whether the socket object still looks open is not an input. A phone keeps
+/// `closeCode` null after the OS has already dropped the connection.
+bool shouldReplaceRelay({
   required bool force,
-  required bool socketsOpen,
   required bool probeAnswered,
-  required int quietProbes,
   required bool cooledDown,
 }) {
-  if (force) {
-    return const RelayRecovery(replace: true, quietProbes: 0);
-  }
-  if (probeAnswered) {
-    return const RelayRecovery(replace: false, quietProbes: 0);
-  }
-  final misses = quietProbes + 1;
-  if (!cooledDown) {
-    return RelayRecovery(replace: false, quietProbes: misses);
-  }
-  final replace = !socketsOpen || misses >= 2;
-  return RelayRecovery(replace: replace, quietProbes: replace ? 0 : misses);
+  if (force) return true;
+  if (probeAnswered) return false;
+  return cooledDown;
 }
 
 class TwineRelayException implements Exception {
@@ -50,21 +39,65 @@ class TwineRelayException implements Exception {
 }
 
 class TwineNostr {
-  TwineNostr({Nostr? nostr})
-    : nostr =
-          nostr ??
-          Nostr(
-            clientOptions: const NostrClientOptions(
-              connectionTimeout: Duration(seconds: 15),
-            ),
-          ) {
-    this.nostr.disableLogs();
+  factory TwineNostr({Nostr? nostr}) {
+    if (nostr != null) {
+      nostr.disableLogs();
+      return TwineNostr._(nostr, null);
+    }
+    final owned = _ownClient();
+    owned.nostr.disableLogs();
+    return TwineNostr._(owned.nostr, owned.transport);
+  }
+
+  TwineNostr._(this.nostr, this._transport) {
     current = this;
+    _transport?.onClosed = _noteSocketClosed;
   }
 
   static TwineNostr? current;
 
+  static ({Nostr nostr, OwnedRelayTransport transport}) _ownClient() {
+    final logger = NostrLogger(
+      passedDebugOptions: NostrDebugOptions.general(),
+    );
+    logger.disableLogs();
+    final relays = NostrRelays(logger: logger);
+    final transport = OwnedRelayTransport(relays);
+    final nostr = Nostr(
+      services: NostrServices(
+        logger: logger,
+        relays: relays,
+        relayTransport: transport,
+        clientOptions: const NostrClientOptions(
+          connectionTimeout: Duration(seconds: 15),
+        ),
+      ),
+    );
+    return (nostr: nostr, transport: transport);
+  }
+
   final Nostr nostr;
+
+  final OwnedRelayTransport? _transport;
+
+  /// Fires when a socket opened by the current dial closes on its own.
+  void Function()? onRelayDropped;
+
+  int _epoch = 0;
+  bool _dialing = false;
+  bool _droppedWhileDialing = false;
+  Future<void>? _dialingDone;
+
+  /// Ignore a close from the dial we just replaced, and from the dial that
+  /// is still opening. A close of the socket we just opened redials once.
+  void _noteSocketClosed(int born) {
+    if (born != _epoch) return;
+    if (_dialing) {
+      _droppedWhileDialing = true;
+      return;
+    }
+    onRelayDropped?.call();
+  }
 
   TwineAccount? account;
 
@@ -103,21 +136,6 @@ class TwineNostr {
 
   Stream<NostrEvent> get chats => _chats.stream;
 
-  /// True when every connected relay socket is still open.
-  /// A phone often keeps the same socket object after the connection has died.
-  bool get relaysOpen {
-    try {
-      final registry = nostr.relays.relaysWebSocketsRegistry;
-      if (registry.isEmpty) return false;
-      for (final socket in registry.values) {
-        if (socket.closeCode != null) return false;
-      }
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   NostrEvent seal(TwineEnvelope envelope) {
     final signer = account;
     final target = daemon;
@@ -147,6 +165,8 @@ class TwineNostr {
   }
 
   Future<void> publish(NostrEvent event) async {
+    final dial = _dialingDone;
+    if (dial != null) await dial;
     final result = await nostr.publish(event);
     if (result.isFailure) {
       throw TwineRelayException(result.failureOrNull!.message);
@@ -232,7 +252,8 @@ class TwineNostr {
   Future<bool> reconcile() async {
     final signer = account;
     final target = daemon;
-    if (signer == null || target == null || !relaysOpen) return false;
+    if (signer == null || target == null) return false;
+    if (nostr.relays.relaysWebSocketsRegistry.isEmpty) return false;
     final chatAccount = _chatAccount;
     final chatAuthors = _chatAuthors;
     final chatTrades = _chatTrades;
@@ -419,27 +440,50 @@ class TwineNostr {
     }, onError: (_) {});
   }
 
-  Future<List<String>> connect(List<String> relays) async {
-    stopWatching();
-    // A dead socket's close often never finishes. Drop it, then dial.
-    _releaseSockets();
-    final NostrResult<void> result;
-    try {
-      result = await nostr.connect(relays).timeout(const Duration(seconds: 20));
-    } on TimeoutException {
-      throw TwineRelayException('no nostr relay connected');
-    }
-    if (result.isFailure) {
-      throw TwineRelayException(result.failureOrNull!.message);
-    }
+  Future<List<String>> connect(List<String> relays) {
+    final run = _dial(relays);
+    _dialingDone = run;
+    return run.whenComplete(() {
+      if (identical(_dialingDone, run)) _dialingDone = null;
+    });
+  }
 
-    final open = nostr.relays.relaysWebSocketsRegistry.keys.toList()..sort();
-    if (open.isEmpty) {
-      throw TwineRelayException('no nostr relay connected');
+  Future<List<String>> _dial(List<String> relays) async {
+    _epoch++;
+    _transport?.epoch = _epoch;
+    _droppedWhileDialing = false;
+    _dialing = true;
+    try {
+      stopWatching();
+      // Tests inject a client whose transport still retries on close.
+      // Drop those sockets here. The owned transport drops them itself.
+      if (_transport == null) _releaseSockets();
+      final NostrResult<void> result;
+      try {
+        result = await nostr
+            .connect(relays)
+            .timeout(const Duration(seconds: 20));
+      } on TimeoutException {
+        throw TwineRelayException('no nostr relay connected');
+      }
+      if (result.isFailure) {
+        throw TwineRelayException(result.failureOrNull!.message);
+      }
+
+      final open = nostr.relays.relaysWebSocketsRegistry.keys.toList()..sort();
+      if (open.isEmpty) {
+        throw TwineRelayException('no nostr relay connected');
+      }
+      _armRelayWatch();
+      _subscribeChat();
+      return open;
+    } finally {
+      _dialing = false;
+      if (_droppedWhileDialing) {
+        _droppedWhileDialing = false;
+        onRelayDropped?.call();
+      }
     }
-    _armRelayWatch();
-    _subscribeChat();
-    return open;
   }
 
   /// Asks again when a relay socket is replaced. A reconnect does not replay

@@ -10,6 +10,7 @@ import 'package:twine_app/store/book_store.dart';
 import 'package:twine_app/store/daemon_store.dart';
 
 import 'market.dart';
+import 'relay_work.dart';
 
 class TwineSession extends ChangeNotifier {
   TwineSession({
@@ -23,6 +24,9 @@ class TwineSession extends ChangeNotifier {
   }) {
     nostr.account = account;
     nostr.daemon = daemon;
+    nostr.onRelayDropped = () {
+      unawaited(catchUp(force: true));
+    };
     _bindMarket();
     unawaited(_boot());
   }
@@ -103,31 +107,30 @@ class TwineSession extends ChangeNotifier {
 
   StreamSubscription<FiberAnnouncement>? _fiberSub;
   bool _disposed = false;
-  bool _relayWork = false;
+  final _work = RelayWork();
   Timer? _catchUpTimer;
-  int _quietProbes = 0;
+  Timer? _retryTimer;
   DateTime? _relaysReplacedAt;
+  int _retrySeconds = 2;
 
   /// How often a quiet phone checks that a relay still answers.
   /// The live subscription still delivers an update the moment it arrives.
   static const _catchUpEvery = Duration(seconds: 10);
 
   /// After a successful dial, leave the new sockets alone this long.
-  static const _replaceCooldown = Duration(seconds: 12);
+  /// Long enough for the first EOSE. Short enough that a zombie dial is
+  /// replaced on the next probe instead of sitting deaf for a quarter minute.
+  static const _replaceCooldown = Duration(seconds: 4);
 
   void _notify() {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> connect(List<String> relays) async {
-    if (_relayWork) return;
-    _relayWork = true;
-    try {
-      await _openRelays(relays);
-    } finally {
-      _relayWork = false;
-      if (!_disposed) _armCatchUp();
-    }
+  Future<void> connect(List<String> relays) {
+    return _work.run(
+      replace: true,
+      body: (_) => _recover(replace: true, relays: relays),
+    );
   }
 
   bool get _relaysCooledDown {
@@ -136,54 +139,68 @@ class TwineSession extends ChangeNotifier {
     return DateTime.now().difference(replaced) >= _replaceCooldown;
   }
 
-  /// Reloads the book without closing a subscription a relay is still answering.
-  /// Coming back to the app dials again. So do two probes that no relay answers.
-  Future<void> catchUp({bool force = false}) async {
-    if (_relayWork || _disposed) return;
+  /// Reloads the book. [force] dials again: coming back to the app, a socket
+  /// that closed, or a pull to refresh. A quiet probe dials after one miss.
+  Future<void> catchUp({bool force = false}) {
+    return _work.run(
+      replace: force,
+      body: (replace) => _recover(replace: replace),
+    );
+  }
+
+  /// The process is frozen in the background. Stop the probe so it does not
+  /// run on the same wake as the resume dial and hold that dial behind a
+  /// five-second timeout into a dead socket.
+  void sleep() {
+    _stopCatchUp();
+  }
+
+  Future<void> _recover({required bool replace, List<String>? relays}) async {
     final current = daemon;
     final book = market;
     if (!connectRelays || account == null || current == null || book == null) {
       return;
     }
-    if (showBackup || editingDaemon || book.sending) return;
+    if (showBackup || editingDaemon) return;
+    if (!_disposed) _armCatchUp();
+    if (!replace && book.sending) return;
 
-    _relayWork = true;
-    try {
-      var answered = false;
-      if (!force && nostr.relaysOpen) {
-        try {
-          answered = await nostr.reconcile();
-        } catch (_) {
-          answered = false;
-        }
+    var answered = false;
+    if (!replace) {
+      if (_work.replaceQueued) return;
+      try {
+        answered = await nostr.reconcile();
+      } catch (_) {
+        answered = false;
       }
-      final plan = planRelayRecovery(
-        force: force,
-        socketsOpen: nostr.relaysOpen,
-        probeAnswered: answered,
-        quietProbes: _quietProbes,
-        cooledDown: _relaysCooledDown,
-      );
-      _quietProbes = plan.quietProbes;
-      if (plan.replace) {
-        await _openRelays(current.relays);
-        if (relayError == null) {
-          _relaysReplacedAt = DateTime.now();
-          _quietProbes = 0;
-        }
-      }
-      if (_disposed || !book.ready) return;
-      await book.refreshTrades();
-    } finally {
-      _relayWork = false;
+      if (_work.replaceQueued) return;
     }
+    final dial = shouldReplaceRelay(
+      force: replace,
+      probeAnswered: answered,
+      cooledDown: _relaysCooledDown,
+    );
+    if (dial) {
+      await _openRelays(relays ?? current.relays);
+      if (_disposed) return;
+      if (relayError == null) {
+        _relaysReplacedAt = DateTime.now();
+        _retrySeconds = 2;
+      } else {
+        _relaysReplacedAt = null;
+        _retrySoon();
+      }
+    }
+    if (_disposed || !book.ready) return;
+    await book.refreshTrades();
   }
 
   Future<void> _openRelays(List<String> relays) async {
     await _fiberSub?.cancel();
-    connecting = true;
+    final alreadyLinked = this.relays.isNotEmpty;
+    connecting = !alreadyLinked;
     relayError = null;
-    _notify();
+    if (!alreadyLinked) _notify();
     try {
       final open = await nostr.connect(relays);
       if (_disposed) return;
@@ -205,6 +222,7 @@ class TwineSession extends ChangeNotifier {
       _notify();
     } catch (error) {
       if (_disposed) return;
+      this.relays = const [];
       relayError = error is TwineRelayException
           ? error.message
           : 'no nostr relay connected';
@@ -219,9 +237,21 @@ class TwineSession extends ChangeNotifier {
     });
   }
 
+  void _retrySoon() {
+    _retryTimer?.cancel();
+    final wait = Duration(seconds: _retrySeconds);
+    _retrySeconds = (_retrySeconds * 2).clamp(2, 10).toInt();
+    _retryTimer = Timer(wait, () {
+      _retryTimer = null;
+      unawaited(catchUp(force: true));
+    });
+  }
+
   void _stopCatchUp() {
     _catchUpTimer?.cancel();
     _catchUpTimer = null;
+    _retryTimer?.cancel();
+    _retryTimer = null;
   }
 
   Future<void> create() async {
@@ -439,6 +469,7 @@ class TwineSession extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    nostr.onRelayDropped = null;
     _stopCatchUp();
     market?.stop();
     _fiberSub?.cancel();

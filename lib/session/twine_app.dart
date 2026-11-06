@@ -13,6 +13,7 @@ import 'backup_page.dart';
 import 'daemon_page.dart';
 import 'login_page.dart';
 import 'market_page.dart';
+import 'resume_latch.dart';
 import 'session.dart';
 import 'signed_in_page.dart';
 
@@ -43,7 +44,8 @@ class TwineApp extends StatefulWidget {
 class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
   late final TwineSession _session;
   late final BookStore _books;
-  AppLifecycleState? _lifecycle;
+  final _resume = ResumeLatch();
+  Timer? _resumeTimer;
 
   @override
   void initState() {
@@ -63,6 +65,7 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _resumeTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _session.dispose();
     super.dispose();
@@ -70,16 +73,24 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final previous = _lifecycle;
-    _lifecycle = state;
-    final cameBack =
-        state == AppLifecycleState.resumed &&
-        (previous == AppLifecycleState.paused ||
-            previous == AppLifecycleState.hidden ||
-            previous == AppLifecycleState.detached);
-    if (cameBack) {
-      unawaited(_session.catchUp(force: true));
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        _resumeTimer?.cancel();
+        _resumeTimer = null;
+        _session.sleep();
+        break;
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        break;
     }
+    if (!_resume.observe(state)) return;
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(resumeDebounce, () {
+      _resumeTimer = null;
+      unawaited(_session.catchUp(force: true));
+    });
   }
 
   @override
