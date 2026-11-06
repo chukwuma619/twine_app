@@ -119,6 +119,36 @@ void main() {
     );
   });
 
+  testWidgets('seller can send account details with the keyboard open', (
+    tester,
+  ) async {
+    const size = Size(390, 844);
+    const keyboard = 336.0;
+    await _openAccountKeyboard(tester, size: size, keyboard: keyboard);
+
+    final send = tester.getRect(find.widgetWithText(FilledButton, 'Send'));
+    final field = tester.getRect(find.byType(TextField));
+    expect(send.bottom, lessThanOrEqualTo(size.height - keyboard));
+    expect(field.bottom, lessThanOrEqualTo(send.top));
+    expect(field.height, greaterThan(48));
+    expect(find.text('Message'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('seller account form fits a short phone with the keyboard open', (
+    tester,
+  ) async {
+    const size = Size(320, 568);
+    const keyboard = 280.0;
+    await _openAccountKeyboard(tester, size: size, keyboard: keyboard);
+
+    expect(tester.takeException(), isNull);
+    final send = tester.getRect(find.widgetWithText(FilledButton, 'Send'));
+    final field = tester.getRect(find.byType(TextField));
+    expect(send.bottom, lessThanOrEqualTo(size.height - keyboard));
+    expect(field.height, greaterThan(32));
+  });
+
   testWidgets('keyboard covers the composer', (tester) async {
     await _pumpTrade(
       tester,
@@ -174,6 +204,43 @@ void main() {
     );
     await tester.pumpAndSettle();
   });
+}
+
+Future<void> _openAccountKeyboard(
+  WidgetTester tester, {
+  required Size size,
+  required double keyboard,
+}) async {
+  final market = _market(
+    pubkey: 'seller',
+    phase: TradePhase.waitingFiat,
+    seller: 'seller',
+    buyer: 'buyer',
+  );
+  await tester.binding.setSurfaceSize(size);
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  var inset = 0.0;
+  Future<void> pump() {
+    return tester.pumpWidget(
+      MaterialApp(
+        theme: TwineTokens.theme(),
+        home: MediaQuery(
+          data: MediaQueryData(
+            size: size,
+            viewInsets: EdgeInsets.only(bottom: inset),
+          ),
+          child: TradePage(market: market, tradeId: 'trade-1'),
+        ),
+      ),
+    );
+  }
+
+  await pump();
+  await tester.tap(find.byType(TextField).first);
+  await tester.pump();
+  inset = keyboard;
+  await pump();
+  await tester.pump();
 }
 
 Future<void> _pumpTrade(

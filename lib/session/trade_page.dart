@@ -41,6 +41,8 @@ class TradePage extends StatefulWidget {
 class _TradePageState extends State<TradePage> {
   final _invoice = TextEditingController();
   final _details = TextEditingController();
+  final _detailsFocus = FocusNode();
+  final _detailsFieldKey = GlobalKey();
   final _chat = TextEditingController();
   final _thread = ScrollController();
   String? _error;
@@ -59,6 +61,7 @@ class _TradePageState extends State<TradePage> {
     _chat.addListener(_onDraft);
     _invoice.addListener(_clearError);
     _details.addListener(_clearError);
+    _detailsFocus.addListener(_onDetailsFocus);
   }
 
   @override
@@ -66,8 +69,10 @@ class _TradePageState extends State<TradePage> {
     _chat.removeListener(_onDraft);
     _invoice.removeListener(_clearError);
     _details.removeListener(_clearError);
+    _detailsFocus.removeListener(_onDetailsFocus);
     _invoice.dispose();
     _details.dispose();
+    _detailsFocus.dispose();
     _chat.dispose();
     _thread.dispose();
     super.dispose();
@@ -76,6 +81,10 @@ class _TradePageState extends State<TradePage> {
   void _clearError() {
     if (_error == null || !mounted) return;
     setState(() => _error = null);
+  }
+
+  void _onDetailsFocus() {
+    if (mounted) setState(() {});
   }
 
   void _onDraft() {
@@ -169,6 +178,11 @@ class _TradePageState extends State<TradePage> {
             trade.phase != TradePhase.refunding;
         final lines = _lines(trade.id);
         final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+        final draftingDetails =
+            shareDetails &&
+            peer != null &&
+            bottomInset > 0 &&
+            _detailsFocus.hasFocus;
         _pin(
           lines.length + (outcome == null ? 0 : 1),
           bottomInset: bottomInset,
@@ -183,16 +197,18 @@ class _TradePageState extends State<TradePage> {
           shareDetails: shareDetails,
           waitingFiat: waitingFiat,
         );
-        final controls = _controls(
-          trade: trade,
-          actions: actions,
-          details: details,
-          proof: proof,
-          peer: peer,
-          shareDetails: shareDetails,
-          canEditDetails: canEditDetails,
-          waitingFiat: waitingFiat,
-        );
+        final controls = draftingDetails
+            ? null
+            : _controls(
+                trade: trade,
+                actions: actions,
+                details: details,
+                proof: proof,
+                peer: peer,
+                shareDetails: shareDetails,
+                canEditDetails: canEditDetails,
+                waitingFiat: waitingFiat,
+              );
         return Scaffold(
           resizeToAvoidBottomInset: true,
           appBar: AppBar(
@@ -222,8 +238,7 @@ class _TradePageState extends State<TradePage> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final height = constraints.maxHeight;
-                      final keyboardOpen =
-                          MediaQuery.viewInsetsOf(context).bottom > 0;
+                      final keyboardOpen = bottomInset > 0;
                       final summaryMax = height * 0.28 < 140
                           ? height * 0.28
                           : 140.0;
@@ -233,6 +248,37 @@ class _TradePageState extends State<TradePage> {
                       final dockCap = keyboardOpen
                           ? (height * 0.22 < 120 ? height * 0.22 : 120.0)
                           : (height * 0.28 < 168 ? height * 0.28 : 168.0);
+                      if (draftingDetails) {
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            TwineTokens.md,
+                            TwineTokens.sm,
+                            TwineTokens.md,
+                            TwineTokens.sm,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: _detailsField(expand: true)),
+                              const SizedBox(height: TwineTokens.sm),
+                              _primary(
+                                'Send',
+                                _Work.share,
+                                () => _share(trade),
+                              ),
+                              if (_editingDetails)
+                                TextButton(
+                                  onPressed: _blocked
+                                      ? null
+                                      : () => setState(
+                                          () => _editingDetails = false,
+                                        ),
+                                  child: const Text('Keep current details'),
+                                ),
+                            ],
+                          ),
+                        );
+                      }
                       return Column(
                         children: [
                           ConstrainedBox(
@@ -266,7 +312,7 @@ class _TradePageState extends State<TradePage> {
                     },
                   ),
                 ),
-                if (compose)
+                if (compose && !draftingDetails)
                   _composer(
                     trade,
                     side: side,
@@ -452,16 +498,7 @@ class _TradePageState extends State<TradePage> {
       children.add(child);
     }
 
-    final detailsVisible = details != null && _holdLocked(trade.phase);
-    if (detailsVisible) {
-      add(
-        _DetailsCard(
-          details: details,
-          title: side == TradeSide.seller ? 'Details sent' : 'Pay here',
-          onCopy: _copy,
-        ),
-      );
-    } else if (shareDetails && peer != null) {
+    if (shareDetails && peer != null) {
       add(
         const Text(
           'The CKB is locked. Send the payment details the buyer should use.',
@@ -469,7 +506,7 @@ class _TradePageState extends State<TradePage> {
       );
     } else if (shareDetails) {
       add(const Text('Waiting to learn who the buyer is.'));
-    } else if (waitingFiat) {
+    } else if (waitingFiat && details == null) {
       add(
         const Text(
           'The CKB is locked. Waiting for the seller to share the payment details.',
@@ -556,7 +593,7 @@ class _TradePageState extends State<TradePage> {
     }
 
     if (shareDetails && peer != null) {
-      add(_detailsField());
+      add(_detailsField(expand: false));
       add(_primary('Send', _Work.share, () => _share(trade)));
       if (_editingDetails) {
         add(
@@ -623,13 +660,17 @@ class _TradePageState extends State<TradePage> {
     );
   }
 
-  Widget _detailsField() {
+  Widget _detailsField({required bool expand}) {
     final theme = Theme.of(context);
     return TextField(
+      key: _detailsFieldKey,
       controller: _details,
+      focusNode: _detailsFocus,
       enabled: !_blocked,
-      minLines: 3,
-      maxLines: 6,
+      minLines: expand ? null : 3,
+      maxLines: expand ? null : 6,
+      expands: expand,
+      textAlignVertical: expand ? TextAlignVertical.top : null,
       textCapitalization: TextCapitalization.sentences,
       decoration: TwineTokens.field(
         theme,
@@ -1372,24 +1413,6 @@ class _Parties extends StatelessWidget {
     if (buyer != null) add('Buyer', buyer!);
     if (rows.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows);
-  }
-}
-
-bool _holdLocked(TradePhase phase) {
-  switch (phase) {
-    case TradePhase.waitingInvoice:
-    case TradePhase.waitingHold:
-      return false;
-    case TradePhase.waitingFiat:
-    case TradePhase.fiatSent:
-    case TradePhase.releasing:
-    case TradePhase.awaitingInvoice:
-    case TradePhase.disputed:
-    case TradePhase.refunding:
-    case TradePhase.settled:
-    case TradePhase.canceled:
-    case TradePhase.expired:
-      return true;
   }
 }
 

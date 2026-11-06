@@ -286,8 +286,10 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('0123456789'), findsNWidgets(2));
-    expect(find.textContaining('Ada Lovelace'), findsNWidgets(2));
+    expect(find.textContaining('0123456789'), findsOneWidget);
+    expect(find.textContaining('Ada Lovelace'), findsOneWidget);
+    expect(find.text('Payment details'), findsOneWidget);
+    expect(find.text('Pay here'), findsNothing);
     expect(find.text("I've paid"), findsOneWidget);
     final dispute = tester.widget<TextButton>(
       find.widgetWithText(TextButton, 'Dispute (coming soon)'),
@@ -660,10 +662,10 @@ void main() {
     expect(find.text('Them', skipOffstage: false), findsOneWidget);
     expect(find.text('Paid yet?', skipOffstage: false), findsOneWidget);
     expect(find.text('Payment details', skipOffstage: false), findsOneWidget);
-    expect(find.text('Pay here'), findsOneWidget);
+    expect(find.text('Pay here'), findsNothing);
     expect(
       find.textContaining('0123456789', skipOffstage: false),
-      findsNWidgets(2),
+      findsOneWidget,
     );
     expect(find.text('Message'), findsOneWidget);
     expect(find.text('No messages yet.'), findsNothing);
