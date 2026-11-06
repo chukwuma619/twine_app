@@ -53,7 +53,7 @@ void main() {
     tester,
   ) async {
     final nostr = TwineNostr();
-    final account = TwineAccount.generate(nostr.nostr);
+    final account = TwineAccount.generate();
     final daemons = MemoryDaemonStore();
 
     await tester.pumpWidget(
@@ -78,7 +78,7 @@ void main() {
 
   testWidgets('importing an nsec asks which daemon to use', (tester) async {
     final nostr = TwineNostr();
-    final existing = TwineAccount.generate(nostr.nostr);
+    final existing = TwineAccount.generate();
     final store = MemoryAccountStore();
 
     await tester.pumpWidget(app(nostr: nostr, store: store));
@@ -98,7 +98,7 @@ void main() {
 
   testWidgets('pasting an npub stays on the login screen', (tester) async {
     final nostr = TwineNostr();
-    final existing = TwineAccount.generate(nostr.nostr);
+    final existing = TwineAccount.generate();
 
     await tester.pumpWidget(app(nostr: nostr, store: MemoryAccountStore()));
     await tester.enterText(find.byType(TextField), existing.npub);
@@ -129,7 +129,7 @@ void main() {
 
   testWidgets('a stored key without a daemon asks for one', (tester) async {
     final nostr = TwineNostr();
-    final account = TwineAccount.generate(nostr.nostr);
+    final account = TwineAccount.generate();
 
     await tester.pumpWidget(
       app(
@@ -145,8 +145,8 @@ void main() {
 
   testWidgets('saving a daemon points the app at it', (tester) async {
     final nostr = TwineNostr();
-    final account = TwineAccount.generate(nostr.nostr);
-    final daemonKey = TwineAccount.generate(nostr.nostr);
+    final account = TwineAccount.generate();
+    final daemonKey = TwineAccount.generate();
     final daemons = MemoryDaemonStore();
 
     await tester.pumpWidget(
@@ -181,7 +181,7 @@ void main() {
 
   testWidgets('a daemon secret is refused', (tester) async {
     final nostr = TwineNostr();
-    final account = TwineAccount.generate(nostr.nostr);
+    final account = TwineAccount.generate();
 
     await tester.pumpWidget(
       app(
@@ -207,10 +207,9 @@ void main() {
 
   testWidgets('log out removes the key and keeps the daemon', (tester) async {
     final nostr = TwineNostr();
-    final account = TwineAccount.generate(nostr.nostr);
-    final daemonKey = TwineAccount.generate(nostr.nostr);
+    final account = TwineAccount.generate();
+    final daemonKey = TwineAccount.generate();
     final daemon = TwineDaemon.tryParse(
-      nostr.nostr,
       pubkey: daemonKey.npub,
       relays: 'wss://relay.example.com',
     )!;
@@ -250,7 +249,7 @@ void main() {
 
   test('an unconfirmed backup is still required after a new session', () async {
     final nostr = TwineNostr();
-    final account = TwineAccount.generate(nostr.nostr);
+    final account = TwineAccount.generate();
     final store = MemoryAccountStore()
       ..account = account
       ..confirmedBackup = false;
@@ -269,11 +268,9 @@ void main() {
   testWidgets('the signed-in screen shows the fiber node to open', (
     tester,
   ) async {
-    final nostr = TwineNostr();
-    final account = TwineAccount.generate(nostr.nostr);
-    final daemonKey = TwineAccount.generate(nostr.nostr);
+    final account = TwineAccount.generate();
+    final daemonKey = TwineAccount.generate();
     final daemon = TwineDaemon.tryParse(
-      nostr.nostr,
       pubkey: daemonKey.npub,
       relays: 'wss://relay.example.com',
     )!;
@@ -297,10 +294,9 @@ void main() {
 
   testWidgets('fiber steps show once in a dismissable dialog', (tester) async {
     final nostr = TwineNostr();
-    final account = TwineAccount.generate(nostr.nostr);
-    final daemonKey = TwineAccount.generate(nostr.nostr);
+    final account = TwineAccount.generate();
+    final daemonKey = TwineAccount.generate();
     final daemon = TwineDaemon.tryParse(
-      nostr.nostr,
       pubkey: daemonKey.npub,
       relays: 'wss://relay.example.com',
     )!;

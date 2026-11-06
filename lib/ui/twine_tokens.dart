@@ -132,10 +132,7 @@ abstract final class TwineTokens {
   }
 
   static ThemeData theme([Brightness brightness = Brightness.light]) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: ink,
-      brightness: brightness,
-    );
+    final scheme = ColorScheme.fromSeed(seedColor: ink, brightness: brightness);
     final base = ThemeData(
       colorScheme: scheme,
       useMaterial3: true,

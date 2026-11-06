@@ -1,12 +1,7 @@
 import 'dart:convert';
 
-import 'package:dart_nostr/dart_nostr.dart';
-
-import '../constant.dart';
 import '../market/chat.dart';
-import 'account.dart';
-import 'nip44.dart';
-import 'verify.dart';
+import 'package:twine_app/src/rust/events.dart';
 
 class ChatBody {
   const ChatBody({
@@ -75,70 +70,32 @@ class ChatBody {
   }
 }
 
-NostrEvent sealChat({
-  required TwineAccount sender,
-  required String peer,
-  required ChatBody body,
-  DateTime? createdAt,
-}) {
-  final ciphertext = nip44Encrypt(
-    secretKey: sender.privateKey,
-    publicKey: peer,
-    plaintext: body.encode(),
-  );
-  return NostrEvent.fromPartialData(
-    kind: kindChat,
-    content: ciphertext,
-    keyPairs: NostrKeyPairs(private: sender.privateKey),
-    tags: [
-      ['p', peer],
-      ['t', body.tradeId],
-    ],
-    createdAt: createdAt,
-  );
-}
+class ChatEvent {
+  const ChatEvent({
+    required this.id,
+    required this.author,
+    required this.createdAt,
+    required this.body,
+  });
 
-ChatBody? openChat({
-  required TwineAccount recipient,
-  required String senderPublicKey,
-  required NostrEvent event,
-}) {
-  final kind = event.kind;
-  final content = event.content;
-  final id = event.id;
-  final createdAt = event.createdAt;
-  final tags = event.tags;
-  if (kind != kindChat || content == null || id == null || createdAt == null) {
-    return null;
-  }
-  if (!_tagged(tags, 'p', recipient.publicKey)) return null;
-  if (!signedBy(event, senderPublicKey)) return null;
+  final String id;
+  final String author;
+  final DateTime createdAt;
+  final ChatBody body;
 
-  final String plaintext;
-  try {
-    plaintext = nip44Decrypt(
-      secretKey: recipient.privateKey,
-      publicKey: senderPublicKey,
-      payload: content,
+  static ChatEvent? fromDto(ChatDto dto) {
+    final body = ChatBody.tryDecode(dto.bodyJson);
+    if (body == null) return null;
+    return ChatEvent(
+      id: dto.id,
+      author: dto.author,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        dto.createdAtSecs.toInt() * 1000,
+        isUtc: true,
+      ),
+      body: body,
     );
-  } on Nip44Exception {
-    return null;
   }
-  final body = ChatBody.tryDecode(plaintext);
-  if (body == null) return null;
-  if (!_tagged(tags, 't', body.tradeId)) return null;
-  return body;
-}
-
-bool _tagged(List<List<String>>? tags, String name, String value) {
-  if (tags == null) return false;
-  final wanted = value.toLowerCase();
-  for (final tag in tags) {
-    if (tag.length >= 2 && tag[0] == name && tag[1].toLowerCase() == wanted) {
-      return true;
-    }
-  }
-  return false;
 }
 
 String? _text(Map<String, Object?> map, String key) {

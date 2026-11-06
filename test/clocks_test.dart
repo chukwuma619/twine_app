@@ -7,10 +7,7 @@ import 'package:twine_app/market/phase.dart';
 void main() {
   test('remaining time is read from the stored unix deadline', () {
     final now = DateTime.utc(2026, 10, 6, 12);
-    expect(
-      remainingLabel(DateTime.utc(2026, 10, 6, 14, 5), now),
-      '2h 5m left',
-    );
+    expect(remainingLabel(DateTime.utc(2026, 10, 6, 14, 5), now), '2h 5m left');
     expect(
       remainingLabel(DateTime.utc(2026, 10, 6, 12, 3, 10), now),
       '3m 10s left',

@@ -4,13 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/daemon.dart';
 import 'package:twine_app/nostr/fiber_node.dart';
+import 'package:twine_app/nostr/keys.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
+import 'package:twine_app/session/push_service.dart';
 import 'package:twine_app/store/account_store.dart';
 import 'package:twine_app/store/book_store.dart';
 import 'package:twine_app/store/daemon_store.dart';
 
 import 'market.dart';
-import 'relay_work.dart';
 
 class TwineSession extends ChangeNotifier {
   TwineSession({
@@ -24,9 +25,6 @@ class TwineSession extends ChangeNotifier {
   }) {
     nostr.account = account;
     nostr.daemon = daemon;
-    nostr.onRelayDropped = () {
-      unawaited(catchUp(force: true));
-    };
     _bindMarket();
     unawaited(_boot());
   }
@@ -107,90 +105,39 @@ class TwineSession extends ChangeNotifier {
 
   StreamSubscription<FiberAnnouncement>? _fiberSub;
   bool _disposed = false;
-  final _work = RelayWork();
-  Timer? _catchUpTimer;
-  Timer? _retryTimer;
-  DateTime? _relaysReplacedAt;
-  int _retrySeconds = 2;
-
-  /// How often a quiet phone checks that a relay still answers.
-  /// The live subscription still delivers an update the moment it arrives.
-  static const _catchUpEvery = Duration(seconds: 10);
-
-  /// After a successful dial, leave the new sockets alone this long.
-  /// Long enough for the first EOSE. Short enough that a zombie dial is
-  /// replaced on the next probe instead of sitting deaf for a quarter minute.
-  static const _replaceCooldown = Duration(seconds: 4);
+  Future<void>? _resyncing;
 
   void _notify() {
     if (!_disposed) notifyListeners();
   }
 
   Future<void> connect(List<String> relays) {
-    return _work.run(
-      replace: true,
-      body: (_) => _recover(replace: true, relays: relays),
-    );
+    return catchUp(relays: relays);
   }
 
-  bool get _relaysCooledDown {
-    final replaced = _relaysReplacedAt;
-    if (replaced == null) return true;
-    return DateTime.now().difference(replaced) >= _replaceCooldown;
+  /// Reloads the book. Resume and pull-to-refresh call this.
+  /// Rust owns sockets, live_subs, and outbox.
+  Future<void> catchUp({List<String>? relays}) {
+    final pending = _resyncing;
+    if (pending != null) return pending;
+    final run = _recover(relays: relays);
+    _resyncing = run;
+    return run.whenComplete(() {
+      if (identical(_resyncing, run)) _resyncing = null;
+    });
   }
 
-  /// Reloads the book. [force] dials again: coming back to the app, a socket
-  /// that closed, or a pull to refresh. A quiet probe dials after one miss.
-  Future<void> catchUp({bool force = false}) {
-    return _work.run(
-      replace: force,
-      body: (replace) => _recover(replace: replace),
-    );
-  }
+  /// The SDK keeps the pool while the process is frozen.
+  void sleep() {}
 
-  /// The process is frozen in the background. Stop the probe so it does not
-  /// run on the same wake as the resume dial and hold that dial behind a
-  /// five-second timeout into a dead socket.
-  void sleep() {
-    _stopCatchUp();
-  }
-
-  Future<void> _recover({required bool replace, List<String>? relays}) async {
+  Future<void> _recover({List<String>? relays}) async {
     final current = daemon;
     final book = market;
     if (!connectRelays || account == null || current == null || book == null) {
       return;
     }
     if (showBackup || editingDaemon) return;
-    if (!_disposed) _armCatchUp();
-    if (!replace && book.sending) return;
-
-    var answered = false;
-    if (!replace) {
-      if (_work.replaceQueued) return;
-      try {
-        answered = await nostr.reconcile();
-      } catch (_) {
-        answered = false;
-      }
-      if (_work.replaceQueued) return;
-    }
-    final dial = shouldReplaceRelay(
-      force: replace,
-      probeAnswered: answered,
-      cooledDown: _relaysCooledDown,
-    );
-    if (dial) {
-      await _openRelays(relays ?? current.relays);
-      if (_disposed) return;
-      if (relayError == null) {
-        _relaysReplacedAt = DateTime.now();
-        _retrySeconds = 2;
-      } else {
-        _relaysReplacedAt = null;
-        _retrySoon();
-      }
-    }
+    await _openRelays(relays ?? current.relays);
     if (_disposed || !book.ready) return;
     await book.refreshTrades();
   }
@@ -202,11 +149,10 @@ class TwineSession extends ChangeNotifier {
     relayError = null;
     if (!alreadyLinked) _notify();
     try {
-      final open = await nostr.connect(relays);
+      final open = alreadyLinked
+          ? await nostr.resync()
+          : await nostr.connect(relays);
       if (_disposed) return;
-      nostr.watchReplies();
-      nostr.watchFiberNode();
-      nostr.watchOrders();
       _fiberSub = nostr.fiberNodes.listen((announcement) {
         if (_disposed) return;
         fiberNode = announcement.pubkey;
@@ -216,13 +162,24 @@ class TwineSession extends ChangeNotifier {
             : null;
         _notify();
       });
-      this.relays = open;
-      relayError = null;
+      if (open.isNotEmpty) {
+        this.relays = open;
+        relayError = null;
+      } else if (!alreadyLinked) {
+        this.relays = const [];
+        relayError = 'no nostr relay connected';
+      }
       connecting = false;
+      if (!alreadyLinked) {
+        market?.rewatchChat();
+        unawaited(PushService.attach(nostr));
+      }
       _notify();
     } catch (error) {
       if (_disposed) return;
-      this.relays = const [];
+      if (!alreadyLinked) {
+        this.relays = const [];
+      }
       relayError = error is TwineRelayException
           ? error.message
           : 'no nostr relay connected';
@@ -231,36 +188,13 @@ class TwineSession extends ChangeNotifier {
     }
   }
 
-  void _armCatchUp() {
-    _catchUpTimer ??= Timer.periodic(_catchUpEvery, (_) {
-      unawaited(catchUp());
-    });
-  }
-
-  void _retrySoon() {
-    _retryTimer?.cancel();
-    final wait = Duration(seconds: _retrySeconds);
-    _retrySeconds = (_retrySeconds * 2).clamp(2, 10).toInt();
-    _retryTimer = Timer(wait, () {
-      _retryTimer = null;
-      unawaited(catchUp(force: true));
-    });
-  }
-
-  void _stopCatchUp() {
-    _catchUpTimer?.cancel();
-    _catchUpTimer = null;
-    _retryTimer?.cancel();
-    _retryTimer = null;
-  }
-
   Future<void> create() async {
     if (busy) return;
     busy = true;
     error = null;
     _notify();
     try {
-      final created = TwineAccount.generate(nostr.nostr);
+      final created = TwineAccount.generate();
       await store.write(created);
       await store.setBackupConfirmed(false);
       if (_disposed) return;
@@ -286,7 +220,7 @@ class TwineSession extends ChangeNotifier {
       _notify();
       return;
     }
-    final parsed = TwineAccount.tryParse(nostr.nostr, secret);
+    final parsed = TwineAccount.tryParse(secret);
     if (parsed == null) {
       error = _invalidKey;
       _notify();
@@ -324,7 +258,7 @@ class TwineSession extends ChangeNotifier {
       _notify();
       return;
     }
-    final parsedKey = TwineDaemon.parsePublicKey(nostr.nostr, pubkey);
+    final parsedKey = TwineDaemon.parsePublicKey(pubkey);
     if (parsedKey == null) {
       daemonError = _daemonPubkey;
       _notify();
@@ -338,7 +272,7 @@ class TwineSession extends ChangeNotifier {
     }
     final parsed = TwineDaemon(
       publicKey: parsedKey,
-      npub: nostr.nostr.bech32.encodePublicKeyToNpub(parsedKey),
+      npub: TwineKeys.encodeNpub(parsedKey),
       relays: parsedRelays,
     );
     busy = true;
@@ -409,6 +343,9 @@ class TwineSession extends ChangeNotifier {
 
   Future<void> logOut() async {
     try {
+      await PushService.detach(nostr);
+    } catch (_) {}
+    try {
       await store.clear();
     } catch (_) {
       if (_disposed) return;
@@ -419,10 +356,10 @@ class TwineSession extends ChangeNotifier {
     if (_disposed) return;
     nostr.account = null;
     nostr.stopWatching();
-    _stopCatchUp();
     await _fiberSub?.cancel();
     _fiberSub = null;
     account = null;
+    relays = const [];
     viewingAccount = false;
     fiberNode = null;
     fiberAddresses = const [];
@@ -469,8 +406,6 @@ class TwineSession extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    nostr.onRelayDropped = null;
-    _stopCatchUp();
     market?.stop();
     _fiberSub?.cancel();
     super.dispose();

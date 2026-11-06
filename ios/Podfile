@@ -40,6 +40,9 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      # Xcode 27 lipo -verify_arch takes one arch. Flutter still passes
+      # "arm64 x86_64" for the simulator. Apple Silicon only needs arm64.
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'i386 x86_64'
     end
   end
 end

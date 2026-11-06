@@ -1,4 +1,4 @@
-package com.example.twine
+package com.twine.app
 
 import io.flutter.embedding.android.FlutterActivity
 

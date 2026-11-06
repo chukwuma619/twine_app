@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:twine_app/nostr/twine_nostr.dart';
+import 'package:twine_app/session/push_service.dart';
+import 'package:twine_app/session/push_wake.dart';
 import 'package:twine_app/session/twine_app.dart';
+import 'package:twine_app/src/rust/frb_generated.dart';
 import 'package:twine_app/store/account_store.dart';
 import 'package:twine_app/store/book_store.dart';
 import 'package:twine_app/store/daemon_store.dart';
@@ -8,11 +11,14 @@ import 'package:twine_app/ui/twine_tokens.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final nostr = TwineNostr();
+  await RustLib.init();
+  pushWake.bind();
+  final nostr = TwineNostr.native();
+  await PushService.start(nostr);
   await startTwine(
     nostr: nostr,
-    store: SecureAccountStore(nostr.nostr),
-    daemonStore: SecureDaemonStore(nostr.nostr),
+    store: SecureAccountStore(),
+    daemonStore: SecureDaemonStore(),
     bookStore: SecureBookStore(),
   );
 }

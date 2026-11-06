@@ -1,4 +1,3 @@
-import 'package:dart_nostr/dart_nostr.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
@@ -7,11 +6,9 @@ import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/store/account_store.dart';
 
 void main() {
-  final nostr = Nostr();
-
   test('a generated key imports back to the same account', () {
-    final created = TwineAccount.generate(nostr);
-    final imported = TwineAccount.tryParse(nostr, created.nsec);
+    final created = TwineAccount.generate();
+    final imported = TwineAccount.tryParse(created.nsec);
 
     expect(imported, isNotNull);
     expect(imported!.publicKey, created.publicKey);
@@ -19,21 +16,18 @@ void main() {
   });
 
   test('hex secrets import', () {
-    final created = TwineAccount.generate(nostr);
-    final imported = TwineAccount.tryParse(
-      nostr,
-      created.privateKey.toUpperCase(),
-    );
+    final created = TwineAccount.generate();
+    final imported = TwineAccount.tryParse(created.privateKey.toUpperCase());
 
     expect(imported?.publicKey, created.publicKey);
   });
 
   test('rejects a value that is not a key', () {
-    expect(TwineAccount.tryParse(nostr, 'not-a-key'), isNull);
-    expect(TwineAccount.tryParse(nostr, ''), isNull);
-    expect(TwineAccount.tryParse(nostr, 'nsec1notakey'), isNull);
-    expect(TwineAccount.tryParse(nostr, '0' * 64), isNull);
-    expect(TwineAccount.tryParse(nostr, 'f' * 64), isNull);
+    expect(TwineAccount.tryParse('not-a-key'), isNull);
+    expect(TwineAccount.tryParse(''), isNull);
+    expect(TwineAccount.tryParse('nsec1notakey'), isNull);
+    expect(TwineAccount.tryParse('0' * 64), isNull);
+    expect(TwineAccount.tryParse('f' * 64), isNull);
   });
 
   test('secure store restores the key and drops a corrupt one', () async {
@@ -41,11 +35,8 @@ void main() {
     FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(
       data,
     );
-    final store = SecureAccountStore(
-      nostr,
-      storage: const FlutterSecureStorage(),
-    );
-    final account = TwineAccount.generate(nostr);
+    final store = SecureAccountStore(storage: const FlutterSecureStorage());
+    final account = TwineAccount.generate();
 
     await store.write(account);
     expect((await store.read())?.publicKey, account.publicKey);
@@ -60,19 +51,13 @@ void main() {
     FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(
       data,
     );
-    final store = SecureAccountStore(
-      nostr,
-      storage: const FlutterSecureStorage(),
-    );
-    final account = TwineAccount.generate(nostr);
+    final store = SecureAccountStore(storage: const FlutterSecureStorage());
+    final account = TwineAccount.generate();
     await store.write(account);
     expect(await store.backupConfirmed(), isTrue);
 
     await store.setBackupConfirmed(false);
-    final again = SecureAccountStore(
-      nostr,
-      storage: const FlutterSecureStorage(),
-    );
+    final again = SecureAccountStore(storage: const FlutterSecureStorage());
     expect(await again.backupConfirmed(), isFalse);
     await again.setBackupConfirmed(true);
     expect(await again.backupConfirmed(), isTrue);
@@ -85,17 +70,11 @@ void main() {
       FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(
         data,
       );
-      final store = SecureAccountStore(
-        nostr,
-        storage: const FlutterSecureStorage(),
-      );
+      final store = SecureAccountStore(storage: const FlutterSecureStorage());
       expect(await store.fiberGuideSeen(), isFalse);
 
       await store.setFiberGuideSeen(true);
-      final again = SecureAccountStore(
-        nostr,
-        storage: const FlutterSecureStorage(),
-      );
+      final again = SecureAccountStore(storage: const FlutterSecureStorage());
       expect(await again.fiberGuideSeen(), isTrue);
 
       await again.clear();
@@ -104,8 +83,8 @@ void main() {
   );
 
   test('accepts an uppercase nsec', () {
-    final created = TwineAccount.generate(nostr);
-    final imported = TwineAccount.tryParse(nostr, created.nsec.toUpperCase());
+    final created = TwineAccount.generate();
+    final imported = TwineAccount.tryParse(created.nsec.toUpperCase());
 
     expect(imported?.publicKey, created.publicKey);
   });

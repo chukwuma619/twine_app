@@ -1,33 +1,13 @@
 import 'dart:async';
 
-import 'package:dart_nostr/dart_nostr.dart';
-import 'package:dart_nostr/nostr/instance/relays/relays.dart';
-import 'package:dart_nostr/nostr/model/debug_options.dart';
-
-import '../constant.dart';
 import 'account.dart';
-import 'action.dart';
+import 'chat.dart';
 import 'daemon.dart';
 import 'envelope.dart';
 import 'fiber_node.dart';
 import 'order.dart';
-import 'relay_transport.dart';
+import 'relay_backend.dart';
 import 'reply.dart';
-
-/// A resume always dials. A probe that got an answer keeps the socket.
-/// One miss dials again once the last successful dial has had time to answer.
-///
-/// Whether the socket object still looks open is not an input. A phone keeps
-/// `closeCode` null after the OS has already dropped the connection.
-bool shouldReplaceRelay({
-  required bool force,
-  required bool probeAnswered,
-  required bool cooledDown,
-}) {
-  if (force) return true;
-  if (probeAnswered) return false;
-  return cooledDown;
-}
 
 class TwineRelayException implements Exception {
   TwineRelayException(this.message);
@@ -39,138 +19,55 @@ class TwineRelayException implements Exception {
 }
 
 class TwineNostr {
-  factory TwineNostr({Nostr? nostr}) {
-    if (nostr != null) {
-      nostr.disableLogs();
-      return TwineNostr._(nostr, null);
-    }
-    final owned = _ownClient();
-    owned.nostr.disableLogs();
-    return TwineNostr._(owned.nostr, owned.transport);
+  factory TwineNostr({TwineRelayBackend? backend}) {
+    return TwineNostr._(backend ?? FakeRelayBackend());
   }
 
-  TwineNostr._(this.nostr, this._transport) {
+  factory TwineNostr.native() => TwineNostr._(FrbRelayBackend());
+
+  TwineNostr._(this._backend) {
     current = this;
-    _transport?.onClosed = _noteSocketClosed;
+    _repliesSub = _backend.replies.listen(_replies.add, onError: (_) {});
+    _ordersSub = _backend.orders.listen(_orders.add, onError: (_) {});
+    _fiberSub = _backend.fiberNodes.listen(_fiberNodes.add, onError: (_) {});
+    _chatsSub = _backend.chats.listen(_chats.add, onError: (_) {});
   }
 
   static TwineNostr? current;
 
-  static ({Nostr nostr, OwnedRelayTransport transport}) _ownClient() {
-    final logger = NostrLogger(
-      passedDebugOptions: NostrDebugOptions.general(),
-    );
-    logger.disableLogs();
-    final relays = NostrRelays(logger: logger);
-    final transport = OwnedRelayTransport(relays);
-    final nostr = Nostr(
-      services: NostrServices(
-        logger: logger,
-        relays: relays,
-        relayTransport: transport,
-        clientOptions: const NostrClientOptions(
-          connectionTimeout: Duration(seconds: 15),
-        ),
-      ),
-    );
-    return (nostr: nostr, transport: transport);
-  }
-
-  final Nostr nostr;
-
-  final OwnedRelayTransport? _transport;
-
-  /// Fires when a socket opened by the current dial closes on its own.
-  void Function()? onRelayDropped;
-
-  int _epoch = 0;
-  bool _dialing = false;
-  bool _droppedWhileDialing = false;
-  Future<void>? _dialingDone;
-
-  /// Ignore a close from the dial we just replaced, and from the dial that
-  /// is still opening. A close of the socket we just opened redials once.
-  void _noteSocketClosed(int born) {
-    if (born != _epoch) return;
-    if (_dialing) {
-      _droppedWhileDialing = true;
-      return;
-    }
-    onRelayDropped?.call();
-  }
-
+  final TwineRelayBackend _backend;
   TwineAccount? account;
-
   TwineDaemon? daemon;
+  void Function()? onRelayDropped;
+  void Function()? onSocketsReplaced;
 
   final _replies = StreamController<DaemonReplyEvent>.broadcast();
-  StreamSubscription<NostrEvent>? _replySub;
-  NostrEventsStream? _replyStream;
   final _orders = StreamController<TwineOrder>.broadcast();
-  StreamSubscription<NostrEvent>? _orderSub;
-  NostrEventsStream? _orderStream;
   final _fiberNodes = StreamController<FiberAnnouncement>.broadcast();
-  void Function()? onSocketsReplaced;
-  StreamSubscription<NostrEvent>? _fiberSub;
-  NostrEventsStream? _fiberStream;
-  final _chats = StreamController<NostrEvent>.broadcast();
-  StreamSubscription<NostrEvent>? _chatSub;
-  NostrEventsStream? _chatStream;
-  String? _chatAccount;
-  List<String> _chatAuthors = const [];
-  List<String> _chatTrades = const [];
-  Timer? _relayWatch;
-  String _openSockets = '';
-
-  /// How long a one-shot reload waits for a relay to finish.
-  static const _fetchTimeout = Duration(seconds: 5);
-
-  /// How long to wait when closing a socket that may already be dead.
-  static const _closeBudget = Duration(seconds: 2);
+  final _chats = StreamController<ChatEvent>.broadcast();
+  StreamSubscription<DaemonReplyEvent>? _repliesSub;
+  StreamSubscription<TwineOrder>? _ordersSub;
+  StreamSubscription<FiberAnnouncement>? _fiberSub;
+  StreamSubscription<ChatEvent>? _chatsSub;
 
   Stream<DaemonReplyEvent> get replies => _replies.stream;
-
   Stream<TwineOrder> get orders => _orders.stream;
-
   Stream<FiberAnnouncement> get fiberNodes => _fiberNodes.stream;
-
-  Stream<NostrEvent> get chats => _chats.stream;
-
-  NostrEvent seal(TwineEnvelope envelope) {
-    final signer = account;
-    final target = daemon;
-    if (signer == null || target == null) {
-      throw StateError('sign in and choose a daemon first');
-    }
-    return sealAction(
-      sender: signer,
-      recipientPublicKey: target.publicKey,
-      envelope: envelope,
-    );
-  }
-
-  TwineEnvelope? open(NostrEvent event) {
-    final signer = account;
-    final target = daemon;
-    if (signer == null || target == null) return null;
-    return openReply(
-      recipient: signer,
-      senderPublicKey: target.publicKey,
-      event: event,
-    );
-  }
+  Stream<ChatEvent> get chats => _chats.stream;
 
   Future<void> send(TwineEnvelope envelope) async {
-    await publish(seal(envelope));
+    await _backend.sendAction(envelope.encode());
   }
 
-  Future<void> publish(NostrEvent event) async {
-    final dial = _dialingDone;
-    if (dial != null) await dial;
-    final result = await nostr.publish(event);
-    if (result.isFailure) {
-      throw TwineRelayException(result.failureOrNull!.message);
-    }
+  Future<ChatEvent> sendChat({
+    required String peer,
+    required ChatBody body,
+  }) {
+    return _backend.sendChat(peerHex: peer, bodyJson: body.encode());
+  }
+
+  Future<String?> conversationKey(String peerHex) {
+    return _backend.conversationKey(peerHex);
   }
 
   void watchTradeChat({
@@ -178,356 +75,65 @@ class TwineNostr {
     required List<String> authors,
     required List<String> tradeIds,
   }) {
-    _chatAccount = accountPubkey;
-    _chatAuthors = [...authors]..sort();
-    _chatTrades = [...tradeIds]..sort();
-    _subscribeChat();
+    _backend.watchTradeChat(
+      accountPubkey: accountPubkey,
+      authors: authors,
+      tradeIds: tradeIds,
+    );
   }
 
-  void watchReplies() {
-    _replySub?.cancel();
-    _replySub = null;
-    _replyStream?.close();
-    _replyStream = null;
+  void watchReplies() {}
+
+  void watchOrders() {}
+
+  void watchFiberNode() {}
+
+  void stopWatching() {
+    _backend.watchTradeChat(
+      accountPubkey: '',
+      authors: const [],
+      tradeIds: const [],
+    );
+  }
+
+  Future<bool> reconcile() async {
+    try {
+      await resync();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<String>> connect(List<String> relays) {
     final signer = account;
     final target = daemon;
     if (signer == null || target == null) {
       throw StateError('sign in and choose a daemon first');
     }
-    final result = nostr.subscribe(
-      NostrFilter(
-        kinds: const [kindAction],
-        authors: [target.publicKey],
-        p: [signer.publicKey],
-      ),
+    return _backend.connect(
+      nsec: signer.nsec,
+      daemonHex: target.publicKey,
+      relays: relays,
     );
-    if (result.isFailure) {
-      throw TwineRelayException(result.failureOrNull!.message);
-    }
-    final events = result.valueOrNull!;
-    _replyStream = events;
-    _replySub = events.stream.listen((event) {
-      final envelope = openReply(
-        recipient: signer,
-        senderPublicKey: target.publicKey,
-        event: event,
-      );
-      final createdAt = event.createdAt;
-      if (envelope != null && createdAt != null && !_replies.isClosed) {
-        _replies.add(
-          DaemonReplyEvent(envelope: envelope, createdAt: createdAt),
-        );
-      }
-    }, onError: (_) {});
   }
 
-  void watchOrders() {
-    _stopOrders();
-    final target = daemon;
-    if (target == null) {
-      throw StateError('choose a daemon first');
-    }
-    final result = nostr.subscribe(
-      NostrFilter(kinds: const [kindOrder], authors: [target.publicKey]),
-    );
-    if (result.isFailure) {
-      throw TwineRelayException(result.failureOrNull!.message);
-    }
-    final events = result.valueOrNull!;
-    _orderStream = events;
-    _orderSub = events.stream.listen((event) {
-      final order = TwineOrder.open(
-        daemonPublicKey: target.publicKey,
-        event: event,
-      );
-      if (order != null && !_orders.isClosed) _orders.add(order);
-    }, onError: (_) {});
+  Future<List<String>> resync() {
+    return _backend.resync();
   }
 
-  /// Reloads stored orders and replies on their own subscriptions.
-  ///
-  /// The live subscriptions stay open. Reusing their ids would CLOSE them,
-  /// and a phone that does that while a relay is quiet loses every later
-  /// update until the app is opened again. Returns whether a relay answered.
-  Future<bool> reconcile() async {
-    final signer = account;
-    final target = daemon;
-    if (signer == null || target == null) return false;
-    if (nostr.relays.relaysWebSocketsRegistry.isEmpty) return false;
-    final chatAccount = _chatAccount;
-    final chatAuthors = _chatAuthors;
-    final chatTrades = _chatTrades;
-    final results = await Future.wait<bool>([
-      _fetchInto(
-        NostrFilter(kinds: const [kindOrder], authors: [target.publicKey]),
-        (event) {
-          final order = TwineOrder.open(
-            daemonPublicKey: target.publicKey,
-            event: event,
-          );
-          if (order != null && !_orders.isClosed) _orders.add(order);
-        },
-      ),
-      _fetchInto(
-        NostrFilter(
-          kinds: const [kindAction],
-          authors: [target.publicKey],
-          p: [signer.publicKey],
-        ),
-        (event) {
-          final envelope = openReply(
-            recipient: signer,
-            senderPublicKey: target.publicKey,
-            event: event,
-          );
-          final createdAt = event.createdAt;
-          if (envelope != null && createdAt != null && !_replies.isClosed) {
-            _replies.add(
-              DaemonReplyEvent(envelope: envelope, createdAt: createdAt),
-            );
-          }
-        },
-      ),
-      _fetchInto(
-        NostrFilter(
-          kinds: const [kindFiberNode],
-          authors: [target.publicKey],
-          additionalFilters: const {
-            '#d': [fiberNodeTag],
-          },
-        ),
-        (event) {
-          final announcement = openFiberAnnouncement(
-            daemonPublicKey: target.publicKey,
-            event: event,
-          );
-          if (announcement != null && !_fiberNodes.isClosed) {
-            _fiberNodes.add(announcement);
-          }
-        },
-      ),
-      if (chatAccount != null &&
-          chatAuthors.isNotEmpty &&
-          chatTrades.isNotEmpty)
-        _fetchInto(
-          NostrFilter(
-            kinds: const [kindChat],
-            authors: chatAuthors,
-            p: [chatAccount],
-            additionalFilters: {'#t': chatTrades},
-          ),
-          (event) {
-            if (!_chats.isClosed) _chats.add(event);
-          },
-        ),
-    ]);
-    return results.any((answered) => answered);
+  Future<void> setPushToken({required String url, required String token}) {
+    return _backend.setPushToken(url: url, token: token);
   }
 
-  /// A short-lived REQ with its own id. Closing it does not touch the live
-  /// subscription. Completes true when a relay sends EOSE.
-  Future<bool> _fetchInto(
-    NostrFilter filter,
-    void Function(NostrEvent event) onEvent,
-  ) async {
-    final relayCount = nostr.relays.relaysWebSocketsRegistry.length;
-    if (relayCount == 0) return false;
-    final done = Completer<void>();
-    var eoseCount = 0;
-    final events = nostr.relays.startEventsSubscription(
-      request: NostrRequest(filters: [filter]),
-      onEose: (_, _) {
-        eoseCount++;
-        if (eoseCount >= 1 && !done.isCompleted) done.complete();
-      },
-    );
-    final sub = events.stream.listen(onEvent, onError: (_) {});
-    var answered = false;
-    try {
-      await done.future.timeout(_fetchTimeout);
-      answered = true;
-    } on TimeoutException {
-      answered = false;
-    } finally {
-      await sub.cancel();
-      events.close();
-    }
-    return answered;
-  }
-
-  void watchFiberNode() {
-    _stopFiber();
-    final target = daemon;
-    if (target == null) {
-      throw StateError('choose a daemon first');
-    }
-    final result = nostr.subscribe(
-      NostrFilter(
-        kinds: const [kindFiberNode],
-        authors: [target.publicKey],
-        additionalFilters: const {
-          '#d': [fiberNodeTag],
-        },
-      ),
-    );
-    if (result.isFailure) {
-      throw TwineRelayException(result.failureOrNull!.message);
-    }
-    final events = result.valueOrNull!;
-    _fiberStream = events;
-    _fiberSub = events.stream.listen((event) {
-      final announcement = openFiberAnnouncement(
-        daemonPublicKey: target.publicKey,
-        event: event,
-      );
-      if (announcement != null && !_fiberNodes.isClosed) {
-        _fiberNodes.add(announcement);
-      }
-    }, onError: (_) {});
-  }
-
-  void stopWatching() {
-    _relayWatch?.cancel();
-    _relayWatch = null;
-    _openSockets = '';
-    _replySub?.cancel();
-    _replySub = null;
-    _replyStream?.close();
-    _replyStream = null;
-    _stopOrders();
-    _stopFiber();
-    _stopChat();
-  }
-
-  void _stopOrders() {
-    _orderSub?.cancel();
-    _orderSub = null;
-    _orderStream?.close();
-    _orderStream = null;
-  }
-
-  void _stopFiber() {
+  void dispose() {
+    _repliesSub?.cancel();
+    _ordersSub?.cancel();
     _fiberSub?.cancel();
-    _fiberSub = null;
-    _fiberStream?.close();
-    _fiberStream = null;
-  }
-
-  void _stopChat() {
-    _chatSub?.cancel();
-    _chatSub = null;
-    _chatStream?.close();
-    _chatStream = null;
-  }
-
-  void _subscribeChat() {
-    _stopChat();
-    final account = _chatAccount;
-    if (account == null || _chatAuthors.isEmpty || _chatTrades.isEmpty) return;
-    final result = nostr.subscribe(
-      NostrFilter(
-        kinds: const [kindChat],
-        authors: _chatAuthors,
-        p: [account],
-        additionalFilters: {'#t': _chatTrades},
-      ),
-    );
-    if (result.isFailure) return;
-    final events = result.valueOrNull!;
-    _chatStream = events;
-    _chatSub = events.stream.listen((event) {
-      if (!_chats.isClosed) _chats.add(event);
-    }, onError: (_) {});
-  }
-
-  Future<List<String>> connect(List<String> relays) {
-    final run = _dial(relays);
-    _dialingDone = run;
-    return run.whenComplete(() {
-      if (identical(_dialingDone, run)) _dialingDone = null;
-    });
-  }
-
-  Future<List<String>> _dial(List<String> relays) async {
-    _epoch++;
-    _transport?.epoch = _epoch;
-    _droppedWhileDialing = false;
-    _dialing = true;
-    try {
-      stopWatching();
-      // Tests inject a client whose transport still retries on close.
-      // Drop those sockets here. The owned transport drops them itself.
-      if (_transport == null) _releaseSockets();
-      final NostrResult<void> result;
-      try {
-        result = await nostr
-            .connect(relays)
-            .timeout(const Duration(seconds: 20));
-      } on TimeoutException {
-        throw TwineRelayException('no nostr relay connected');
-      }
-      if (result.isFailure) {
-        throw TwineRelayException(result.failureOrNull!.message);
-      }
-
-      final open = nostr.relays.relaysWebSocketsRegistry.keys.toList()..sort();
-      if (open.isEmpty) {
-        throw TwineRelayException('no nostr relay connected');
-      }
-      _armRelayWatch();
-      _subscribeChat();
-      return open;
-    } finally {
-      _dialing = false;
-      if (_droppedWhileDialing) {
-        _droppedWhileDialing = false;
-        onRelayDropped?.call();
-      }
-    }
-  }
-
-  /// Asks again when a relay socket is replaced. A reconnect does not replay
-  /// the previous subscription, so a public order published into that gap
-  /// would never reach the book.
-  void _armRelayWatch() {
-    _relayWatch?.cancel();
-    _openSockets = _socketKey();
-    _relayWatch = Timer.periodic(const Duration(seconds: 1), (_) {
-      final next = _socketKey();
-      if (next == _openSockets) return;
-      _openSockets = next;
-      if (next.isEmpty || account == null || daemon == null) return;
-      try {
-        watchReplies();
-        watchFiberNode();
-        watchOrders();
-        _subscribeChat();
-        onSocketsReplaced?.call();
-      } catch (_) {}
-    });
-  }
-
-  void _releaseSockets() {
-    final registry = nostr.relays.relaysWebSocketsRegistry;
-    final sockets = registry.values.toList();
-    registry.clear();
-    for (final socket in sockets) {
-      unawaited(
-        Future<void>(() async {
-          try {
-            await socket.sink.close().timeout(_closeBudget);
-          } catch (_) {}
-        }),
-      );
-    }
-  }
-
-  String _socketKey() {
-    final entries = nostr.relays.relaysWebSocketsRegistry.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    return [
-      for (final entry in entries)
-        '${entry.key}@${identityHashCode(entry.value)}',
-    ].join(' ');
+    _chatsSub?.cancel();
+    unawaited(_replies.close());
+    unawaited(_orders.close());
+    unawaited(_fiberNodes.close());
+    unawaited(_chats.close());
   }
 }

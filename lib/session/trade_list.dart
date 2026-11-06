@@ -9,6 +9,7 @@ import '../market/phase.dart';
 import '../market/role.dart';
 import '../market/steps.dart';
 import '../market/trade.dart';
+import '../nostr/keys.dart';
 import '../nostr/order.dart';
 import '../ui/twine_tokens.dart';
 import 'market.dart';
@@ -661,7 +662,7 @@ String? _peer(TwineTrade trade, TwineMarket market) {
   var display = peer.trim();
   if (RegExp(r'^[0-9a-f]{64}$').hasMatch(clean)) {
     try {
-      display = market.nostr.nostr.bech32.encodePublicKeyToNpub(clean);
+      display = TwineKeys.encodeNpub(clean);
     } catch (_) {}
   }
   return 'With ${_shortKey(display)}';

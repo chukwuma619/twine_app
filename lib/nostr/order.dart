@@ -1,10 +1,5 @@
 import 'dart:convert';
 
-import 'package:dart_nostr/dart_nostr.dart';
-
-import '../constant.dart';
-import 'verify.dart';
-
 enum PostStatus {
   open,
   canceled;
@@ -88,25 +83,19 @@ class TwineOrder {
     return value > 0;
   }
 
-  static TwineOrder? open({
-    required String daemonPublicKey,
-    required NostrEvent event,
+  /// Parses a daemon-signed order after Rust has already checked the event.
+  static TwineOrder? fromVerified({
+    required String content,
+    required String identifier,
+    required DateTime updatedAt,
   }) {
-    if (event.kind != kindOrder) return null;
-    if (!signedBy(event, daemonPublicKey)) return null;
-    final createdAt = event.createdAt;
-    final content = event.content;
-    if (createdAt == null || content == null) return null;
-    final identifier = _identifier(event.tags);
-    if (identifier == null) return null;
-
     final Object? decoded;
     try {
       decoded = jsonDecode(content);
     } catch (_) {
       return null;
     }
-    final order = tryParse(decoded, updatedAt: createdAt);
+    final order = tryParse(decoded, updatedAt: updatedAt);
     if (order == null || order.orderId != identifier) return null;
     return order;
   }
@@ -201,10 +190,3 @@ int? _hours(Object? value) {
   return null;
 }
 
-String? _identifier(List<List<String>>? tags) {
-  if (tags == null) return null;
-  for (final tag in tags) {
-    if (tag.length >= 2 && tag[0] == 'd' && tag[1].isNotEmpty) return tag[1];
-  }
-  return null;
-}

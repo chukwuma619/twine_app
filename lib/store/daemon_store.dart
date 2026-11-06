@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:dart_nostr/dart_nostr.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../nostr/daemon.dart';
@@ -32,12 +31,11 @@ class MemoryDaemonStore implements DaemonStore {
 }
 
 class SecureDaemonStore implements DaemonStore {
-  SecureDaemonStore(this._nostr, {FlutterSecureStorage? storage})
+  SecureDaemonStore({FlutterSecureStorage? storage})
     : _storage = storage ?? twineSecureStorage();
 
   static const _daemonKey = 'twine_daemon';
 
-  final Nostr _nostr;
   final FlutterSecureStorage _storage;
 
   @override
@@ -69,7 +67,6 @@ class SecureDaemonStore implements DaemonStore {
       final relays = decoded['relays'];
       if (pubkey is! String || relays is! List) return null;
       return TwineDaemon.tryParse(
-        _nostr,
         pubkey: pubkey,
         relays: relays.whereType<String>().join(','),
       );

@@ -39,8 +39,19 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
+# Rust / flutter_rust_bridge
+/rust/target/
+
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
 /android/app/release
 /branding
+
+# Firebase / FCM (local project files, never commit)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
+*service-account*.json
+
+twine-fcm.json

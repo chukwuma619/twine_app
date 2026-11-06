@@ -1,22 +1,14 @@
 import 'dart:convert';
 
-import 'package:dart_nostr/dart_nostr.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:twine_app/constant.dart';
-import 'package:twine_app/nostr/account.dart';
 import 'package:twine_app/nostr/order.dart';
 
 void main() {
-  final nostr = Nostr();
-
-  test('a public order opens only for the daemon that signed it', () {
-    final daemon = TwineAccount.generate(nostr);
-    final stranger = TwineAccount.generate(nostr);
-    final event = _orderEvent(daemon, 'order-1');
-
-    final order = TwineOrder.open(
-      daemonPublicKey: daemon.publicKey,
-      event: event,
+  test('a public order opens when the id matches', () {
+    final order = TwineOrder.fromVerified(
+      content: _body('order-1'),
+      identifier: 'order-1',
+      updatedAt: DateTime.utc(2026, 10, 6),
     );
     expect(order?.orderId, 'order-1');
     expect(order?.availableCkb, '10');
@@ -25,74 +17,64 @@ void main() {
     expect(order?.status, PostStatus.open);
     expect(order?.reservedCkb, '1');
     expect(order?.updatedAt, DateTime.utc(2026, 10, 6));
-
-    expect(
-      TwineOrder.open(daemonPublicKey: stranger.publicKey, event: event),
-      isNull,
-    );
   });
 
   test('a canceled post stays canceled and an unknown status is dropped', () {
-    final daemon = TwineAccount.generate(nostr);
-    final canceled = _orderEvent(daemon, 'order-1', status: 'canceled');
     expect(
-      TwineOrder.open(
-        daemonPublicKey: daemon.publicKey,
-        event: canceled,
+      TwineOrder.fromVerified(
+        content: _body('order-1', status: 'canceled'),
+        identifier: 'order-1',
+        updatedAt: DateTime.utc(2026, 10, 6),
       )?.status,
       PostStatus.canceled,
     );
-
-    final unknown = _orderEvent(daemon, 'order-1', status: 'filled');
     expect(
-      TwineOrder.open(daemonPublicKey: daemon.publicKey, event: unknown),
+      TwineOrder.fromVerified(
+        content: _body('order-1', status: 'filled'),
+        identifier: 'order-1',
+        updatedAt: DateTime.utc(2026, 10, 6),
+      ),
       isNull,
     );
   });
 
   test('a public order with the wrong id tag is dropped', () {
-    final daemon = TwineAccount.generate(nostr);
-    final event = _orderEvent(daemon, 'order-1', tag: 'other');
     expect(
-      TwineOrder.open(daemonPublicKey: daemon.publicKey, event: event),
+      TwineOrder.fromVerified(
+        content: _body('order-1'),
+        identifier: 'other',
+        updatedAt: DateTime.utc(2026, 10, 6),
+      ),
       isNull,
     );
-
-    final buy = _orderEvent(daemon, 'order-1', side: 'buy');
     expect(
-      TwineOrder.open(daemonPublicKey: daemon.publicKey, event: buy),
+      TwineOrder.fromVerified(
+        content: _body('order-1', side: 'buy'),
+        identifier: 'order-1',
+        updatedAt: DateTime.utc(2026, 10, 6),
+      ),
       isNull,
     );
   });
 }
 
-NostrEvent _orderEvent(
-  TwineAccount daemon,
+String _body(
   String orderId, {
-  String? tag,
   String? status,
   String side = 'sell',
 }) {
-  return NostrEvent.fromPartialData(
-    kind: kindOrder,
-    content: jsonEncode({
-      'order_id': orderId,
-      'status': ?status,
-      'side': side,
-      'maker_nostr_pubkey': 'maker',
-      'maker_fiber_pubkey': 'fiber',
-      'available_ckb': '10',
-      'fiat_currency': 'NGN',
-      'price_per_ckb': '1500',
-      'min': '1000',
-      'max': '5000',
-      'hold_hours': 36,
-      'reserved_ckb': '1',
-    }),
-    keyPairs: NostrKeyPairs(private: daemon.privateKey),
-    tags: [
-      ['d', tag ?? orderId],
-    ],
-    createdAt: DateTime.utc(2026, 10, 6),
-  );
+  return jsonEncode({
+    'order_id': orderId,
+    'status': ?status,
+    'side': side,
+    'maker_nostr_pubkey': 'maker',
+    'maker_fiber_pubkey': 'fiber',
+    'available_ckb': '10',
+    'fiat_currency': 'NGN',
+    'price_per_ckb': '1500',
+    'min': '1000',
+    'max': '5000',
+    'hold_hours': 36,
+    'reserved_ckb': '1',
+  });
 }

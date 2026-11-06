@@ -13,6 +13,8 @@ import 'backup_page.dart';
 import 'daemon_page.dart';
 import 'login_page.dart';
 import 'market_page.dart';
+import 'push_service.dart';
+import 'push_wake.dart';
 import 'resume_latch.dart';
 import 'session.dart';
 import 'signed_in_page.dart';
@@ -61,10 +63,14 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
       daemon: widget.initialDaemon,
       connectRelays: widget.connectRelays,
     );
+    PushService.onForegroundWake = () {
+      unawaited(_session.catchUp());
+    };
   }
 
   @override
   void dispose() {
+    PushService.onForegroundWake = null;
     _resumeTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _session.dispose();
@@ -79,17 +85,19 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
         _resumeTimer?.cancel();
         _resumeTimer = null;
         _session.sleep();
-        break;
+        _resume.observe(state);
+        return;
       case AppLifecycleState.resumed:
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         break;
     }
-    if (!_resume.observe(state)) return;
+    final woke = pushWake.consume();
+    if (!_resume.observe(state) && !woke) return;
     _resumeTimer?.cancel();
     _resumeTimer = Timer(resumeDebounce, () {
       _resumeTimer = null;
-      unawaited(_session.catchUp(force: true));
+      unawaited(_session.catchUp());
     });
   }
 
@@ -145,7 +153,7 @@ class _TwineAppState extends State<TwineApp> with WidgetsBindingObserver {
     }
     return MarketPage(
       market: market,
-      onRefresh: () => session.catchUp(force: true),
+      onRefresh: () => session.catchUp(),
       showFiberGuide: session.showFiberGuide,
       onFiberGuideDismissed: session.dismissFiberGuide,
       fiberNode: session.fiberNode,

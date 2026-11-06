@@ -47,6 +47,10 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Twine attaches a payment receipt from your photos.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

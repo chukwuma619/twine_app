@@ -744,83 +744,84 @@ void main() {
     expect(find.text('Canceled'), findsNothing);
   });
 
-  testWidgets('seller can reopen payment details and buyer can attach receipt in fiatSent', (
-    tester,
-  ) async {
-    final order = _order(maker: 'seller');
-    final sellerMarket = _market(
-      pubkey: 'seller',
-      orders: [order],
-      trades: [
-        TwineTrade(
-          id: 'trade-1',
-          orderId: order.orderId,
-          phase: TradePhase.waitingFiat,
-          updatedAt: DateTime.utc(2026, 10, 6),
-          fiatAmount: '2500',
-          fiatCurrency: 'NGN',
-          reference: 'trade-1',
-          sellerNostr: 'seller',
-          buyerNostr: 'buyer',
+  testWidgets(
+    'seller can reopen payment details and buyer can attach receipt in fiatSent',
+    (tester) async {
+      final order = _order(maker: 'seller');
+      final sellerMarket = _market(
+        pubkey: 'seller',
+        orders: [order],
+        trades: [
+          TwineTrade(
+            id: 'trade-1',
+            orderId: order.orderId,
+            phase: TradePhase.waitingFiat,
+            updatedAt: DateTime.utc(2026, 10, 6),
+            fiatAmount: '2500',
+            fiatCurrency: 'NGN',
+            reference: 'trade-1',
+            sellerNostr: 'seller',
+            buyerNostr: 'buyer',
+          ),
+        ],
+      );
+      sellerMarket.book.addNote(
+        TradeNote(
+          id: 'note-1',
+          tradeId: 'trade-1',
+          at: DateTime.utc(2026, 10, 6),
+          kind: TradeNoteKind.paymentDetails,
+          author: 'seller',
+          text: 'GTBank\n0123456789',
         ),
-      ],
-    );
-    sellerMarket.book.addNote(
-      TradeNote(
-        id: 'note-1',
-        tradeId: 'trade-1',
-        at: DateTime.utc(2026, 10, 6),
-        kind: TradeNoteKind.paymentDetails,
-        author: 'seller',
-        text: 'GTBank\n0123456789',
-      ),
-    );
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: TradePage(market: sellerMarket, tradeId: 'trade-1'),
-      ),
-    );
-
-    expect(find.text('Update payment details'), findsOneWidget);
-    await tester.tap(find.text('Update payment details'));
-    await tester.pump();
-    expect(_field('Payment details'), findsOneWidget);
-    expect(find.text('Keep current details'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Trade details'));
-    await tester.pumpAndSettle();
-    expect(find.text('Steps'), findsOneWidget);
-    expect(find.text('Fiat payment'), findsOneWidget);
-    Navigator.of(tester.element(find.text('Steps'))).pop();
-    await tester.pumpAndSettle();
-
-    final buyerMarket = _market(
-      pubkey: 'buyer',
-      orders: [order],
-      trades: [
-        TwineTrade(
-          id: 'trade-1',
-          orderId: order.orderId,
-          phase: TradePhase.fiatSent,
-          updatedAt: DateTime.utc(2026, 10, 6),
-          fiatAmount: '2500',
-          fiatCurrency: 'NGN',
-          reference: 'trade-1',
-          sellerNostr: 'seller',
-          buyerNostr: 'buyer',
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TradePage(market: sellerMarket, tradeId: 'trade-1'),
         ),
-      ],
-    );
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: TradePage(market: buyerMarket, tradeId: 'trade-1'),
-      ),
-    );
+      expect(find.text('Update payment details'), findsOneWidget);
+      await tester.tap(find.text('Update payment details'));
+      await tester.pump();
+      expect(_field('Payment details'), findsOneWidget);
+      expect(find.text('Keep current details'), findsOneWidget);
 
-    expect(find.byTooltip('Attach receipt'), findsOneWidget);
-  });
+      await tester.tap(find.byTooltip('Trade details'));
+      await tester.pumpAndSettle();
+      expect(find.text('Steps'), findsOneWidget);
+      expect(find.text('Fiat payment'), findsOneWidget);
+      Navigator.of(tester.element(find.text('Steps'))).pop();
+      await tester.pumpAndSettle();
+
+      final buyerMarket = _market(
+        pubkey: 'buyer',
+        orders: [order],
+        trades: [
+          TwineTrade(
+            id: 'trade-1',
+            orderId: order.orderId,
+            phase: TradePhase.fiatSent,
+            updatedAt: DateTime.utc(2026, 10, 6),
+            fiatAmount: '2500',
+            fiatCurrency: 'NGN',
+            reference: 'trade-1',
+            sellerNostr: 'seller',
+            buyerNostr: 'buyer',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TradePage(market: buyerMarket, tradeId: 'trade-1'),
+        ),
+      );
+
+      expect(find.byTooltip('Attach receipt'), findsOneWidget);
+    },
+  );
 }
 
 void _expectAbove(WidgetTester tester, String above, String below) {

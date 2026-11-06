@@ -1,10 +1,16 @@
-import 'package:dart_nostr/dart_nostr.dart';
+import 'keys.dart';
 
 /// The daemon a new install offers. A person can replace it before connecting.
 const officialDaemonNpub =
     'npub1r9wcxf7d2c0nchphcvmuwhl4hr64x43fmgws83gc27rhw29986vse3dsh6';
 
 const officialDaemonRelays = ['wss://relay.backr.site'];
+
+/// Doorbell host. Override with `--dart-define=TWINE_PUSH_URL=`.
+const officialPushUrl = String.fromEnvironment(
+  'TWINE_PUSH_URL',
+  defaultValue: 'https://push.backr.site',
+);
 
 /// The app only stores this daemon's public key and relays.
 class TwineDaemon {
@@ -22,42 +28,23 @@ class TwineDaemon {
   /// Websocket URLs from that daemon's `TWINE_RELAYS` list.
   final List<String> relays;
 
-  static TwineDaemon? tryParse(
-    Nostr nostr, {
+  static TwineDaemon? tryParse({
     required String pubkey,
     required String relays,
   }) {
-    final parsedKey = parsePublicKey(nostr, pubkey);
+    final parsedKey = parsePublicKey(pubkey);
     final parsedRelays = parseRelays(relays);
     if (parsedKey == null || parsedRelays == null) return null;
     return TwineDaemon(
       publicKey: parsedKey,
-      npub: nostr.bech32.encodePublicKeyToNpub(parsedKey),
+      npub: TwineKeys.encodeNpub(parsedKey),
       relays: parsedRelays,
     );
   }
 
   /// An `npub` or a 64-character hex public key. An `nsec` is rejected.
-  static String? parsePublicKey(Nostr nostr, String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return null;
-    final lower = trimmed.toLowerCase();
-    if (lower.startsWith('nsec1')) return null;
-
-    if (lower.startsWith('npub1')) {
-      try {
-        final decoded = nostr.bech32.decodeBech32(lower);
-        if (decoded.length < 2 || decoded[1] != 'npub') return null;
-        final hex = decoded[0].toLowerCase();
-        if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(hex)) return null;
-        return hex;
-      } catch (_) {
-        return null;
-      }
-    }
-
-    if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(lower)) return null;
-    return lower;
+  static String? parsePublicKey(String raw) {
+    return TwineKeys.parsePublicKey(raw);
   }
 
   /// Comma, space, or newline separated `ws://` and `wss://` URLs.

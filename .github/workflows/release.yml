@@ -273,11 +273,22 @@ jobs:
           } > android/key.properties
           echo "signing=release" >> "$GITHUB_OUTPUT"
       - name: Build Android
+        env:
+          ANDROID_GOOGLE_SERVICES_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
+          TWINE_PUSH_URL: ${{ secrets.TWINE_PUSH_URL }}
         run: |
           set -euo pipefail
+          if [ -n "${ANDROID_GOOGLE_SERVICES_JSON:-}" ]; then
+            printf '%s\n' "$ANDROID_GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          fi
+          defines=()
+          if [ -n "${TWINE_PUSH_URL:-}" ]; then
+            defines+=(--dart-define=TWINE_PUSH_URL="$TWINE_PUSH_URL")
+          fi
           flutter build apk --release \
             --build-name "${{ needs.version.outputs.name }}" \
-            --build-number "${{ needs.version.outputs.number }}"
+            --build-number "${{ needs.version.outputs.number }}" \
+            "${defines[@]}"
           cp build/app/outputs/flutter-apk/app-release.apk \
             "Twine-${{ needs.version.outputs.name }}-android.apk"
       - uses: actions/upload-artifact@v4

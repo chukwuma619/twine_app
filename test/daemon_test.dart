@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:dart_nostr/dart_nostr.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
@@ -11,12 +10,9 @@ import 'package:twine_app/nostr/twine_nostr.dart';
 import 'package:twine_app/store/daemon_store.dart';
 
 void main() {
-  final nostr = Nostr();
-
   test('accepts an npub and a relay list', () {
-    final source = TwineAccount.generate(nostr);
+    final source = TwineAccount.generate();
     final daemon = TwineDaemon.tryParse(
-      nostr,
       pubkey: source.npub.toUpperCase(),
       relays: 'WSS://Relay.Example.com, wss://relay.example.com',
     );
@@ -27,14 +23,20 @@ void main() {
   });
 
   test('rejects a daemon secret and a non-websocket relay', () {
-    final source = TwineAccount.generate(nostr);
-    expect(TwineDaemon.parsePublicKey(nostr, source.nsec), isNull);
+    final source = TwineAccount.generate();
+    expect(TwineDaemon.parsePublicKey(source.nsec), isNull);
     expect(TwineDaemon.parseRelays('https://example.com'), isNull);
     expect(TwineDaemon.parseRelays(''), isNull);
   });
 
   test('connect rejects a relay that is not a websocket', () {
     final client = TwineNostr();
+    client.account = TwineAccount.generate();
+    client.daemon = TwineDaemon(
+      publicKey: client.account!.publicKey,
+      npub: client.account!.npub,
+      relays: const ['wss://relay.example.com'],
+    );
     expect(
       () => client.connect(['https://example.com']),
       throwsA(isA<TwineRelayException>()),
@@ -46,13 +48,9 @@ void main() {
     FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(
       data,
     );
-    final store = SecureDaemonStore(
-      nostr,
-      storage: const FlutterSecureStorage(),
-    );
-    final source = TwineAccount.generate(nostr);
+    final store = SecureDaemonStore(storage: const FlutterSecureStorage());
+    final source = TwineAccount.generate();
     final daemon = TwineDaemon.tryParse(
-      nostr,
       pubkey: source.npub,
       relays: 'wss://relay.example.com',
     );

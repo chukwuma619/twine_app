@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:dart_nostr/dart_nostr.dart';
 import 'package:flutter/foundation.dart';
 
 import '../constant.dart';
@@ -11,7 +10,6 @@ import '../market/phase.dart';
 import '../market/role.dart';
 import '../nostr/chat.dart';
 import '../nostr/envelope.dart';
-import '../nostr/nip44.dart';
 import '../nostr/order.dart';
 import '../nostr/reply.dart';
 import '../nostr/request.dart';
@@ -45,7 +43,7 @@ class TwineMarket extends ChangeNotifier {
 
   StreamSubscription<DaemonReplyEvent>? _replySub;
   StreamSubscription<TwineOrder>? _orderSub;
-  StreamSubscription<NostrEvent>? _chatSub;
+  StreamSubscription<ChatEvent>? _chatSub;
   Future<void>? _opening;
   int _generation = 0;
   Set<String> _ordersBeforePost = const {};
@@ -253,7 +251,7 @@ class TwineMarket extends ChangeNotifier {
       disputeRequest(
         tradeId: tradeId,
         invoice: invoice,
-        conversationKey: _conversationKey(tradeId),
+        conversationKey: await _conversationKey(tradeId),
       ),
     );
     if (error != null) return error;
@@ -297,7 +295,7 @@ class TwineMarket extends ChangeNotifier {
     _replySub = nostr.replies.listen(_onReply, onError: (_) {});
     _orderSub = nostr.orders.listen(_onOrder, onError: (_) {});
     _chatSub = nostr.chats.listen(_onChat, onError: (_) {});
-    nostr.onSocketsReplaced = refreshTrades;
+    nostr.onSocketsReplaced = null;
     if (generation != _generation) return;
     ready = true;
     _watchChat();
@@ -332,27 +330,24 @@ class TwineMarket extends ChangeNotifier {
     unawaited(_persist());
   }
 
-  void _onChat(NostrEvent event) {
-    final signer = nostr.account;
-    final id = event.id;
-    final at = event.createdAt;
-    if (signer == null || id == null || at == null) return;
-    final body = openChat(
-      recipient: signer,
-      senderPublicKey: event.pubkey,
-      event: event,
-    );
-    if (body == null) return;
-    final trade = book.trade(body.tradeId);
+  void _onChat(ChatEvent event) {
+    final trade = book.trade(event.body.tradeId);
     if (trade == null) return;
     final peer = counterparty(trade, accountPubkey);
-    if (peer == null || peer.toLowerCase() != event.pubkey.toLowerCase()) {
+    if (peer == null || peer.toLowerCase() != event.author.toLowerCase()) {
       return;
     }
-    book.addNote(body.noteFor(id: id, author: event.pubkey, at: at));
+    book.addNote(
+      event.body.noteFor(id: event.id, author: event.author, at: event.createdAt),
+    );
     if (_stopped) return;
     notifyListeners();
     unawaited(_persist());
+  }
+
+  void rewatchChat() {
+    if (!ready || _stopped) return;
+    _watchChat();
   }
 
   void _watchChat() {
@@ -371,17 +366,12 @@ class TwineMarket extends ChangeNotifier {
     );
   }
 
-  String? _conversationKey(String tradeId) {
+  Future<String?> _conversationKey(String tradeId) async {
     final trade = book.trade(tradeId);
-    final signer = nostr.account;
-    if (trade == null || signer == null) return null;
+    if (trade == null) return null;
     final peer = counterparty(trade, accountPubkey);
     if (peer == null) return null;
-    try {
-      return nip44ConversationKeyHex(signer.privateKey, peer);
-    } on Nip44Exception {
-      return null;
-    }
+    return nostr.conversationKey(peer);
   }
 
   Future<String?> _sendChat(ChatBody body) async {
@@ -396,16 +386,9 @@ class TwineMarket extends ChangeNotifier {
     sending = true;
     notifyListeners();
     try {
-      final event = sealChat(sender: signer, peer: peer, body: body);
-      final id = event.id;
-      final at = event.createdAt;
-      if (id == null || at == null) {
-        sending = false;
-        if (!_stopped) notifyListeners();
-        return 'Could not sign the message.';
-      }
-      await nostr.publish(event);
-      book.addNote(body.noteFor(id: id, author: signer.publicKey, at: at));
+      final event = await nostr.sendChat(peer: peer, body: body);
+      final author = event.author.isEmpty ? signer.publicKey : event.author;
+      book.addNote(body.noteFor(id: event.id, author: author, at: event.createdAt));
       sending = false;
       if (!_stopped) notifyListeners();
       await _persist();
@@ -414,10 +397,6 @@ class TwineMarket extends ChangeNotifier {
       sending = false;
       if (!_stopped) notifyListeners();
       return error.message;
-    } on Nip44Exception {
-      sending = false;
-      if (!_stopped) notifyListeners();
-      return 'Could not encrypt the message.';
     } catch (_) {
       sending = false;
       if (!_stopped) notifyListeners();
@@ -475,7 +454,7 @@ class TwineMarket extends ChangeNotifier {
   }
 
   void _refreshOrders() {
-    unawaited(nostr.reconcile());
+    unawaited(nostr.resync());
   }
 
   /// Drops a one-shot daemon refusal after the screen has shown it.

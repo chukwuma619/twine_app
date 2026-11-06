@@ -1,4 +1,3 @@
-import 'package:dart_nostr/dart_nostr.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../nostr/account.dart';
@@ -59,21 +58,20 @@ class MemoryAccountStore implements AccountStore {
 }
 
 class SecureAccountStore implements AccountStore {
-  SecureAccountStore(this._nostr, {FlutterSecureStorage? storage})
+  SecureAccountStore({FlutterSecureStorage? storage})
     : _storage = storage ?? twineSecureStorage();
 
   static const _secretKey = 'twine_nostr_secret';
   static const _backupKey = 'twine_backup_ack';
   static const _fiberGuideKey = 'twine_fiber_guide';
 
-  final Nostr _nostr;
   final FlutterSecureStorage _storage;
 
   @override
   Future<TwineAccount?> read() async {
     final saved = await _storage.read(key: _secretKey);
     if (saved == null || saved.isEmpty) return null;
-    final account = TwineAccount.tryParse(_nostr, saved);
+    final account = TwineAccount.tryParse(saved);
     if (account == null) {
       await _storage.delete(key: _secretKey);
     }

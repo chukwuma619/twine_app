@@ -2,11 +2,7 @@ import 'package:flutter/material.dart';
 
 /// The Twine mark. Same four strands as `branding/twine-logo.svg`.
 class TwineLogo extends StatelessWidget {
-  const TwineLogo({
-    super.key,
-    this.size = 24,
-    this.color,
-  });
+  const TwineLogo({super.key, this.size = 24, this.color});
 
   final double size;
   final Color? color;

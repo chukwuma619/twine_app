@@ -16,6 +16,7 @@ import '../market/receipt.dart';
 import '../market/role.dart';
 import '../market/steps.dart';
 import '../market/trade.dart';
+import '../nostr/keys.dart';
 import '../ui/twine_tokens.dart';
 import 'market.dart';
 import 'notice_bar.dart';
@@ -112,8 +113,7 @@ class _TradePageState extends State<TradePage> {
     if ((key == LogicalKeyboardKey.enter ||
             key == LogicalKeyboardKey.numpadEnter) &&
         event is KeyDownEvent) {
-      final shift =
-          _shiftHeld || HardwareKeyboard.instance.isShiftPressed;
+      final shift = _shiftHeld || HardwareKeyboard.instance.isShiftPressed;
       if (!shift) {
         final over = _chat.text.length > maxChatText;
         if (!_blocked && _chat.text.trim().isNotEmpty && !over) {
@@ -313,11 +313,7 @@ class _TradePageState extends State<TradePage> {
                   ),
                 ),
                 if (compose && !draftingDetails)
-                  _composer(
-                    trade,
-                    side: side,
-                    separated: controls == null,
-                  ),
+                  _composer(trade, side: side, separated: controls == null),
               ],
             ),
           ),
@@ -767,17 +763,18 @@ class _TradePageState extends State<TradePage> {
       maxLines: 4,
       autocorrect: false,
       enableSuggestions: false,
-      decoration: TwineTokens.field(
-        theme,
-        label: 'Fiber invoice for the CKB',
-        helper: _invoiceHelp(trade),
-      ).copyWith(
-        suffixIcon: IconButton(
-          tooltip: 'Paste invoice',
-          onPressed: _blocked ? null : _pasteInvoice,
-          icon: const Icon(Icons.content_paste, size: TwineTokens.iconSm),
-        ),
-      ),
+      decoration:
+          TwineTokens.field(
+            theme,
+            label: 'Fiber invoice for the CKB',
+            helper: _invoiceHelp(trade),
+          ).copyWith(
+            suffixIcon: IconButton(
+              tooltip: 'Paste invoice',
+              onPressed: _blocked ? null : _pasteInvoice,
+              icon: const Icon(Icons.content_paste, size: TwineTokens.iconSm),
+            ),
+          ),
     );
   }
 
@@ -1043,7 +1040,7 @@ class _TradePageState extends State<TradePage> {
     final key = hex.trim().toLowerCase();
     if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(key)) return hex;
     try {
-      return widget.market.nostr.nostr.bech32.encodePublicKeyToNpub(key);
+      return TwineKeys.encodeNpub(key);
     } catch (_) {
       return hex;
     }
@@ -1206,10 +1203,7 @@ class _TradePageState extends State<TradePage> {
     );
     final image = paid?.image;
     if (image == null || !mounted) return;
-    await _run(
-      _Work.paid,
-      () => widget.market.sendReceipt(trade.id, image),
-    );
+    await _run(_Work.paid, () => widget.market.sendReceipt(trade.id, image));
   }
 
   Future<void> _submitInvoice(TwineTrade trade) async {

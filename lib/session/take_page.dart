@@ -170,9 +170,7 @@ class _TakePageState extends State<TakePage> {
                             ],
                             FilledButton(
                               style: TwineTokens.filled,
-                              onPressed: _busy
-                                  ? null
-                                  : () => _submit(order),
+                              onPressed: _busy ? null : () => _submit(order),
                               child: _busy
                                   ? SizedBox(
                                       height: 18,

@@ -256,10 +256,22 @@ void main() {
     );
 
     final trade = book.trade('trade-1');
-    expect(trade?.lockBy, DateTime.fromMillisecondsSinceEpoch(1700003600 * 1000, isUtc: true));
-    expect(trade?.holdEndsAt, DateTime.fromMillisecondsSinceEpoch(1700132400 * 1000, isUtc: true));
-    expect(trade?.payBy, DateTime.fromMillisecondsSinceEpoch(1700000900 * 1000, isUtc: true));
-    expect(trade?.releaseBy, DateTime.fromMillisecondsSinceEpoch(1700130600 * 1000, isUtc: true));
+    expect(
+      trade?.lockBy,
+      DateTime.fromMillisecondsSinceEpoch(1700003600 * 1000, isUtc: true),
+    );
+    expect(
+      trade?.holdEndsAt,
+      DateTime.fromMillisecondsSinceEpoch(1700132400 * 1000, isUtc: true),
+    );
+    expect(
+      trade?.payBy,
+      DateTime.fromMillisecondsSinceEpoch(1700000900 * 1000, isUtc: true),
+    );
+    expect(
+      trade?.releaseBy,
+      DateTime.fromMillisecondsSinceEpoch(1700130600 * 1000, isUtc: true),
+    );
     expect(
       TwineBook.fromJson(book.toJson())?.trade('trade-1')?.payBy,
       trade?.payBy,
@@ -300,7 +312,10 @@ void main() {
     expect(trade?.sellerNostr, 'seller');
     expect(trade?.buyerNostr, 'buyer');
     expect(trade?.holdInvoice, 'hold-invoice');
-    expect(trade?.payBy, DateTime.fromMillisecondsSinceEpoch(1700000900 * 1000, isUtc: true));
+    expect(
+      trade?.payBy,
+      DateTime.fromMillisecondsSinceEpoch(1700000900 * 1000, isUtc: true),
+    );
   });
 }
 
