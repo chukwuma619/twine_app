@@ -2,7 +2,7 @@ import 'keys.dart';
 
 /// The daemon a new install offers. A person can replace it before connecting.
 const officialDaemonNpub =
-    'npub1r9wcxf7d2c0nchphcvmuwhl4hr64x43fmgws83gc27rhw29986vse3dsh6';
+    'npub1avxxz0xj3pgxugrr9s9e56xsfhw0f3slgrusw3960s4ak8ys0lsqhs05j6';
 
 const officialDaemonRelays = ['wss://relay.backr.site'];
 
