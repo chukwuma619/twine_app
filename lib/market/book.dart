@@ -118,7 +118,12 @@ class TwineBook {
       case DaemonReply.disputed:
         _disputed(envelope, at);
       case DaemonReply.refunding:
-        _move(envelope, at, TradePhase.refunding);
+        _move(
+          envelope,
+          at,
+          TradePhase.refunding,
+          notice: ReasonPayload.tryParse(envelope.payload)?.reason,
+        );
       case DaemonReply.settled:
         _move(envelope, at, TradePhase.settled);
       case DaemonReply.canceled:
@@ -304,6 +309,7 @@ class TwineBook {
     WaitingFiat? fiat,
     String? payoutFailure,
     String? solver,
+    String? notice,
   }) {
     final tradeId = envelope.tradeId;
     if (tradeId == null || tradeId.isEmpty) {
@@ -353,7 +359,7 @@ class TwineBook {
             base.buyerNostr,
         payoutFailure:
             payoutFailure ?? (clearFailure ? null : base.payoutFailure),
-        notice: moving ? null : base.notice,
+        notice: notice ?? (moving ? null : base.notice),
         releaseFrom: moving ? null : base.releaseFrom,
         lockBy: pay?.lockBy ?? base.lockBy,
         holdEndsAt: pay?.holdEndsAt ?? base.holdEndsAt,

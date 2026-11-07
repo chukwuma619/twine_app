@@ -159,6 +159,21 @@ void main() {
     expect(book.trade('trade-1')?.payoutFailure, 'buyer payout failed');
   });
 
+  test('an expired payout refund says why', () {
+    final book = TwineBook();
+    book.applyReply(_pay(), DateTime.utc(2026, 10, 6, 1));
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'refunding',
+        tradeId: 'trade-1',
+        payload: {'reason': 'the payout invoice expired'},
+      ),
+      DateTime.utc(2026, 10, 6, 2),
+    );
+    expect(book.trade('trade-1')?.phase, TradePhase.refunding);
+    expect(book.trade('trade-1')?.notice, 'the payout invoice expired');
+  });
+
   test('the book round-trips through the device store', () async {
     final data = <String, String>{};
     FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(

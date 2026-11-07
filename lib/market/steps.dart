@@ -45,10 +45,10 @@ String tradeTitle(TradePhase phase, TradeSide? side) {
     case TradePhase.awaitingInvoice:
       switch (side) {
         case TradeSide.buyer:
-          return 'Send a new invoice';
+          return 'Send the same invoice again';
         case TradeSide.seller:
         case null:
-          return 'Waiting for a new invoice';
+          return 'Waiting for the same invoice';
       }
     case TradePhase.disputed:
       return 'Disputed';

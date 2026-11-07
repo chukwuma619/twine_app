@@ -519,9 +519,9 @@ class _TradePageState extends State<TradePage> {
           ),
         ),
       );
-      if (side == TradeSide.buyer) {
+      if (side == TradeSide.buyer && _retrySameInvoice(trade.payoutFailure)) {
         add(
-          const Text('Paste another invoice for the same payment.'),
+          const Text('Paste the same invoice again once the wallet can receive.'),
           gap: TwineTokens.xs,
         );
       }
@@ -1046,15 +1046,20 @@ class _TradePageState extends State<TradePage> {
     }
   }
 
+  bool _retrySameInvoice(String? failure) {
+    final text = failure?.toLowerCase() ?? '';
+    return text.contains('no route');
+  }
+
   String _invoiceHelp(TwineTrade trade) {
     if (trade.phase == TradePhase.awaitingInvoice ||
         trade.phase == TradePhase.disputed) {
-      return 'Use the same payment hash as the invoice already on this trade. A new hash cannot settle the hold.';
+      return 'Paste the same invoice. A new hash cannot settle the hold.';
     }
     final amount = trade.amountShannons == null
         ? 'the locked CKB'
         : '${shannonsToCkb(trade.amountShannons!)} CKB';
-    return 'Paste the invoice from the wallet that should receive the CKB. The hold uses this invoice\'s payment hash, and $amount is paid there.';
+    return 'Paste the invoice from the wallet that should receive the CKB. Leave it with no expiry, or make it last through the hold. The hold uses this invoice\'s payment hash, and $amount is paid there.';
   }
 
   List<TradeNote> _lines(String tradeId) {

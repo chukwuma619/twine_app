@@ -4,7 +4,7 @@ enum TradePhase {
   waitingFiat('waiting-fiat', 'Waiting for fiat'),
   fiatSent('fiat-sent', 'Fiat sent'),
   releasing('releasing', 'Releasing'),
-  awaitingInvoice('awaiting-invoice', 'Needs a new invoice'),
+  awaitingInvoice('awaiting-invoice', 'Retry the invoice'),
   disputed('disputed', 'Disputed'),
   refunding('refunding', 'Refunding'),
   settled('settled', 'Settled'),
