@@ -97,6 +97,15 @@ void main() {
     expect(cancelTradeRequest('trade-1').tradeId, 'trade-1');
     expect(cancelOrderRequest('order-1').payload, {'order_id': 'order-1'});
     expect(disputeRequest(tradeId: 'trade-1').payload, isNull);
+    expect(
+      disputeRequest(
+        tradeId: 'trade-1',
+        solverEvidence: const ['sealed'],
+      ).payload,
+      {
+        'solver_evidence': ['sealed'],
+      },
+    );
   });
 
   test('a payout invoice cannot be the hold invoice', () {

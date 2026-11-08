@@ -8,7 +8,6 @@ import 'package:twine_app/nostr/twine_nostr.dart';
 
 import 'push_background.dart';
 import 'push_options.dart';
-import 'push_wake.dart';
 
 /// Registers this device with twine-push. Token handoff is content-free.
 class PushService {
@@ -62,7 +61,11 @@ class PushService {
         criticalAlert: false,
         provisional: true,
       );
+      // twine-push addresses an FCM registration token. register() reports an
+      // installation id, which that API does not accept.
+      // ignore: deprecated_member_use
       token = await messaging.getToken();
+      // ignore: deprecated_member_use
       messaging.onTokenRefresh.listen(_onToken);
       FirebaseMessaging.onMessage.listen(_onForeground);
       FirebaseMessaging.onMessageOpenedApp.listen(_onForeground);

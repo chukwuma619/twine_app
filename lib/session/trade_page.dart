@@ -1261,7 +1261,7 @@ class _TradePageState extends State<TradePage> {
     final confirmed = await _confirm(
       context,
       'Open a dispute?',
-      'This shares the chat key with the solver so they can read the receipt. Without that key the solver cannot pay you. The solver decides within $hours. If that decision lands after the hold can no longer be paid, the CKB returns to the seller. A receipt means the seller still owes the fiat. A finding that you did not pay counts against you.',
+      'This sends this trade\'s chat to the solver, sealed so only they can read it. Without that record the solver cannot pay you. The solver decides within $hours. If that decision lands after the hold can no longer be paid, the CKB returns to the seller. A receipt means the seller still owes the fiat. A finding that you did not pay counts against you.',
     );
     if (!confirmed || !mounted) return;
     await _run(_Work.dispute, () => widget.market.dispute(trade.id));
@@ -2109,7 +2109,7 @@ String? _fiatSentLine(TwineTrade trade, TradeSide? side) {
     if (side == TradeSide.seller) {
       return 'The release window has passed. The buyer can open a dispute.';
     }
-    return 'The seller has not released. Open a dispute and share the chat key. The solver cannot pay you without that key.';
+    return 'The seller has not released. Open a dispute and send this trade\'s chat. The solver cannot pay you without it.';
   }
   if (side == TradeSide.seller) {
     return 'The buyer says they paid. Release the CKB after the money is in your account.';
@@ -2596,7 +2596,7 @@ List<String> _timing(TwineTrade trade, TradeSide? side, DateTime now) {
         _releaseMissed(trade, now)) {
       lines.add(
         side == TradeSide.buyer
-            ? 'The seller missed the release window. Open a dispute and share the chat key.'
+            ? 'The seller missed the release window. Open a dispute and send this trade\'s chat.'
             : 'The release window has passed. The buyer can open a dispute.',
       );
     } else if (trade.releaseBy != null &&

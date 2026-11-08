@@ -91,7 +91,7 @@ String nip44Decrypt({
   return _openPayload(conversationKey(secretKey, publicKey), bytes);
 }
 
-/// [conversationKeyHex] is 32 bytes of hex, the value a dispute sends the solver.
+/// [conversationKeyHex] is 32 bytes of hex.
 String nip44DecryptWithConversationKey({
   required String conversationKeyHex,
   required String payload,

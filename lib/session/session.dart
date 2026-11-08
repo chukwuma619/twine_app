@@ -100,6 +100,7 @@ class TwineSession extends ChangeNotifier {
   String? fiberNode;
   List<String> fiberAddresses = const [];
   bool? solverAvailable;
+  String? solverPubkey;
   String? relayError;
   bool connecting = false;
 
@@ -160,6 +161,8 @@ class TwineSession extends ChangeNotifier {
         solverAvailable = announcement.hasSolverField
             ? announcement.solverConfigured
             : null;
+        solverPubkey = announcement.solver;
+        market?.solverPubkey = announcement.solver;
         _notify();
       });
       if (open.isNotEmpty) {
@@ -296,6 +299,8 @@ class TwineSession extends ChangeNotifier {
     fiberNode = null;
     fiberAddresses = const [];
     solverAvailable = null;
+    solverPubkey = null;
+    market?.solverPubkey = null;
     relayError = null;
     _bindMarket();
     connecting = connectRelays;
@@ -364,6 +369,7 @@ class TwineSession extends ChangeNotifier {
     fiberNode = null;
     fiberAddresses = const [];
     solverAvailable = null;
+    solverPubkey = null;
     showBackup = false;
     editingDaemon = false;
     error = null;
@@ -393,6 +399,7 @@ class TwineSession extends ChangeNotifier {
       accountPubkey: currentAccount.publicKey,
       daemonPubkey: currentDaemon.publicKey,
     );
+    next.solverPubkey = solverPubkey;
     market = next;
     unawaited(next.open());
   }

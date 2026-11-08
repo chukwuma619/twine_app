@@ -161,13 +161,12 @@ TwineEnvelope cancelOrderRequest(String orderId) {
 TwineEnvelope disputeRequest({
   required String tradeId,
   String? invoice,
-  String? conversationKey,
+  List<String> solverEvidence = const [],
 }) {
-  final payload = <String, String>{};
+  final payload = <String, Object>{};
   final payout = invoice?.trim();
   if (payout != null && payout.isNotEmpty) payload['invoice'] = payout;
-  final key = conversationKey?.trim();
-  if (key != null && key.isNotEmpty) payload['conversation_key'] = key;
+  if (solverEvidence.isNotEmpty) payload['solver_evidence'] = solverEvidence;
   return TwineEnvelope(
     action: actionDispute,
     tradeId: tradeId,

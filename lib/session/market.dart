@@ -10,6 +10,9 @@ import '../market/phase.dart';
 import '../market/role.dart';
 import '../nostr/chat.dart';
 import '../nostr/envelope.dart';
+import '../nostr/evidence.dart';
+import '../nostr/keys.dart';
+import '../nostr/nip44.dart';
 import '../nostr/order.dart';
 import '../nostr/reply.dart';
 import '../nostr/request.dart';
@@ -30,6 +33,8 @@ class TwineMarket extends ChangeNotifier {
   final String accountPubkey;
   final String daemonPubkey;
   TwineBook book;
+
+  String? solverPubkey;
 
   bool ready = false;
   bool sending = false;
@@ -247,15 +252,30 @@ class TwineMarket extends ChangeNotifier {
   }
 
   Future<String?> dispute(String tradeId, {String? invoice}) async {
-    final key = await _conversationKey(tradeId);
-    if (key == null || key.isEmpty) {
-      return 'The chat key is not ready, so the solver cannot read the receipt.';
+    final solver = TwineKeys.parsePublicKey(solverPubkey ?? '');
+    if (solver == null) {
+      return 'The solver key is not on this device yet.';
+    }
+    final secret = nostr.account?.privateKey;
+    if (secret == null || secret.isEmpty) {
+      return 'The account key is not on this device.';
+    }
+    final List<String> evidence;
+    try {
+      evidence = sealTradeEvidence(
+        secretKey: secret,
+        solverPubkey: solver,
+        tradeId: tradeId,
+        notes: book.thread(tradeId),
+      );
+    } on Nip44Exception catch (error) {
+      return "This trade's chat could not be sealed for the solver. ${error.message}";
     }
     final error = await _send(
       disputeRequest(
         tradeId: tradeId,
         invoice: invoice,
-        conversationKey: key,
+        solverEvidence: evidence,
       ),
     );
     if (error != null) return error;
@@ -342,7 +362,11 @@ class TwineMarket extends ChangeNotifier {
       return;
     }
     book.addNote(
-      event.body.noteFor(id: event.id, author: event.author, at: event.createdAt),
+      event.body.noteFor(
+        id: event.id,
+        author: event.author,
+        at: event.createdAt,
+      ),
     );
     if (_stopped) return;
     notifyListeners();
@@ -370,14 +394,6 @@ class TwineMarket extends ChangeNotifier {
     );
   }
 
-  Future<String?> _conversationKey(String tradeId) async {
-    final trade = book.trade(tradeId);
-    if (trade == null) return null;
-    final peer = counterparty(trade, accountPubkey);
-    if (peer == null) return null;
-    return nostr.conversationKey(peer);
-  }
-
   Future<String?> _sendChat(ChatBody body) async {
     final signer = nostr.account;
     final trade = book.trade(body.tradeId);
@@ -392,7 +408,9 @@ class TwineMarket extends ChangeNotifier {
     try {
       final event = await nostr.sendChat(peer: peer, body: body);
       final author = event.author.isEmpty ? signer.publicKey : event.author;
-      book.addNote(body.noteFor(id: event.id, author: author, at: event.createdAt));
+      book.addNote(
+        body.noteFor(id: event.id, author: author, at: event.createdAt),
+      );
       sending = false;
       if (!_stopped) notifyListeners();
       await _persist();
