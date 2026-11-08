@@ -2,6 +2,7 @@ import '../nostr/envelope.dart';
 import '../nostr/order.dart';
 import '../nostr/reply.dart';
 import 'chat.dart';
+import 'outcome.dart';
 import 'phase.dart';
 import 'trade.dart';
 
@@ -109,10 +110,16 @@ class TwineBook {
         _payInvoice(envelope, at);
       case DaemonReply.needInvoice:
         _needInvoice(envelope, at);
+      case DaemonReply.needRoute:
+        _needRoute(envelope, at);
       case DaemonReply.waitingFiat:
         _waitingFiat(envelope, at);
       case DaemonReply.fiatSentOk:
-        _move(envelope, at, TradePhase.fiatSent);
+        _fiatSent(envelope, at);
+      case DaemonReply.releaseDue:
+        _releaseDue(envelope, at);
+      case DaemonReply.tradeRecord:
+        _tradeRecord(envelope, at);
       case DaemonReply.newInvoice:
         _newInvoice(envelope, at);
       case DaemonReply.disputed:
@@ -183,6 +190,38 @@ class TwineBook {
     _move(envelope, at, TradePhase.waitingInvoice, need: need);
   }
 
+  void _needRoute(TwineEnvelope envelope, DateTime at) {
+    final reason =
+        ReasonPayload.tryParse(envelope.payload)?.reason ??
+        'The payout invoice has no route yet.';
+    _move(envelope, at, TradePhase.awaitingRoute, payoutFailure: reason);
+  }
+
+  void _fiatSent(TwineEnvelope envelope, DateTime at) {
+    final ok = FiatSentOk.tryParse(envelope.payload);
+    _move(
+      envelope,
+      at,
+      TradePhase.fiatSent,
+      releaseBy: ok?.releaseBy,
+      solverWindowSecs: ok?.solverWindowSecs,
+    );
+  }
+
+  void _releaseDue(TwineEnvelope envelope, DateTime at) {
+    final due = ReleaseDue.tryParse(envelope.payload);
+    final tradeId = envelope.tradeId;
+    if (tradeId == null || tradeId.isEmpty) return;
+    final current = trade(tradeId);
+    if (current == null) return;
+    _putTrade(
+      current.copyWith(
+        releaseBy: due?.releaseBy,
+        solverWindowSecs: due?.solverWindowSecs,
+      ),
+    );
+  }
+
   void _waitingFiat(TwineEnvelope envelope, DateTime at) {
     final fiat = WaitingFiat.tryParse(envelope.payload);
     if (fiat == null) {
@@ -241,9 +280,12 @@ class TwineBook {
         payBy: snapshot.payBy ?? base.payBy,
         releaseBy: snapshot.releaseBy ?? base.releaseBy,
         solver: base.solver,
+        solverWindowSecs: base.solverWindowSecs,
+        record: snapshot.outcome ?? base.record,
       ),
     );
     _rememberStatus(snapshot.tradeId, moving ? snapshot.phase : base.phase, at);
+    _rememberRecord(snapshot.tradeId, snapshot.outcome ?? base.record, at);
   }
 
   void _newInvoice(TwineEnvelope envelope, DateTime at) {
@@ -310,6 +352,8 @@ class TwineBook {
     String? payoutFailure,
     String? solver,
     String? notice,
+    DateTime? releaseBy,
+    int? solverWindowSecs,
   }) {
     final tradeId = envelope.tradeId;
     if (tradeId == null || tradeId.isEmpty) {
@@ -364,13 +408,42 @@ class TwineBook {
         lockBy: pay?.lockBy ?? base.lockBy,
         holdEndsAt: pay?.holdEndsAt ?? base.holdEndsAt,
         payBy: fiat?.payBy ?? base.payBy,
-        releaseBy: fiat?.releaseBy ?? base.releaseBy,
+        releaseBy: releaseBy ?? fiat?.releaseBy ?? base.releaseBy,
+        solverWindowSecs: solverWindowSecs ?? base.solverWindowSecs,
         invoiceBy: need?.submitBy ?? base.invoiceBy,
         solver: solver ?? base.solver,
+        record: base.record,
       ),
     );
     if (!moving) return;
     _rememberStatus(tradeId, phase, at);
+  }
+
+  void _tradeRecord(TwineEnvelope envelope, DateTime at) {
+    final outcome = _payloadText(envelope.payload, 'outcome');
+    final tradeId = envelope.tradeId;
+    if (outcome == null || tradeId == null || tradeId.isEmpty) return;
+    if (recordLine(outcome) == null) return;
+    final current = trade(tradeId);
+    if (current == null || current.record != null) return;
+    _putTrade(current.copyWith(record: outcome));
+    _rememberRecord(tradeId, outcome, at);
+  }
+
+  void _rememberRecord(String tradeId, String? outcome, DateTime at) {
+    final line = recordLine(outcome);
+    if (line == null) return;
+    final id = 'record:$tradeId';
+    if (notes.any((item) => item.id == id)) return;
+    addNote(
+      TradeNote(
+        id: id,
+        tradeId: tradeId,
+        at: at,
+        kind: TradeNoteKind.status,
+        text: line,
+      ),
+    );
   }
 
   void _rememberStatus(String tradeId, TradePhase phase, DateTime at) {
@@ -457,10 +530,16 @@ class TwineBook {
 }
 
 String? _orderId(Object? payload) {
+  return _payloadText(payload, 'order_id');
+}
+
+String? _payloadText(Object? payload, String key) {
   if (payload is! Map) return null;
-  final id = payload['order_id'];
-  if (id is! String || id.trim().isEmpty) return null;
-  return id.trim();
+  final value = payload[key];
+  if (value is! String) return null;
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+  return trimmed;
 }
 
 String _keep(String? incoming, String current) {

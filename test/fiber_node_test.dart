@@ -24,6 +24,12 @@ void main() {
     );
     expect(solver?.solver, 'npub1solver');
     expect(solver?.solverConfigured, isTrue);
+    expect(solver?.solverWindowSecs, isNull);
+
+    final timed = FiberAnnouncement.fromContent(
+      '{"pubkey":"02abc","solver":"npub1solver","solver_window_secs":14400}',
+    );
+    expect(timed?.solverWindowSecs, 14400);
   });
 
   test('a fiber node announcement can name public listen addresses', () {

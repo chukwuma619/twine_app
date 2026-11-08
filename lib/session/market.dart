@@ -247,11 +247,15 @@ class TwineMarket extends ChangeNotifier {
   }
 
   Future<String?> dispute(String tradeId, {String? invoice}) async {
+    final key = await _conversationKey(tradeId);
+    if (key == null || key.isEmpty) {
+      return 'The chat key is not ready, so the solver cannot read the receipt.';
+    }
     final error = await _send(
       disputeRequest(
         tradeId: tradeId,
         invoice: invoice,
-        conversationKey: await _conversationKey(tradeId),
+        conversationKey: key,
       ),
     );
     if (error != null) return error;

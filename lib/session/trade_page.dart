@@ -151,6 +151,9 @@ class _TradePageState extends State<TradePage> {
           side: side,
           hasHoldInvoice: trade.holdInvoice != null,
           solverAvailable: widget.solverAvailable,
+          releaseBy: trade.releaseBy,
+          solverWindowSecs: trade.solverWindowSecs,
+          record: trade.record,
         );
         final details = widget.market.book.paymentDetails(trade.id);
         final proof = widget.market.book.paymentProof(trade.id);
@@ -208,6 +211,7 @@ class _TradePageState extends State<TradePage> {
                 shareDetails: shareDetails,
                 canEditDetails: canEditDetails,
                 waitingFiat: waitingFiat,
+                side: side,
               );
         return Scaffold(
           resizeToAvoidBottomInset: true,
@@ -405,6 +409,14 @@ class _TradePageState extends State<TradePage> {
               if (side == TradeSide.buyer) ...[
                 const SizedBox(height: TwineTokens.xxs),
                 Text('Put the reference on the payment.', style: muted),
+                if (trade.phase == TradePhase.waitingFiat &&
+                    widget.solverAvailable == false) ...[
+                  const SizedBox(height: TwineTokens.xxs),
+                  Text(
+                    'No dispute support. This instance has no solver.',
+                    style: muted,
+                  ),
+                ],
               ],
             ],
             _DeadlineTicker(trade: trade, side: side, style: muted),
@@ -521,7 +533,9 @@ class _TradePageState extends State<TradePage> {
       );
       if (side == TradeSide.buyer && _retrySameInvoice(trade.payoutFailure)) {
         add(
-          const Text('Paste the same invoice again once the wallet can receive.'),
+          const Text(
+            'Paste the same invoice again once the wallet can receive.',
+          ),
           gap: TwineTokens.xs,
         );
       }
@@ -544,15 +558,8 @@ class _TradePageState extends State<TradePage> {
     } else if (side == null && trade.phase == TradePhase.waitingHold) {
       add(const Text('Waiting to learn who locks the CKB.'));
     }
-    if (trade.phase == TradePhase.fiatSent && side == TradeSide.seller) {
-      add(
-        const Text(
-          'The buyer says they paid. Release the CKB after the money is in your account.',
-        ),
-      );
-    } else if (trade.phase == TradePhase.fiatSent && side == TradeSide.buyer) {
-      add(const Text('Waiting for the seller to release the CKB.'));
-    }
+    final fiatSent = _fiatSentLine(trade, side);
+    if (fiatSent != null) add(Text(fiatSent));
     if (proof != null &&
         side == TradeSide.seller &&
         (trade.phase == TradePhase.fiatSent ||
@@ -581,6 +588,7 @@ class _TradePageState extends State<TradePage> {
     required bool shareDetails,
     required bool canEditDetails,
     required bool waitingFiat,
+    required TradeSide? side,
   }) {
     final children = <Widget>[];
     void add(Widget child, {double gap = TwineTokens.sm}) {
@@ -622,7 +630,9 @@ class _TradePageState extends State<TradePage> {
       add(_invoiceField(trade));
       add(
         _primary(
-          'Submit payout invoice',
+          trade.phase == TradePhase.awaitingRoute
+              ? 'Send the same invoice'
+              : 'Submit payout invoice',
           _Work.invoice,
           () => _submitInvoice(trade),
         ),
@@ -638,10 +648,15 @@ class _TradePageState extends State<TradePage> {
       add(_primary('Release the CKB', _Work.release, () => _release(trade)));
     }
     if (actions.dispute) {
-      add(
-        _quiet('Dispute (coming soon)', _Work.dispute, null),
-        gap: TwineTokens.xs,
-      );
+      final late = _releaseMissed(trade) && side == TradeSide.buyer;
+      if (late) {
+        add(_primary('Open a dispute', _Work.dispute, () => _dispute(trade)));
+      } else {
+        add(
+          _quiet('Dispute', _Work.dispute, () => _dispute(trade)),
+          gap: TwineTokens.xs,
+        );
+      }
     }
     if (actions.cancel) {
       add(
@@ -1052,6 +1067,9 @@ class _TradePageState extends State<TradePage> {
   }
 
   String _invoiceHelp(TwineTrade trade) {
+    if (trade.phase == TradePhase.awaitingRoute) {
+      return 'The check found no route. Get inbound on this wallet, then paste the same invoice. Do not send fiat yet.';
+    }
     if (trade.phase == TradePhase.awaitingInvoice ||
         trade.phase == TradePhase.disputed) {
       return 'Paste the same invoice. A new hash cannot settle the hold.';
@@ -1237,6 +1255,18 @@ class _TradePageState extends State<TradePage> {
     if (_error == null) _invoice.clear();
   }
 
+  Future<void> _dispute(TwineTrade trade) async {
+    if (_busy != null || widget.market.sending) return;
+    final hours = _solverWindowLabel(trade.solverWindowSecs);
+    final confirmed = await _confirm(
+      context,
+      'Open a dispute?',
+      'This shares the chat key with the solver so they can read the receipt. Without that key the solver cannot pay you. The solver decides within $hours. If that decision lands after the hold can no longer be paid, the CKB returns to the seller. A receipt means the seller still owes the fiat. A finding that you did not pay counts against you.',
+    );
+    if (!confirmed || !mounted) return;
+    await _run(_Work.dispute, () => widget.market.dispute(trade.id));
+  }
+
   Future<void> _release(TwineTrade trade) async {
     if (_busy != null || widget.market.sending) return;
     final ckb = trade.amountShannons == null
@@ -1294,6 +1324,7 @@ class _PhaseSteps extends StatelessWidget {
         return 0;
       case TradePhase.waitingHold:
         return 1;
+      case TradePhase.awaitingRoute:
       case TradePhase.waitingFiat:
         return 2;
       case TradePhase.fiatSent:
@@ -2046,7 +2077,8 @@ class _PaidSheetState extends State<_PaidSheet> {
 bool _showPayment(TwineTrade trade) {
   return trade.fiatAmount != null &&
       trade.phase != TradePhase.waitingHold &&
-      trade.phase != TradePhase.waitingInvoice;
+      trade.phase != TradePhase.waitingInvoice &&
+      trade.phase != TradePhase.awaitingRoute;
 }
 
 String _paymentLine(TradeSide? side, TwineTrade trade) {
@@ -2059,6 +2091,45 @@ String _paymentLine(TradeSide? side, TwineTrade trade) {
     case null:
       return 'This trade is for $amount.';
   }
+}
+
+bool _releaseMissed(TwineTrade trade, [DateTime? now]) {
+  final due = trade.releaseBy;
+  if (due == null || trade.phase != TradePhase.fiatSent) return false;
+  return !(now ?? DateTime.now().toUtc()).isBefore(due);
+}
+
+String? _fiatSentLine(TwineTrade trade, TradeSide? side) {
+  if (trade.phase != TradePhase.fiatSent) return null;
+  if (side != TradeSide.seller && side != TradeSide.buyer) return null;
+  if (_windowClosed(trade)) {
+    return 'The solver window has ended. The CKB returns to the seller.';
+  }
+  if (_releaseMissed(trade)) {
+    if (side == TradeSide.seller) {
+      return 'The release window has passed. The buyer can open a dispute.';
+    }
+    return 'The seller has not released. Open a dispute and share the chat key. The solver cannot pay you without that key.';
+  }
+  if (side == TradeSide.seller) {
+    return 'The buyer says they paid. Release the CKB after the money is in your account.';
+  }
+  return 'Waiting for the seller to release the CKB.';
+}
+
+bool _windowClosed(TwineTrade trade, [DateTime? now]) {
+  return solverWindowClosed(
+    releaseBy: trade.releaseBy,
+    solverWindowSecs: trade.solverWindowSecs,
+    record: trade.record,
+    now: now,
+  );
+}
+
+String _solverWindowLabel(int? secs) {
+  final hours = ((secs ?? 4 * 60 * 60) / 3600).round();
+  if (hours == 1) return '1 hour';
+  return '$hours hours';
 }
 
 String _disputeLine(TwineTrade trade) {
@@ -2495,6 +2566,10 @@ List<String> _timing(TwineTrade trade, TradeSide? side, DateTime now) {
     } else {
       lines.add('The payout invoice is due within an hour.');
     }
+  } else if (trade.phase == TradePhase.awaitingRoute) {
+    lines.add(
+      'The CKB is locked. The payout invoice has no route yet, so the payment details stay hidden.',
+    );
   } else if (trade.phase == TradePhase.waitingHold) {
     if (side == TradeSide.seller) {
       if (trade.lockBy != null) {
@@ -2506,15 +2581,30 @@ List<String> _timing(TwineTrade trade, TradeSide? side, DateTime now) {
   } else if (!trade.phase.terminal && trade.phase != TradePhase.refunding) {
     if (side == TradeSide.buyer && trade.phase == TradePhase.waitingFiat) {
       if (trade.payBy != null) {
-        lines.add(remainingLabel(trade.payBy!, now));
+        lines.add('Pay ${remainingLabel(trade.payBy!, now)}.');
       } else {
-        lines.add('Pay before the hold’s release deadline.');
+        lines.add(
+          'Pay while the seller still has 2 hours to release and the solver still has 4 hours to decide.',
+        );
       }
     }
-    if (trade.releaseBy != null) {
-      lines.add('Release window: ${remainingLabel(trade.releaseBy!, now)}');
-    } else {
-      lines.add('Release at least 30 minutes before the hold ends.');
+    if ((trade.phase == TradePhase.fiatSent ||
+            trade.phase == TradePhase.disputed) &&
+        _windowClosed(trade, now)) {
+      lines.add('The solver window has ended. The CKB returns to the seller.');
+    } else if (trade.phase == TradePhase.fiatSent &&
+        _releaseMissed(trade, now)) {
+      lines.add(
+        side == TradeSide.buyer
+            ? 'The seller missed the release window. Open a dispute and share the chat key.'
+            : 'The release window has passed. The buyer can open a dispute.',
+      );
+    } else if (trade.releaseBy != null &&
+        (trade.phase == TradePhase.fiatSent ||
+            trade.phase == TradePhase.disputed)) {
+      lines.add('Release window: ${remainingLabel(trade.releaseBy!, now)}.');
+    } else if (trade.phase == TradePhase.waitingFiat) {
+      lines.add('After payment, the seller has 2 hours to release.');
     }
     if (trade.holdEndsAt != null) {
       lines.add(

@@ -5,12 +5,14 @@ class FiberAnnouncement {
     required this.pubkey,
     required this.hasSolverField,
     this.solver,
+    this.solverWindowSecs,
     this.addresses = const [],
   });
 
   final String pubkey;
   final bool hasSolverField;
   final String? solver;
+  final int? solverWindowSecs;
   final List<String> addresses;
 
   bool get solverConfigured => solver != null && solver!.isNotEmpty;
@@ -34,6 +36,15 @@ class FiberAnnouncement {
     } else {
       solver = null;
     }
+    final rawWindow = map['solver_window_secs'];
+    final int? solverWindowSecs;
+    if (rawWindow is int) {
+      solverWindowSecs = rawWindow;
+    } else if (rawWindow is num) {
+      solverWindowSecs = rawWindow.toInt();
+    } else {
+      solverWindowSecs = null;
+    }
     final rawAddresses = map['addresses'];
     final addresses = [
       if (rawAddresses is List)
@@ -44,6 +55,7 @@ class FiberAnnouncement {
       pubkey: pubkey.trim(),
       hasSolverField: hasSolverField,
       solver: solver,
+      solverWindowSecs: solverWindowSecs,
       addresses: addresses,
     );
   }

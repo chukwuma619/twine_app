@@ -1,4 +1,5 @@
 import '../nostr/order.dart';
+import 'outcome.dart';
 import 'phase.dart';
 import 'trade.dart';
 
@@ -56,14 +57,26 @@ class TradeActions {
     required TradeSide? side,
     required bool hasHoldInvoice,
     bool? solverAvailable,
+    DateTime? releaseBy,
+    int? solverWindowSecs,
+    String? record,
+    DateTime? now,
   }) {
+    final releaseClosed = solverWindowClosed(
+      releaseBy: releaseBy,
+      solverWindowSecs: solverWindowSecs,
+      record: record,
+      now: now,
+    );
     return TradeActions(
       payHold:
           side == TradeSide.seller &&
           phase == TradePhase.waitingHold &&
           hasHoldInvoice,
       submitInvoice:
-          side == TradeSide.buyer && phase == TradePhase.waitingInvoice,
+          side == TradeSide.buyer &&
+          (phase == TradePhase.waitingInvoice ||
+              phase == TradePhase.awaitingRoute),
       sendFiat:
           side == TradeSide.buyer &&
           (phase == TradePhase.waitingFiat ||
@@ -71,7 +84,8 @@ class TradeActions {
               phase == TradePhase.disputed),
       release:
           side == TradeSide.seller &&
-          (phase == TradePhase.fiatSent || phase == TradePhase.disputed),
+          (phase == TradePhase.fiatSent || phase == TradePhase.disputed) &&
+          !releaseClosed,
       dispute: _canDispute(phase) && side != null && solverAvailable != false,
       cancel:
           (phase == TradePhase.waitingInvoice ||
@@ -81,8 +95,21 @@ class TradeActions {
   }
 }
 
+bool solverWindowClosed({
+  DateTime? releaseBy,
+  int? solverWindowSecs,
+  String? record,
+  DateTime? now,
+}) {
+  if (record == recordUnresolved) return true;
+  if (releaseBy == null) return false;
+  final end = releaseBy.add(Duration(seconds: solverWindowSecs ?? 4 * 60 * 60));
+  return !(now ?? DateTime.now().toUtc()).isBefore(end);
+}
+
 bool _canDispute(TradePhase phase) {
   switch (phase) {
+    case TradePhase.awaitingRoute:
     case TradePhase.waitingFiat:
     case TradePhase.fiatSent:
     case TradePhase.awaitingInvoice:

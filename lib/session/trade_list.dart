@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../market/amount.dart';
 import '../market/book.dart';
 import '../market/chat.dart';
+import '../market/outcome.dart';
 import '../market/phase.dart';
 import '../market/role.dart';
 import '../market/steps.dart';
@@ -386,6 +387,7 @@ class _TradeTile extends StatelessWidget {
     final trailing = ckb != null ? fiat : null;
     final status = hasAmount ? title : null;
     final peer = _peer(trade, row.market);
+    final recorded = recordLabel(trade.record);
     final when = _when(trade.updatedAt, now);
     final statusColor = _statusColor(scheme, trade.phase, yourMove);
 
@@ -464,6 +466,19 @@ class _TradeTile extends StatelessWidget {
                   Text(when, style: TwineTokens.muted(theme)),
                 ],
               ),
+              if (recorded != null) ...[
+                const SizedBox(height: TwineTokens.xxs),
+                Text(
+                  recorded,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+              ],
               if (peer != null) ...[
                 const SizedBox(height: TwineTokens.xxs),
                 Text(
@@ -579,6 +594,9 @@ bool _yourMove(
     side: side,
     hasHoldInvoice: trade.holdInvoice != null && trade.holdInvoice!.isNotEmpty,
     solverAvailable: solverAvailable,
+    releaseBy: trade.releaseBy,
+    solverWindowSecs: trade.solverWindowSecs,
+    record: trade.record,
   );
   return actions.payHold ||
       actions.submitInvoice ||
@@ -595,6 +613,7 @@ _Bucket _bucket(TradePhase phase) {
       return _Bucket.closed;
     case TradePhase.waitingInvoice:
     case TradePhase.waitingHold:
+    case TradePhase.awaitingRoute:
     case TradePhase.waitingFiat:
     case TradePhase.fiatSent:
     case TradePhase.releasing:
@@ -696,6 +715,7 @@ Color _statusColor(ColorScheme scheme, TradePhase phase, bool yourMove) {
       return _settled;
     case TradePhase.waitingInvoice:
     case TradePhase.waitingHold:
+    case TradePhase.awaitingRoute:
     case TradePhase.waitingFiat:
     case TradePhase.fiatSent:
     case TradePhase.releasing:

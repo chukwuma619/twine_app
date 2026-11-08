@@ -14,6 +14,9 @@ const kindOrder = 31420;
 /// Addressable announcement of the desk Fiber node. The `d` tag is [fiberNodeTag].
 const kindFiberNode = 31421;
 
+/// Addressable trade outcome. The `d` tag is the trade id.
+const kindTradeRecord = 31422;
+
 /// `d` tag on a Fiber node announcement.
 const fiberNodeTag = 'fiber-node';
 
@@ -28,8 +31,11 @@ const actionMyTrades = 'my-trades';
 
 const replyPayInvoice = 'pay-invoice';
 const replyNeedInvoice = 'need-invoice';
+const replyNeedRoute = 'need-route';
 const replyWaitingFiat = 'waiting-fiat';
 const replyFiatSentOk = 'fiat-sent-ok';
+const replyReleaseDue = 'release-due';
+const replyTradeRecord = 'trade-record';
 const replyNewInvoice = 'new-invoice';
 const replyDisputed = 'disputed';
 const replyRefunding = 'refunding';

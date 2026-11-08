@@ -110,6 +110,8 @@ String? statusLine(TradePhase phase) {
       return 'The trade expired.';
     case TradePhase.refunding:
       return 'The CKB is being returned to the seller.';
+    case TradePhase.awaitingRoute:
+      return 'The CKB is locked. The payout invoice has no route yet, so fiat stays closed.';
     case TradePhase.waitingInvoice:
     case TradePhase.waitingHold:
     case TradePhase.releasing:

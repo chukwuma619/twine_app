@@ -292,9 +292,9 @@ void main() {
     expect(find.text('Pay here'), findsNothing);
     expect(find.text("I've paid"), findsOneWidget);
     final dispute = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, 'Dispute (coming soon)'),
+      find.widgetWithText(TextButton, 'Dispute'),
     );
-    expect(dispute.onPressed, isNull);
+    expect(dispute.onPressed, isNotNull);
 
     await tester.ensureVisible(find.text("I've paid"));
     await tester.tap(find.text("I've paid"));
@@ -389,6 +389,37 @@ void main() {
     expect(find.text('Japanese Yen'), findsNothing);
   });
 
+  test('release closes once the solver window or unresolved record exists', () {
+    final open = TradeActions.of(
+      phase: TradePhase.fiatSent,
+      side: TradeSide.seller,
+      hasHoldInvoice: true,
+      releaseBy: DateTime.utc(2026, 11, 8, 1),
+      solverWindowSecs: 4 * 60 * 60,
+      now: DateTime.utc(2026, 11, 8, 2),
+    );
+    expect(open.release, isTrue);
+
+    final closed = TradeActions.of(
+      phase: TradePhase.fiatSent,
+      side: TradeSide.seller,
+      hasHoldInvoice: true,
+      releaseBy: DateTime.utc(2026, 11, 8, 1),
+      solverWindowSecs: 4 * 60 * 60,
+      now: DateTime.utc(2026, 11, 8, 6),
+    );
+    expect(closed.release, isFalse);
+
+    final recorded = TradeActions.of(
+      phase: TradePhase.disputed,
+      side: TradeSide.seller,
+      hasHoldInvoice: true,
+      record: 'unresolved',
+      now: DateTime.utc(2026, 11, 8, 2),
+    );
+    expect(recorded.release, isFalse);
+  });
+
   test('dispute is hidden when the solver is absent', () {
     final hidden = TradeActions.of(
       phase: TradePhase.waitingFiat,
@@ -437,6 +468,10 @@ void main() {
 
     expect(find.textContaining('2h'), findsOneWidget);
     expect(find.textContaining('left'), findsOneWidget);
+    expect(
+      find.text('No dispute support. This instance has no solver.'),
+      findsNothing,
+    );
   });
 
   testWidgets('a settled trade names the outcome', (tester) async {
@@ -498,6 +533,10 @@ void main() {
     );
 
     expect(find.text('Dispute'), findsNothing);
+    expect(
+      find.text('No dispute support. This instance has no solver.'),
+      findsOneWidget,
+    );
   });
 
   test('a cant-do for a post removes the local card', () {

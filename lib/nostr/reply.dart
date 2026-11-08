@@ -13,8 +13,11 @@ class DaemonReplyEvent {
 enum DaemonReply {
   payInvoice,
   needInvoice,
+  needRoute,
   waitingFiat,
   fiatSentOk,
+  releaseDue,
+  tradeRecord,
   newInvoice,
   disputed,
   refunding,
@@ -30,10 +33,16 @@ enum DaemonReply {
         return DaemonReply.payInvoice;
       case replyNeedInvoice:
         return DaemonReply.needInvoice;
+      case replyNeedRoute:
+        return DaemonReply.needRoute;
       case replyWaitingFiat:
         return DaemonReply.waitingFiat;
       case replyFiatSentOk:
         return DaemonReply.fiatSentOk;
+      case replyReleaseDue:
+        return DaemonReply.releaseDue;
+      case replyTradeRecord:
+        return DaemonReply.tradeRecord;
       case replyNewInvoice:
         return DaemonReply.newInvoice;
       case replyDisputed:
@@ -174,6 +183,38 @@ class WaitingFiat {
   }
 }
 
+class FiatSentOk {
+  const FiatSentOk({this.releaseBy, this.solverWindowSecs});
+
+  final DateTime? releaseBy;
+  final int? solverWindowSecs;
+
+  static FiatSentOk? tryParse(Object? payload) {
+    final map = _map(payload);
+    if (map == null) return null;
+    return FiatSentOk(
+      releaseBy: unixSeconds(map['release_by']),
+      solverWindowSecs: _whole(map['solver_window_secs']),
+    );
+  }
+}
+
+class ReleaseDue {
+  const ReleaseDue({this.releaseBy, this.solverWindowSecs});
+
+  final DateTime? releaseBy;
+  final int? solverWindowSecs;
+
+  static ReleaseDue? tryParse(Object? payload) {
+    final map = _map(payload);
+    if (map == null) return null;
+    return ReleaseDue(
+      releaseBy: unixSeconds(map['release_by']),
+      solverWindowSecs: _whole(map['solver_window_secs']),
+    );
+  }
+}
+
 class Disputed {
   const Disputed({this.solver});
 
@@ -203,6 +244,7 @@ class TradeSnapshot {
     this.holdEndsAt,
     this.payBy,
     this.releaseBy,
+    this.outcome,
   });
 
   final String tradeId;
@@ -220,6 +262,7 @@ class TradeSnapshot {
   final DateTime? holdEndsAt;
   final DateTime? payBy;
   final DateTime? releaseBy;
+  final String? outcome;
 
   static TradeSnapshot? tryParse(Object? value) {
     final map = _map(value);
@@ -258,6 +301,7 @@ class TradeSnapshot {
       holdEndsAt: unixSeconds(map['hold_ends_at']),
       payBy: unixSeconds(map['pay_by']),
       releaseBy: unixSeconds(map['release_by']),
+      outcome: _text(map, 'outcome'),
     );
   }
 }
@@ -306,6 +350,12 @@ Map<String, Object?>? _map(Object? value) {
   final buyer = _text(map, 'buyer_nostr');
   if (seller == null || buyer == null) return null;
   return (seller, buyer);
+}
+
+int? _whole(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return null;
 }
 
 String? _text(Map<String, Object?> map, String key) {

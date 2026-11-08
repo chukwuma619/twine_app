@@ -23,6 +23,8 @@ class TwineTrade {
     this.releaseBy,
     this.invoiceBy,
     this.solver,
+    this.solverWindowSecs,
+    this.record,
   });
 
   final String id;
@@ -52,6 +54,12 @@ class TwineTrade {
   final DateTime? invoiceBy;
   final String? solver;
 
+  /// Solver decision time published with fiat-sent, in seconds.
+  final int? solverWindowSecs;
+
+  /// Public outcome: `fiat-owed`, `buyer-unpaid`, or `unresolved`.
+  final String? record;
+
   TwineTrade copyWith({
     String? orderId,
     TradePhase? phase,
@@ -75,6 +83,9 @@ class TwineTrade {
     DateTime? releaseBy,
     DateTime? invoiceBy,
     String? solver,
+    int? solverWindowSecs,
+    String? record,
+    bool keepRecord = true,
     bool keepClocks = true,
   }) {
     return TwineTrade(
@@ -102,6 +113,8 @@ class TwineTrade {
       releaseBy: releaseBy ?? (keepClocks ? this.releaseBy : null),
       invoiceBy: invoiceBy ?? (keepClocks ? this.invoiceBy : null),
       solver: solver ?? this.solver,
+      solverWindowSecs: solverWindowSecs ?? this.solverWindowSecs,
+      record: keepRecord ? (record ?? this.record) : record,
     );
   }
 
@@ -127,6 +140,8 @@ class TwineTrade {
       'release_by': unixJson(releaseBy),
       'invoice_by': unixJson(invoiceBy),
       'solver': solver,
+      'solver_window_secs': solverWindowSecs,
+      'record': record,
     };
   }
 
@@ -159,8 +174,16 @@ class TwineTrade {
       releaseBy: unixSeconds(map['release_by']),
       invoiceBy: unixSeconds(map['invoice_by']),
       solver: _optional(map, 'solver'),
+      solverWindowSecs: _whole(map['solver_window_secs']),
+      record: _optional(map, 'record'),
     );
   }
+}
+
+int? _whole(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return null;
 }
 
 String? _text(Map<String, Object?> map, String key) {

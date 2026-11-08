@@ -1,6 +1,7 @@
 enum TradePhase {
   waitingInvoice('waiting-invoice', 'Waiting for the invoice'),
   waitingHold('waiting-hold', 'Waiting for the hold'),
+  awaitingRoute('awaiting-route', 'Wallet cannot receive'),
   waitingFiat('waiting-fiat', 'Waiting for fiat'),
   fiatSent('fiat-sent', 'Fiat sent'),
   releasing('releasing', 'Releasing'),
@@ -24,6 +25,7 @@ enum TradePhase {
         return true;
       case TradePhase.waitingInvoice:
       case TradePhase.waitingHold:
+      case TradePhase.awaitingRoute:
       case TradePhase.waitingFiat:
       case TradePhase.fiatSent:
       case TradePhase.releasing:
@@ -51,6 +53,7 @@ bool canEnter(TradePhase? current, TradePhase next) {
         return false;
       case TradePhase.waitingInvoice:
       case TradePhase.waitingHold:
+      case TradePhase.awaitingRoute:
       case TradePhase.waitingFiat:
       case TradePhase.fiatSent:
       case TradePhase.awaitingInvoice:
@@ -69,8 +72,12 @@ bool canEnter(TradePhase? current, TradePhase next) {
       return false;
     case TradePhase.waitingHold:
       return current == TradePhase.waitingInvoice;
+    case TradePhase.awaitingRoute:
+      return current == TradePhase.waitingHold ||
+          current == TradePhase.waitingFiat;
     case TradePhase.waitingFiat:
-      return current == TradePhase.waitingHold;
+      return current == TradePhase.waitingHold ||
+          current == TradePhase.awaitingRoute;
     case TradePhase.fiatSent:
       return current == TradePhase.waitingHold ||
           current == TradePhase.waitingFiat;
@@ -82,7 +89,8 @@ bool canEnter(TradePhase? current, TradePhase next) {
           current == TradePhase.waitingFiat ||
           current == TradePhase.disputed;
     case TradePhase.disputed:
-      return current == TradePhase.waitingFiat ||
+      return current == TradePhase.awaitingRoute ||
+          current == TradePhase.waitingFiat ||
           current == TradePhase.fiatSent ||
           current == TradePhase.awaitingInvoice;
     case TradePhase.refunding:

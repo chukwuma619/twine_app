@@ -22,6 +22,14 @@ String tradeTitle(TradePhase phase, TradeSide? side) {
         case null:
           return 'Waiting for the hold';
       }
+    case TradePhase.awaitingRoute:
+      switch (side) {
+        case TradeSide.buyer:
+          return 'Make the wallet able to receive';
+        case TradeSide.seller:
+        case null:
+          return 'Waiting for the buyer wallet';
+      }
     case TradePhase.waitingFiat:
       switch (side) {
         case TradeSide.seller:

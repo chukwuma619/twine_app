@@ -60,6 +60,32 @@ void main() {
     },
   );
 
+  test('fiat sent during a dispute keeps the dispute and starts the clock', () {
+    final book = TwineBook();
+    book.applyReply(_pay(), DateTime.utc(2026, 10, 6, 1));
+    book.applyReply(_waiting(), DateTime.utc(2026, 10, 6, 2));
+    book.applyReply(
+      const TwineEnvelope(action: 'disputed', tradeId: 'trade-1'),
+      DateTime.utc(2026, 10, 6, 3),
+    );
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'fiat-sent-ok',
+        tradeId: 'trade-1',
+        payload: {'release_by': 1700008100, 'solver_window_secs': 14400},
+      ),
+      DateTime.utc(2026, 10, 6, 4),
+    );
+
+    final trade = book.trade('trade-1');
+    expect(trade?.phase, TradePhase.disputed);
+    expect(
+      trade?.releaseBy,
+      DateTime.fromMillisecondsSinceEpoch(1700008100 * 1000, isUtc: true),
+    );
+    expect(trade?.solverWindowSecs, 14400);
+  });
+
   test('a refused release returns the trade to the phase it left', () {
     final book = TwineBook();
     book.applyReply(_pay(), DateTime.utc(2026, 10, 6, 1));
@@ -293,6 +319,67 @@ void main() {
     );
   });
 
+  test(
+    'fiat-sent stores the release grace and release-due keeps the phase',
+    () {
+      final book = TwineBook();
+      book.applyReply(
+        const TwineEnvelope(
+          action: 'pay-invoice',
+          tradeId: 'trade-1',
+          payload: {
+            'invoice': 'hold-invoice',
+            'amount_shannons': '100000000',
+            'order_id': 'order-1',
+          },
+        ),
+        DateTime.utc(2026, 10, 6, 1),
+      );
+      book.applyReply(
+        const TwineEnvelope(
+          action: 'waiting-fiat',
+          tradeId: 'trade-1',
+          payload: {
+            'fiat_amount': '2500',
+            'fiat_currency': 'NGN',
+            'reference': 'trade-1',
+            'pay_by': 1700000900,
+          },
+        ),
+        DateTime.utc(2026, 10, 6, 2),
+      );
+      book.applyReply(
+        const TwineEnvelope(
+          action: 'fiat-sent-ok',
+          tradeId: 'trade-1',
+          payload: {'release_by': 1700008100, 'solver_window_secs': 14400},
+        ),
+        DateTime.utc(2026, 10, 6, 3),
+      );
+      final sent = book.trade('trade-1');
+      expect(sent?.phase, TradePhase.fiatSent);
+      expect(
+        sent?.releaseBy,
+        DateTime.fromMillisecondsSinceEpoch(1700008100 * 1000, isUtc: true),
+      );
+      expect(sent?.solverWindowSecs, 14400);
+
+      book.applyReply(
+        const TwineEnvelope(
+          action: 'release-due',
+          tradeId: 'trade-1',
+          payload: {'release_by': 1700008100, 'solver_window_secs': 14400},
+        ),
+        DateTime.utc(2026, 10, 6, 4),
+      );
+      expect(book.trade('trade-1')?.phase, TradePhase.fiatSent);
+      expect(
+        TwineBook.fromJson(book.toJson())?.trade('trade-1')?.solverWindowSecs,
+        14400,
+      );
+    },
+  );
+
   test('a trades reply merges only the caller snapshots', () {
     final book = TwineBook();
     book.applyReply(
@@ -330,6 +417,60 @@ void main() {
     expect(
       trade?.payBy,
       DateTime.fromMillisecondsSinceEpoch(1700000900 * 1000, isUtc: true),
+    );
+  });
+
+  test('waiting-fiat can return to awaiting-route', () {
+    final book = TwineBook();
+    book.applyReply(_pay(), DateTime.utc(2026, 10, 6, 1));
+    book.applyReply(_waiting(), DateTime.utc(2026, 10, 6, 2));
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'need-route',
+        tradeId: 'trade-1',
+        payload: {'reason': 'no route to the payout invoice'},
+      ),
+      DateTime.utc(2026, 10, 6, 3),
+    );
+    final trade = book.trade('trade-1');
+    expect(trade?.phase, TradePhase.awaitingRoute);
+    expect(trade?.payoutFailure, 'no route to the payout invoice');
+  });
+
+  test('unresolved sits with the other trade records', () {
+    final book = TwineBook();
+    book.applyReply(_pay(), DateTime.utc(2026, 10, 6, 1));
+    book.applyReply(_waiting(), DateTime.utc(2026, 10, 6, 2));
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'fiat-sent-ok',
+        tradeId: 'trade-1',
+        payload: {'release_by': 1700008100, 'solver_window_secs': 14400},
+      ),
+      DateTime.utc(2026, 10, 6, 3),
+    );
+    book.applyReply(
+      const TwineEnvelope(
+        action: 'trade-record',
+        tradeId: 'trade-1',
+        payload: {'outcome': 'unresolved'},
+      ),
+      DateTime.utc(2026, 10, 6, 4),
+    );
+    final trade = book.trade('trade-1');
+    expect(trade?.phase, TradePhase.fiatSent);
+    expect(trade?.record, 'unresolved');
+    final lines = book.thread('trade-1').map((note) => note.text).toList();
+    expect(lines, contains('The buyer marked the payment as sent.'));
+    expect(
+      lines,
+      contains(
+        'Unresolved. The solver window ended with no decision. The CKB still returns to the seller.',
+      ),
+    );
+    expect(
+      TwineBook.fromJson(book.toJson())?.trade('trade-1')?.record,
+      'unresolved',
     );
   });
 }
