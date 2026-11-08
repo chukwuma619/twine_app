@@ -9,17 +9,18 @@ import 'package:twine_app/nostr/twine_nostr.dart';
 import 'push_background.dart';
 import 'push_options.dart';
 
-/// Registers this device with twine-push. Token handoff is content-free.
+/// Registers this device with twine-push. The FID handoff is content-free.
 class PushService {
   static const pushUrl = officialPushUrl;
 
+  /// Firebase Installation ID uploaded to twine-push for FCM `fid` targeting.
   static String? token;
   static TwineNostr? _nostr;
   static var _started = false;
   static void Function()? onForegroundWake;
 
-  /// Asks Firebase for a token, then registers it. No-ops in tests and on
-  /// builds that have no Firebase project files or dart-defines.
+  /// Asks Firebase for an installation id, then registers it. No-ops in tests
+  /// and on builds that have no Firebase project files or dart-defines.
   static Future<void> start(TwineNostr nostr) async {
     _nostr = nostr;
     if (!_started) {
@@ -61,12 +62,10 @@ class PushService {
         criticalAlert: false,
         provisional: true,
       );
-      // twine-push addresses an FCM registration token. register() reports an
-      // installation id, which that API does not accept.
-      // ignore: deprecated_member_use
-      token = await messaging.getToken();
-      // ignore: deprecated_member_use
-      messaging.onTokenRefresh.listen(_onToken);
+      // FCM targets a Firebase Installation ID. Listen before register() so the
+      // first onRegistered delivery is not missed.
+      messaging.onRegistered.listen(_onToken);
+      await messaging.register();
       FirebaseMessaging.onMessage.listen(_onForeground);
       FirebaseMessaging.onMessageOpenedApp.listen(_onForeground);
       if (await messaging.getInitialMessage() != null) {
