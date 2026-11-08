@@ -97,7 +97,7 @@ class TradeNote {
 String? statusLine(TradePhase phase) {
   switch (phase) {
     case TradePhase.waitingFiat:
-      return 'The CKB is locked.';
+      return 'The CKB is locked. The payout route was checked, not reserved.';
     case TradePhase.fiatSent:
       return 'The buyer marked the payment as sent.';
     case TradePhase.disputed:

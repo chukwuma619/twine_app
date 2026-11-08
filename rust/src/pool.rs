@@ -10,8 +10,8 @@ use tracing::{info, warn};
 use crate::events::{ChatDto, FiberDto, OrderDto, ReplyDto};
 use crate::keys::{keys_from_secret, require_websocket};
 use crate::kinds::{
-    FIBER_NODE_TAG, KIND_ACTION, KIND_CHAT, KIND_FIBER_NODE, KIND_ORDER, SUB_ACTIONS, SUB_CHAT,
-    SUB_FIBER, SUB_ORDERS,
+    FIBER_NODE_TAG, KIND_ACTION, KIND_CHAT, KIND_FIBER_NODE, KIND_ORDER, KIND_TRADE_RECORD,
+    SUB_ACTIONS, SUB_CHAT, SUB_FIBER, SUB_ORDERS, SUB_TRADE_RECORDS,
 };
 use crate::live_subs::LiveSubs;
 use crate::outbox::{self, Outbox};
@@ -276,6 +276,15 @@ impl Pool {
                     .identifier(FIBER_NODE_TAG),
             )
             .await?;
+        self.live
+            .replace(
+                &self.client,
+                SubscriptionId::new(SUB_TRADE_RECORDS),
+                Filter::new()
+                    .kind(Kind::from(KIND_TRADE_RECORD))
+                    .author(daemon),
+            )
+            .await?;
         Ok(())
     }
 
@@ -330,6 +339,8 @@ impl Pool {
             self.handle_order(event).await;
         } else if kind == KIND_FIBER_NODE {
             self.handle_fiber(event).await;
+        } else if kind == KIND_TRADE_RECORD {
+            self.handle_trade_record(event).await;
         } else if kind == KIND_CHAT {
             self.handle_chat(event).await;
         }
@@ -379,6 +390,58 @@ impl Pool {
         }
         let _ = self.fiber.send(FiberDto {
             content_json: event.content.clone(),
+        });
+    }
+
+    /// Public kind 31422 from the daemon, remapped to the private `trade-record` reply.
+    async fn handle_trade_record(&self, event: Event) {
+        let daemon = *self.daemon.lock().await;
+        if event.pubkey != daemon || event.verify().is_err() {
+            return;
+        }
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&event.content) else {
+            return;
+        };
+        let Some(trade_id) = value
+            .get("trade_id")
+            .and_then(|item| item.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return;
+        };
+        let Some(outcome) = value
+            .get("outcome")
+            .and_then(|item| item.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return;
+        };
+        let account = self.keys.lock().await.public_key().to_hex().to_lowercase();
+        let seller = value
+            .get("seller_nostr")
+            .and_then(|item| item.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+        let buyer = value
+            .get("buyer_nostr")
+            .and_then(|item| item.as_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if account != seller && account != buyer {
+            return;
+        }
+        let Ok(envelope_json) = serde_json::to_string(&serde_json::json!({
+            "action": "trade-record",
+            "trade_id": trade_id,
+            "payload": { "outcome": outcome },
+        })) else {
+            return;
+        };
+        let _ = self.replies.send(ReplyDto {
+            envelope_json,
+            created_at_secs: timestamp_secs(&event),
         });
     }
 

@@ -1258,10 +1258,15 @@ class _TradePageState extends State<TradePage> {
   Future<void> _dispute(TwineTrade trade) async {
     if (_busy != null || widget.market.sending) return;
     final hours = _solverWindowLabel(trade.solverWindowSecs);
+    final side = sideOn(
+      trade,
+      widget.market.accountPubkey,
+      widget.market.book.order(trade.orderId),
+    );
     final confirmed = await _confirm(
       context,
       'Open a dispute?',
-      'This sends this trade\'s chat to the solver, sealed so only they can read it. Without that record the solver cannot pay you. The solver decides within $hours. If that decision lands after the hold can no longer be paid, the CKB returns to the seller. A receipt means the seller still owes the fiat. A finding that you did not pay counts against you.',
+      _disputeConfirmBody(side: side, hours: hours),
     );
     if (!confirmed || !mounted) return;
     await _run(_Work.dispute, () => widget.market.dispute(trade.id));
@@ -2130,6 +2135,20 @@ String _solverWindowLabel(int? secs) {
   final hours = ((secs ?? 4 * 60 * 60) / 3600).round();
   if (hours == 1) return '1 hour';
   return '$hours hours';
+}
+
+String _disputeConfirmBody({required TradeSide? side, required String hours}) {
+  final seal =
+      'This sends this trade\'s chat to the solver, sealed so only they can read it.';
+  final timing =
+      'The solver decides within $hours. If that decision lands after the hold can no longer be paid, the CKB returns to the seller. A receipt means the seller still owes the fiat.';
+  switch (side) {
+    case TradeSide.seller:
+      return '$seal Without that record the solver cannot pay the buyer. $timing A finding that the buyer did not pay counts against them.';
+    case TradeSide.buyer:
+    case null:
+      return '$seal Without that record the solver cannot pay you. $timing A finding that you did not pay counts against you.';
+  }
 }
 
 String _disputeLine(TwineTrade trade) {

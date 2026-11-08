@@ -258,7 +258,10 @@ void main() {
     expect(trade?.sellerNostr, 'seller');
     expect(trade?.buyerNostr, 'buyer');
     expect(trade?.phase, TradePhase.waitingFiat);
-    expect(book.thread('trade-1').single.text, 'The CKB is locked.');
+    expect(
+      book.thread('trade-1').single.text,
+      'The CKB is locked. The payout route was checked, not reserved.',
+    );
     expect(
       TwineBook.fromJson(book.toJson())?.trade('trade-1')?.buyerNostr,
       'buyer',
