@@ -470,7 +470,7 @@ class TwineMarket extends ChangeNotifier {
       pricePerCkb: draft.pricePerCkb.trim(),
       min: draft.min.trim(),
       max: draft.max.trim(),
-      holdHours: 36,
+      holdHours: 48,
       updatedAt: DateTime.now().toUtc(),
     );
   }

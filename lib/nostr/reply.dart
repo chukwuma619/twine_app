@@ -21,6 +21,7 @@ enum DaemonReply {
   newInvoice,
   disputed,
   refunding,
+  releasing,
   settled,
   canceled,
   expired,
@@ -49,6 +50,8 @@ enum DaemonReply {
         return DaemonReply.disputed;
       case replyRefunding:
         return DaemonReply.refunding;
+      case replyReleasing:
+        return DaemonReply.releasing;
       case replySettled:
         return DaemonReply.settled;
       case replyCanceled:

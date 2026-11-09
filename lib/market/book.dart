@@ -131,6 +131,8 @@ class TwineBook {
           TradePhase.refunding,
           notice: ReasonPayload.tryParse(envelope.payload)?.reason,
         );
+      case DaemonReply.releasing:
+        _move(envelope, at, TradePhase.releasing);
       case DaemonReply.settled:
         _move(envelope, at, TradePhase.settled);
       case DaemonReply.canceled:

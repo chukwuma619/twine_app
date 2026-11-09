@@ -39,6 +39,7 @@ const replyTradeRecord = 'trade-record';
 const replyNewInvoice = 'new-invoice';
 const replyDisputed = 'disputed';
 const replyRefunding = 'refunding';
+const replyReleasing = 'releasing';
 const replySettled = 'settled';
 const replyCanceled = 'canceled';
 const replyExpired = 'expired';
