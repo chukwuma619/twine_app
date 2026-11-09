@@ -199,8 +199,8 @@ pub async fn set_push(url: Option<String>, token: Option<String>) -> Result<()> 
     let changed = previous_url != url || previous_token != token;
     if changed {
         if let (Some(prev_url), Some(prev_token)) = (previous_url, previous_token) {
-            let pubkey = pool.keys.lock().await.public_key().to_hex();
-            if let Err(error) = crate::push::unregister(&prev_url, &pubkey, &prev_token).await {
+            let keys = pool.keys.lock().await.clone();
+            if let Err(error) = crate::push::unregister(&prev_url, &keys, &prev_token).await {
                 warn!(%error, "push unregister failed");
             }
         }
@@ -327,8 +327,8 @@ impl Pool {
         let (Some(url), Some(token)) = (url, token) else {
             return Ok(());
         };
-        let pubkey = self.keys.lock().await.public_key().to_hex();
-        crate::push::register(&url, &pubkey, &token).await
+        let keys = self.keys.lock().await.clone();
+        crate::push::register(&url, &keys, &token).await
     }
 
     async fn handle_event(&self, event: Event) {
